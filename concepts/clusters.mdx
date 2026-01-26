@@ -1,0 +1,618 @@
+---
+title: "Cluster Management"
+description: "Understanding Kubernetes cluster definitions and lifecycle"
+---
+
+## Overview
+
+Hyve manages Kubernetes clusters through declarative YAML definitions stored in Git repositories. Each cluster is defined once and automatically reconciled to match the desired state in your cloud provider.
+
+<CardGroup cols={2}>
+  <Card title="Declarative" icon="file-code">
+    Define clusters as YAML files in Git
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch">
+    Full history of cluster changes
+  </Card>
+
+  <Card title="Automated" icon="robot">
+    Automatic reconciliation to cloud
+  </Card>
+
+  <Card title="Provider Agnostic" icon="cloud">
+    Currently supports Civo, designed for extensibility
+  </Card>
+</CardGroup>
+
+## Cluster Definition
+
+Clusters are defined using YAML files following a standard structure:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+```
+
+### Metadata Fields
+
+<ParamField path="metadata.name" type="string" required>
+  Unique cluster identifier
+</ParamField>
+
+<ParamField path="metadata.region" type="string" required>
+  Cloud provider region (e.g., PHX1, NYC1, LON1, FRA1)
+</ParamField>
+
+### Spec Fields
+
+<ParamField path="spec.provider" type="string" default="civo">
+  Cloud provider (currently only `civo` supported)
+</ParamField>
+
+<ParamField path="spec.nodes" type="array" required>
+  List of node sizes (e.g., `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`)
+</ParamField>
+
+## Creating Clusters
+
+### Using CLI
+
+```bash
+# Create cluster with single node
+hyve cluster add my-cluster \
+  --region PHX1 \
+  --nodes g4s.kube.medium
+
+# Create cluster with multiple nodes
+hyve cluster add production \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+```
+
+This command:
+1. Creates `clusters/my-cluster.yaml` in the active repository
+2. Commits the file to Git
+3. Automatically runs reconciliation to create the cluster in Civo
+
+### Manual YAML Creation
+
+Create the file directly in your repository:
+
+```bash
+# Navigate to repository
+cd ~/.hyve/repositories/production
+
+# Create cluster definition
+cat > clusters/production.yaml <<EOF
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+EOF
+
+# Commit to Git
+git add clusters/production.yaml
+git commit -m "Add production cluster"
+
+# Reconcile to create in cloud
+hyve reconcile
+```
+
+## Cluster Lifecycle
+
+### Creation
+
+<Steps>
+  <Step title="Define cluster">
+    Create YAML definition in Git repository
+
+    ```bash
+    hyve cluster add staging --region PHX1 --nodes g4s.kube.medium
+    ```
+  </Step>
+
+  <Step title="Commit to Git">
+    Changes are automatically committed
+
+    ```bash
+    git log -1
+    # commit: Add cluster 'staging'
+    ```
+  </Step>
+
+  <Step title="Reconcile">
+    Cluster is created in cloud provider
+
+    ```bash
+    hyve reconcile
+    # Creates cluster in Civo Cloud
+    ```
+  </Step>
+
+  <Step title="Access cluster">
+    Sync kubeconfig to access the cluster
+
+    ```bash
+    hyve kubeconfig sync
+    eval $(hyve kubeconfig use staging --eval)
+    kubectl get nodes
+    ```
+  </Step>
+</Steps>
+
+### Scaling
+
+Modify the cluster definition to add or remove nodes:
+
+<Tabs>
+  <Tab title="Scale Up">
+    ```bash
+    # Edit cluster definition
+    # Add more nodes to spec.nodes array
+
+    # Before (2 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (4 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # Commit and reconcile
+    git commit -am "Scale staging cluster to 4 nodes"
+    hyve reconcile
+    ```
+  </Tab>
+
+  <Tab title="Scale Down">
+    ```bash
+    # Edit cluster definition
+    # Remove nodes from spec.nodes array
+
+    # Before (4 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (2 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # Commit and reconcile
+    git commit -am "Scale down to 2 nodes"
+    hyve reconcile
+    ```
+  </Tab>
+
+  <Tab title="Change Size">
+    ```bash
+    # Edit cluster definition
+    # Change node sizes
+
+    # Before
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (larger nodes)
+    spec:
+      nodes:
+        - g4s.kube.large
+        - g4s.kube.large
+
+    # Commit and reconcile
+    git commit -am "Upgrade to larger nodes"
+    hyve reconcile
+    ```
+  </Tab>
+</Tabs>
+
+### Deletion
+
+Remove a cluster by deleting its definition:
+
+```bash
+# List clusters
+hyve cluster list
+
+# Remove cluster definition
+hyve cluster remove staging
+
+# Or delete manually
+rm clusters/staging.yaml
+git commit -am "Remove staging cluster"
+
+# Reconcile to delete from cloud
+hyve reconcile
+```
+
+<Warning>
+  Deleting a cluster definition and reconciling will delete the cluster from the cloud provider. This action is irreversible.
+</Warning>
+
+## Managing Clusters
+
+### List Clusters
+
+```bash
+# List all clusters in active repository
+hyve cluster list
+```
+
+Output:
+```
+Clusters in repository 'production':
+  - production (NYC1) - 3 nodes
+  - staging (PHX1) - 2 nodes
+  - development (LON1) - 1 node
+```
+
+### View Cluster Details
+
+```bash
+# View cluster YAML
+cat ~/.hyve/repositories/production/clusters/production.yaml
+```
+
+### Edit Cluster
+
+```bash
+# Edit cluster definition
+vim ~/.hyve/repositories/production/clusters/production.yaml
+
+# Commit changes
+git commit -am "Update production cluster configuration"
+
+# Apply changes
+hyve reconcile
+```
+
+## Node Sizes
+
+Common Civo node sizes:
+
+| Size | vCPUs | RAM | Storage |
+|------|-------|-----|---------|
+| `g4s.kube.small` | 1 | 2GB | 30GB |
+| `g4s.kube.medium` | 2 | 4GB | 50GB |
+| `g4s.kube.large` | 4 | 8GB | 100GB |
+| `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+
+<Tip>
+  Choose node sizes based on your workload requirements. Start small and scale up as needed.
+</Tip>
+
+## Regions
+
+Available Civo regions:
+
+| Region | Location | Code |
+|--------|----------|------|
+| Phoenix, USA | Arizona | `PHX1` |
+| New York, USA | New York | `NYC1` |
+| London, UK | United Kingdom | `LON1` |
+| Frankfurt, Germany | Germany | `FRA1` |
+
+<Note>
+  Region availability may vary. Check [Civo documentation](https://www.civo.com/docs) for current regions.
+</Note>
+
+## Reconciliation
+
+Reconciliation ensures clusters in the cloud match definitions in Git:
+
+```bash
+# Reconcile all clusters
+hyve reconcile
+
+# Reconcile specific cluster
+hyve reconcile --cluster production
+
+# Dry run (preview changes)
+hyve reconcile --dry-run
+```
+
+### What Reconciliation Does
+
+<AccordionGroup>
+  <Accordion title="Creates Missing Clusters">
+    If a cluster is defined in Git but doesn't exist in cloud:
+
+    ```bash
+    # clusters/new-cluster.yaml exists in Git
+    # but not in Civo Cloud
+
+    hyve reconcile
+    # Creates cluster in Civo Cloud
+    ```
+  </Accordion>
+
+  <Accordion title="Updates Existing Clusters">
+    If cluster configuration changed (e.g., node count):
+
+    ```bash
+    # Changed nodes from 2 to 3 in Git
+
+    hyve reconcile
+    # Scales cluster to 3 nodes
+    ```
+  </Accordion>
+
+  <Accordion title="Deletes Orphaned Clusters">
+    If cluster definition removed from Git:
+
+    ```bash
+    # clusters/old-cluster.yaml deleted from Git
+
+    hyve reconcile
+    # Deletes cluster from Civo Cloud
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Kubeconfig Management
+
+Access clusters using kubeconfig files:
+
+### Sync Kubeconfigs
+
+```bash
+# Sync all cluster kubeconfigs
+hyve kubeconfig sync
+
+# Sync specific cluster
+hyve kubeconfig sync production
+```
+
+### Use Cluster
+
+```bash
+# Switch to cluster
+eval $(hyve kubeconfig use production --eval)
+
+# Verify access
+kubectl get nodes
+```
+
+### List Kubeconfigs
+
+```bash
+# List available kubeconfigs
+hyve kubeconfig list
+```
+
+## Examples
+
+### Development Cluster
+
+```yaml
+# clusters/development.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: development
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.small
+```
+
+Small, single-node cluster for development work.
+
+### Staging Cluster
+
+```yaml
+# clusters/staging.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.medium
+    - g4s.kube.medium
+```
+
+Medium-sized cluster mirroring production setup.
+
+### Production Cluster
+
+```yaml
+# clusters/production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+```
+
+High-availability cluster with multiple large nodes.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Names">
+    Name clusters according to their purpose:
+
+    ```yaml
+    # Good
+    metadata:
+      name: prod-api-us-east
+
+    # Avoid
+    metadata:
+      name: cluster1
+    ```
+  </Accordion>
+
+  <Accordion title="2. Choose Appropriate Regions">
+    Select regions close to your users:
+
+    ```yaml
+    # US users
+    metadata:
+      region: NYC1
+
+    # EU users
+    metadata:
+      region: FRA1
+    ```
+  </Accordion>
+
+  <Accordion title="3. Start Small and Scale">
+    Begin with smaller nodes and scale as needed:
+
+    ```yaml
+    # Initial setup
+    spec:
+      nodes:
+        - g4s.kube.small
+
+    # Scale when needed
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+    ```
+  </Accordion>
+
+  <Accordion title="4. Document Changes">
+    Use clear commit messages:
+
+    ```bash
+    # Good
+    git commit -m "Scale production to 5 nodes for Black Friday traffic"
+
+    # Bad
+    git commit -m "Update cluster"
+    ```
+  </Accordion>
+
+  <Accordion title="5. Test in Development First">
+    Always test changes in development before production:
+
+    ```bash
+    # Switch to development
+    hyve git use development
+
+    # Test changes
+    hyve cluster add test --region PHX1 --nodes g4s.kube.small
+    hyve reconcile
+
+    # If successful, apply to production
+    hyve git use production
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cluster creation fails">
+    Error: `Failed to create cluster`
+
+    **Possible causes:**
+    - Invalid API token
+    - Insufficient quota
+    - Invalid region or node size
+
+    **Solution:**
+    ```bash
+    # Verify token
+    hyve config get-token civo
+
+    # Check Civo dashboard for quota
+    # Verify region and node sizes are valid
+    ```
+  </Accordion>
+
+  <Accordion title="Reconciliation errors">
+    Error: `Reconciliation failed for cluster 'production'`
+
+    **Solution:**
+    ```bash
+    # Check cluster definition
+    cat clusters/production.yaml
+
+    # Verify YAML syntax
+    # Ensure required fields are present
+
+    # Try dry run first
+    hyve reconcile --dry-run
+    ```
+  </Accordion>
+
+  <Accordion title="Cannot access cluster">
+    Error: `Unable to connect to cluster`
+
+    **Solution:**
+    ```bash
+    # Sync kubeconfig
+    hyve kubeconfig sync production
+
+    # Use cluster
+    eval $(hyve kubeconfig use production --eval)
+
+    # Verify connection
+    kubectl cluster-info
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="GitOps Principles" icon="code-branch" href="/concepts/gitops">
+    Learn about GitOps
+  </Card>
+
+  <Card title="Cluster Management Guide" icon="server" href="/guides/cluster-management">
+    Complete cluster management guide
+  </Card>
+
+  <Card title="Templates" icon="stamp" href="/concepts/templates">
+    Reusable cluster patterns
+  </Card>
+
+  <Card title="CLI Cluster" icon="terminal" href="/cli/cluster">
+    Cluster command reference
+  </Card>
+</CardGroup>

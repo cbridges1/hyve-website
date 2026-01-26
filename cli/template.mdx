@@ -1,0 +1,700 @@
+---
+title: 'hyve template'
+description: 'Complete reference for all cluster template management commands'
+---
+
+The `hyve template` command group manages reusable cluster templates that combine cluster specifications with automated workflows. Templates enable you to quickly create standardized clusters with pre-configured deployments.
+
+## Overview
+
+Templates are declarative definitions that specify cluster configuration and associated workflows to run after creation. They enable consistent, repeatable cluster deployments across environments.
+
+## Commands
+
+### hyve template create
+
+Create a new cluster template with cluster specifications and workflows.
+
+```bash
+hyve template create [template-name] [flags]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to create
+</ParamField>
+
+<ParamField path="--description" type="string">
+  Template description
+</ParamField>
+
+<ParamField path="--provider" type="string" default="civo">
+  Cloud provider (civo, aws, gcp, azure)
+</ParamField>
+
+<ParamField path="--region" type="string" default="PHX1">
+  Cloud provider region
+</ParamField>
+
+<ParamField path="--nodes" type="string" default="g4s.kube.small">
+  Node sizes (comma-separated). Each entry creates one node.
+</ParamField>
+
+<ParamField path="--cluster-type" type="string" default="k3s">
+  Kubernetes cluster type (k3s, talos)
+</ParamField>
+
+<ParamField path="--ingress" type="boolean" default="true">
+  Enable ingress controller
+</ParamField>
+
+<ParamField path="--load-balancer" type="boolean" default="true">
+  Enable load balancer for ingress
+</ParamField>
+
+<ParamField path="--workflows" type="string">
+  Workflows to run after creation (comma-separated)
+</ParamField>
+
+**Example:**
+
+```bash
+# Create basic template
+hyve template create prod-template \
+  --description "Production cluster template" \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring,deploy-app
+
+# Create minimal template
+hyve template create dev-template \
+  --region PHX1 \
+  --nodes g4s.kube.small \
+  --ingress=false
+```
+
+**Output:**
+
+```
+✅ Template 'prod-template' created successfully
+Template path: /Users/username/.hyve/repositories/production/templates/prod-template.yaml
+
+📋 Template Details:
+  Provider: civo
+  Region: NYC1
+  Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
+  Cluster Type: k3s
+  Ingress: true
+  Workflows: setup-monitoring, deploy-app
+
+💡 Execute this template with:
+  hyve template execute prod-template <cluster-name>
+```
+
+---
+
+### hyve template list
+
+Display all available cluster templates in the current repository.
+
+```bash
+hyve template list
+```
+
+**Example:**
+
+```bash
+hyve template list
+```
+
+**Output:**
+
+```
+📋 Available templates (3):
+
+  prod-template
+    Description: Production cluster template
+    Region: NYC1 | Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large | Type: k3s
+    Workflows: setup-monitoring, deploy-app
+
+  staging-template
+    Description: Staging environment template
+    Region: PHX1 | Nodes: g4s.kube.medium, g4s.kube.medium | Type: k3s
+    Workflows: setup-monitoring
+
+  dev-template
+    Region: PHX1 | Nodes: g4s.kube.small | Type: k3s
+
+💡 Execute a template with:
+  hyve template execute <template-name> <cluster-name>
+```
+
+---
+
+### hyve template show
+
+Display the full details of a cluster template.
+
+```bash
+hyve template show [template-name]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to display
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template show prod-template
+```
+
+**Output:**
+
+```
+📋 Template: prod-template
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+  description: Production cluster template
+spec:
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+    - deploy-app
+```
+
+---
+
+### hyve template delete
+
+Remove a cluster template from the repository.
+
+```bash
+hyve template delete [template-name]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to delete
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template delete old-template
+```
+
+**Output:**
+
+```
+✅ Template 'old-template' deleted successfully
+```
+
+---
+
+### hyve template execute
+
+Create a cluster from a template and run associated workflows.
+
+```bash
+hyve template execute [template-name] [cluster-name]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to execute
+</ParamField>
+
+<ParamField path="cluster-name" type="string" required>
+  Name for the new cluster
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template execute prod-template prod-cluster-01
+```
+
+**Output:**
+
+```
+🚀 Executing template 'prod-template' to create cluster 'prod-cluster-01'...
+
+📋 Template Details:
+  Provider: civo
+  Region: NYC1
+  Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
+  Cluster Type: k3s
+  Workflows: setup-monitoring, deploy-app
+
+✅ Cluster definition created: /Users/username/.hyve/repositories/production/clusters/prod-cluster-01.yaml
+
+1️⃣ Creating cluster...
+✅ Cluster 'prod-cluster-01' created successfully (ID: abc123)
+
+2️⃣ Waiting for cluster to be ready...
+Polling cluster status (this may take several minutes)...
+✅ Cluster 'prod-cluster-01' is ready
+
+3️⃣ Syncing kubeconfig...
+✅ Kubeconfig synced and stored for cluster 'prod-cluster-01'
+
+4️⃣ Executing 2 workflow(s)...
+
+[1/2] Running workflow: setup-monitoring
+[10:30:45][INFO][install-prometheus] Starting job 'install-prometheus'
+[10:31:20][INFO][install-prometheus] Job completed successfully
+[10:31:20][INFO][install-grafana] Starting job 'install-grafana'
+[10:31:45][INFO][install-grafana] Job completed successfully
+✅ Workflow 'setup-monitoring' completed successfully
+
+[2/2] Running workflow: deploy-app
+[10:32:00][INFO][pre-deployment] Starting job 'pre-deployment'
+[10:32:05][INFO][pre-deployment] Job completed successfully
+[10:32:05][INFO][deploy] Starting job 'deploy'
+[10:32:30][INFO][deploy] Job completed successfully
+✅ Workflow 'deploy-app' completed successfully
+
+✅ Template execution completed!
+
+💡 Cluster 'prod-cluster-01' is now available
+💡 Use 'hyve kubeconfig sync' to get the kubeconfig
+```
+
+**Execution Process:**
+
+1. **Create Cluster Definition**: Generate YAML file from template
+2. **Provision Cluster**: Create cluster in cloud provider
+3. **Wait for Ready**: Poll cluster status until ready
+4. **Sync Kubeconfig**: Retrieve and store kubeconfig
+5. **Execute Workflows**: Run each workflow in sequence
+
+<Info>
+  Template execution is idempotent. If the cluster already exists, it will be reused and workflows will run on the existing cluster.
+</Info>
+
+---
+
+### hyve template validate
+
+Validate the syntax and structure of a cluster template definition.
+
+```bash
+hyve template validate [template-name]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to validate
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template validate prod-template
+```
+
+**Output (Success):**
+
+```
+🔍 Validating template 'prod-template'...
+
+✅ Template is valid
+📋 Provider: civo
+📋 Region: NYC1
+📋 Nodes: 3 (g4s.kube.large, g4s.kube.large, g4s.kube.large)
+📋 Cluster Type: k3s
+📋 Ingress: true
+📋 Workflows: 2 (setup-monitoring, deploy-app)
+✨ No warnings
+```
+
+**Output (Errors):**
+
+```
+🔍 Validating template 'broken-template'...
+
+❌ Validation Failed
+
+Errors:
+  • Missing apiVersion
+  • Missing spec.region
+  • Missing spec.nodes (at least one node required)
+  • Invalid kind 'Cluster', expected 'Template'
+
+⚠️  Warnings:
+  • Region 'INVALID' may not be valid for Civo. Valid regions: PHX1, NYC1, FRA1, LON1
+  • Node size 'g4s.kube.huge' may not be valid for Civo
+  • Workflow 'missing-workflow' not found in repository
+```
+
+**Validation Checks:**
+
+- Required fields (apiVersion, kind, metadata.name)
+- Valid provider and region combinations
+- At least one node specified
+- Valid node sizes for provider
+- Cluster type is supported
+- Referenced workflows exist
+
+---
+
+## Template Definition Format
+
+Templates are defined in YAML format and stored in the `templates/` directory.
+
+### Basic Structure
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+  description: Production cluster template
+spec:
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+    - deploy-app
+```
+
+### Field Reference
+
+<ParamField path="apiVersion" type="string" required>
+  API version of the template definition (currently `v1`)
+</ParamField>
+
+<ParamField path="kind" type="string" required>
+  Resource kind (must be `Template`)
+</ParamField>
+
+<ParamField path="metadata.name" type="string" required>
+  Unique name for the template
+</ParamField>
+
+<ParamField path="metadata.description" type="string">
+  Human-readable description
+</ParamField>
+
+<ParamField path="spec.provider" type="string" required>
+  Cloud provider (civo, aws, gcp, azure)
+</ParamField>
+
+<ParamField path="spec.region" type="string" required>
+  Cloud provider region
+</ParamField>
+
+<ParamField path="spec.nodes" type="string[]" required>
+  Array of node sizes. Each entry creates one node.
+</ParamField>
+
+<ParamField path="spec.clusterType" type="string" default="k3s">
+  Kubernetes distribution type (k3s, talos)
+</ParamField>
+
+<ParamField path="spec.ingress.enabled" type="boolean" default="true">
+  Enable ingress controller installation
+</ParamField>
+
+<ParamField path="spec.ingress.loadBalancer" type="boolean" default="true">
+  Enable load balancer for ingress
+</ParamField>
+
+<ParamField path="spec.workflows" type="string[]">
+  Names of workflows to execute after cluster creation
+</ParamField>
+
+---
+
+## Common Use Cases
+
+### Production Template with Monitoring
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: production-ha
+  description: High-availability production cluster with full monitoring stack
+spec:
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.xlarge
+    - g4s.kube.xlarge
+    - g4s.kube.xlarge
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+    - install-cert-manager
+    - configure-backups
+    - deploy-app
+```
+
+**Execute:**
+
+```bash
+hyve template execute production-ha prod-us-east-01
+```
+
+---
+
+### Development Template
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: dev-minimal
+  description: Minimal development cluster
+spec:
+  provider: civo
+  region: PHX1
+  nodes:
+    - g4s.kube.small
+  clusterType: k3s
+  ingress:
+    enabled: false
+    loadBalancer: false
+  workflows:
+    - setup-dev-tools
+```
+
+**Execute:**
+
+```bash
+hyve template execute dev-minimal dev-feature-auth
+```
+
+---
+
+### Multi-Region Template Set
+
+```bash
+# Create templates for each region
+hyve template create us-east \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring
+
+hyve template create us-west \
+  --region PHX1 \
+  --nodes g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring
+
+hyve template create eu-central \
+  --region FRA1 \
+  --nodes g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring
+
+# Deploy clusters from templates
+hyve template execute us-east prod-us-east-01
+hyve template execute us-west prod-us-west-01
+hyve template execute eu-central prod-eu-central-01
+```
+
+---
+
+### Staging Environment
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: staging
+  description: Staging environment template
+spec:
+  provider: civo
+  region: PHX1
+  nodes:
+    - g4s.kube.medium
+    - g4s.kube.medium
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+    - configure-staging
+    - deploy-app
+```
+
+---
+
+## Template Best Practices
+
+### 1. Naming Conventions
+
+Use descriptive names that indicate purpose and scale:
+
+```bash
+# Good examples
+prod-ha-monitoring      # Production, high-availability with monitoring
+staging-standard        # Standard staging setup
+dev-minimal            # Minimal development cluster
+testing-ephemeral      # Temporary testing cluster
+```
+
+### 2. Workflow Organization
+
+Order workflows from infrastructure to application:
+
+```yaml
+workflows:
+  - setup-networking      # Network policies, CNI config
+  - install-cert-manager  # Certificate management
+  - setup-monitoring      # Prometheus, Grafana
+  - configure-storage     # PV, PVC, storage classes
+  - deploy-app           # Application deployment
+```
+
+### 3. Resource Sizing
+
+Match node sizes to environment purpose:
+
+```yaml
+# Development
+nodes:
+  - g4s.kube.small
+
+# Staging
+nodes:
+  - g4s.kube.medium
+  - g4s.kube.medium
+
+# Production
+nodes:
+  - g4s.kube.large
+  - g4s.kube.large
+  - g4s.kube.large
+```
+
+### 4. Template Reuse
+
+Create base templates and extend them:
+
+```bash
+# Base template
+hyve template create base-cluster \
+  --region PHX1 \
+  --nodes g4s.kube.medium \
+  --workflows setup-base
+
+# Extended for specific use case
+# Copy and modify base-cluster.yaml to add specific workflows
+```
+
+---
+
+## Template Library
+
+### Minimal Single-Node
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: minimal
+spec:
+  provider: civo
+  region: PHX1
+  nodes:
+    - g4s.kube.small
+  clusterType: k3s
+  ingress:
+    enabled: false
+```
+
+---
+
+### Standard 3-Node Cluster
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: standard-3node
+spec:
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.medium
+    - g4s.kube.medium
+    - g4s.kube.medium
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+```
+
+---
+
+### High-Availability Production
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: production-ha
+spec:
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.xlarge
+    - g4s.kube.xlarge
+    - g4s.kube.xlarge
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    - setup-monitoring
+    - install-cert-manager
+    - configure-backups
+    - setup-logging
+    - deploy-app
+```
+
+---
+
+## Storage
+
+Template definitions are stored in:
+
+```
+~/.hyve/repositories/<repository-name>/
+└── templates/
+    ├── prod-template.yaml
+    ├── staging-template.yaml
+    └── dev-template.yaml
+```
+
+---
+
+## Related Commands
+
+- [hyve cluster](/cli/cluster) - Templates create cluster definitions
+- [hyve workflow](/cli/workflow) - Templates can execute workflows
+- [hyve git](/cli/git) - Templates are stored in Git repositories

@@ -1,0 +1,411 @@
+---
+title: "Configuration"
+description: "Configure API tokens, Git credentials, and environment variables"
+---
+
+## Overview
+
+Hyve requires configuration for API tokens, Git credentials, and optional environment variables. All sensitive data is encrypted using AES-GCM and stored in `~/.hyve/credentials.db`.
+
+## Storage Location
+
+All configuration data is stored in the `~/.hyve/` directory:
+
+```
+~/.hyve/
+├── credentials.db       # Encrypted API tokens and credentials
+├── kubeconfigs.db      # Encrypted cluster kubeconfigs
+├── repositories.db     # Repository configurations (SQLite)
+├── temp/              # Temporary kubeconfig files
+└── repositories/      # Cloned repository storage
+```
+
+<Note>
+  Credentials are encrypted using AES-GCM. The encryption key is stored separately and can be backed up for portability.
+</Note>
+
+## API Token Configuration
+
+### Civo API Token
+
+<Steps>
+  <Step title="Get your API token">
+    1. Log in to [Civo Dashboard](https://dashboard.civo.com/)
+    2. Navigate to Settings → Security → API Keys
+    3. Create or copy your API token
+  </Step>
+
+  <Step title="Store the token">
+    ```bash
+    # Interactive mode (recommended)
+    hyve config set-token civo
+    # Enter token when prompted
+    ```
+
+    Or provide directly:
+
+    ```bash
+    hyve config set-token civo --token YOUR_CIVO_TOKEN
+    ```
+  </Step>
+
+  <Step title="Verify the token">
+    ```bash
+    # View stored token
+    hyve config get-token civo
+    ```
+  </Step>
+</Steps>
+
+### Environment Variable Alternative
+
+You can also use environment variables instead of storing tokens:
+
+```bash
+# Set Civo token via environment
+export CIVO_TOKEN=your-civo-token
+
+# Run commands without storing token
+hyve cluster list
+```
+
+<Warning>
+  Environment variables are not encrypted and may be visible in process listings. Use the encrypted storage for production.
+</Warning>
+
+## Git Credentials
+
+Configure Git credentials for private repositories.
+
+### Global Git Credentials
+
+Set credentials that apply to all repositories:
+
+```bash
+# Interactive mode
+hyve git credentials --username your-username --password your_token
+
+# Or provide directly
+hyve git credentials \
+  --username myusername \
+  --password ghp_xxxxxxxxxxxx
+```
+
+### Environment Variables
+
+Use environment variables for temporary access:
+
+```bash
+# GitHub Personal Access Token
+export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
+
+# Or use Git credential helpers
+git config --global credential.helper store
+```
+
+### SSH Keys
+
+For SSH-based authentication:
+
+```bash
+# Ensure SSH key is loaded
+eval $(ssh-agent)
+ssh-add ~/.ssh/id_rsa
+
+# Add repository with SSH URL
+hyve git add production --repo-url git@github.com:company/hyve-prod.git
+```
+
+## Environment Files
+
+Create a `.env` file for environment-specific configuration:
+
+```bash
+# .env file in your working directory
+CIVO_TOKEN=your-civo-token
+DOCKER_TOKEN=your-docker-token
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+DATADOG_API_KEY=your-datadog-key
+```
+
+Hyve will automatically load `.env` files when running workflows.
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    # .env
+    CIVO_TOKEN=civo_token_here
+    DOCKER_TOKEN=docker_token_here
+    GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+    ```
+  </Tab>
+
+  <Tab title=".env.production">
+    ```bash
+    # .env.production
+    CIVO_TOKEN=prod_civo_token
+    DATABASE_URL=postgres://prod-db:5432/app
+    ```
+  </Tab>
+
+  <Tab title=".env.development">
+    ```bash
+    # .env.development
+    CIVO_TOKEN=dev_civo_token
+    DATABASE_URL=postgres://dev-db:5432/app
+    ```
+  </Tab>
+</Tabs>
+
+## Managing Tokens
+
+### List All Tokens
+
+```bash
+# List all stored tokens
+hyve config list-tokens
+```
+
+Output:
+```
+Stored tokens:
+  - civo
+  - docker
+  - github
+```
+
+### View Specific Token
+
+```bash
+# View token value
+hyve config get-token civo
+```
+
+### Update Token
+
+```bash
+# Update existing token
+hyve config set-token docker --token NEW_TOKEN
+```
+
+### Remove Token
+
+```bash
+# Remove stored token
+hyve config remove-token docker
+```
+
+## Configuration Priority
+
+Hyve uses the following priority order for configuration values:
+
+<Steps>
+  <Step title="1. Command-line flags">
+    Highest priority - overrides all other sources
+
+    ```bash
+    hyve cluster add --region PHX1
+    ```
+  </Step>
+
+  <Step title="2. Environment variables">
+    Second priority - from shell or .env files
+
+    ```bash
+    export CIVO_TOKEN=token
+    ```
+  </Step>
+
+  <Step title="3. Encrypted database">
+    Third priority - from credentials.db
+
+    ```bash
+    hyve config set-token civo
+    ```
+  </Step>
+
+  <Step title="4. Default values">
+    Lowest priority - built-in defaults
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Encrypted Storage">
+    Always prefer encrypted storage over environment variables:
+
+    ```bash
+    # Good - encrypted storage
+    hyve config set-token civo
+
+    # Avoid - visible in environment
+    export CIVO_TOKEN=token
+    ```
+  </Accordion>
+
+  <Accordion title="2. Rotate Tokens Regularly">
+    Update tokens periodically for security:
+
+    ```bash
+    # Generate new token in Civo Dashboard
+    # Update in Hyve
+    hyve config set-token civo --token NEW_TOKEN
+    ```
+  </Accordion>
+
+  <Accordion title="3. Use Repository-Specific Credentials">
+    For different environments, use separate repositories with different credentials:
+
+    ```bash
+    # Production repository
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+    # Development repository
+    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    ```
+  </Accordion>
+
+  <Accordion title="4. Never Commit Secrets">
+    Add `.env` files to `.gitignore`:
+
+    ```bash
+    # .gitignore
+    .env
+    .env.*
+    !.env.example
+    ```
+  </Accordion>
+
+  <Accordion title="5. Backup Encryption Keys">
+    The encryption key is stored separately from credentials. Back it up securely:
+
+    ```bash
+    # Backup encryption key
+    cp ~/.hyve/encryption.key ~/backups/hyve-encryption.key
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Configuration Examples
+
+### Complete Initial Setup
+
+```bash
+# 1. Configure Civo API token
+hyve config set-token civo
+# Enter token when prompted
+
+# 2. Configure Git credentials
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# 3. Add repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# 4. Configure additional tokens for workflows
+hyve config set-token docker
+hyve config set-token github
+```
+
+### Multi-Environment Setup
+
+```bash
+# Production
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+hyve config set-token civo --token PROD_TOKEN
+
+# Development
+hyve git add development --repo-url https://github.com/company/hyve-dev.git
+hyve git use development
+hyve config set-token civo --token DEV_TOKEN
+```
+
+### Using .env Files
+
+```bash
+# Create .env file
+cat > .env <<EOF
+CIVO_TOKEN=your-civo-token
+DOCKER_TOKEN=your-docker-token
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+EOF
+
+# Hyve automatically loads .env when running workflows
+hyve workflow run deploy-app
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Token not found">
+    Error: `Token for provider 'civo' not found`
+
+    **Solution:**
+    ```bash
+    # Set the token
+    hyve config set-token civo --token YOUR_TOKEN
+
+    # Or use environment variable
+    export CIVO_TOKEN=YOUR_TOKEN
+    ```
+  </Accordion>
+
+  <Accordion title="Git authentication fails">
+    Error: `Failed to authenticate with Git repository`
+
+    **Solution:**
+    ```bash
+    # Update Git credentials
+    hyve git credentials --username your-username --password YOUR_PAT
+
+    # Or use SSH
+    eval $(ssh-agent)
+    ssh-add ~/.ssh/id_rsa
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied on credentials.db">
+    Error: `Permission denied: ~/.hyve/credentials.db`
+
+    **Solution:**
+    ```bash
+    # Fix permissions
+    chmod 600 ~/.hyve/credentials.db
+    ```
+  </Accordion>
+
+  <Accordion title="Encryption key not found">
+    Error: `Encryption key not found`
+
+    **Solution:**
+    ```bash
+    # Restore from backup
+    cp ~/backups/hyve-encryption.key ~/.hyve/encryption.key
+    chmod 600 ~/.hyve/encryption.key
+
+    # Or initialize new key (will lose existing credentials)
+    rm ~/.hyve/credentials.db
+    hyve config set-token civo
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Complete setup walkthrough
+  </Card>
+
+  <Card title="Git Management" icon="git" href="/guides/git-management">
+    Configure Git repositories
+  </Card>
+
+  <Card title="Workflow Requirements" icon="list-check" href="/workflows/requirements">
+    Using secrets in workflows
+  </Card>
+
+  <Card title="CLI Config" icon="terminal" href="/cli/config">
+    Config command reference
+  </Card>
+</CardGroup>

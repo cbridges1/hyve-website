@@ -1,0 +1,244 @@
+---
+title: "Installation"
+description: "Install and set up Hyve on your system"
+---
+
+## Prerequisites
+
+<CardGroup cols={3}>
+  <Card title="Go 1.21+" icon="code">
+    [Install Go](https://golang.org/doc/install)
+  </Card>
+
+  <Card title="Git" icon="git">
+    Required for repository operations
+  </Card>
+
+  <Card title="Civo Account" icon="cloud">
+    [Sign up for Civo](https://dashboard.civo.com/)
+  </Card>
+</CardGroup>
+
+## Install from Source
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd hyve
+    ```
+  </Step>
+
+  <Step title="Build the binary">
+    ```bash
+    go build -o hyve .
+    ```
+
+    This creates the `hyve` binary in the current directory.
+  </Step>
+
+  <Step title="Move to PATH (optional)">
+    ```bash
+    sudo mv hyve /usr/local/bin/
+    # Or add to your PATH
+    export PATH=$PATH:$(pwd)
+    ```
+  </Step>
+
+  <Step title="Verify installation">
+    ```bash
+    hyve --help
+    ```
+
+    You should see the Hyve help output.
+  </Step>
+</Steps>
+
+## Configuration
+
+### API Token Setup
+
+<Tabs>
+  <Tab title="Database (Recommended)">
+    Store your Civo API token securely in the encrypted database:
+
+    ```bash
+    hyve config set-token civo
+    # Enter token when prompted
+    ```
+
+    **Benefits:**
+    - AES-GCM encrypted storage
+    - Portable across machines
+    - No environment variables needed
+  </Tab>
+
+  <Tab title="Environment Variable">
+    Set the `CIVO_TOKEN` environment variable:
+
+    ```bash
+    export CIVO_TOKEN=your_civo_api_token_here
+    ```
+
+    Add to your shell profile for persistence:
+    ```bash
+    echo 'export CIVO_TOKEN=your_token' >> ~/.bashrc
+    # or ~/.zshrc for zsh
+    ```
+  </Tab>
+
+  <Tab title=".env File">
+    Create a `.env` file in the Hyve directory:
+
+    ```bash
+    echo "CIVO_TOKEN=your_civo_api_token_here" > .env
+    ```
+
+    <Warning>
+      The `.env` file should be added to `.gitignore`
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Token Priority
+
+Hyve checks for API tokens in this order:
+
+1. **Database** (encrypted storage via `hyve config set-token`)
+2. **Environment variable** (`CIVO_TOKEN`)
+3. **`.env` file**
+
+### Git Credentials (Optional)
+
+For private Git repositories:
+
+```bash
+# Store globally encrypted credentials
+hyve git credentials --username your-username --password your_token
+
+# Or use environment variable as fallback
+export HYVE_GIT_TOKEN=your_personal_access_token
+```
+
+## Directory Structure
+
+After installation, Hyve creates:
+
+```
+~/.hyve/
+├── repositories.db      # Repository configurations
+├── credentials.db       # Encrypted credentials
+├── kubeconfigs.db      # Encrypted cluster kubeconfigs
+├── temp/               # Temporary kubeconfig files
+└── repositories/       # Cloned repository storage
+    ├── production/
+    │   ├── clusters/
+    │   ├── workflows/
+    │   └── templates/
+    └── development/
+```
+
+<Note>
+  All credentials and kubeconfigs are encrypted using AES-GCM
+</Note>
+
+## Platform-Specific Notes
+
+<AccordionGroup>
+  <Accordion title="macOS">
+    On macOS, you may need to allow the binary in Security & Privacy settings:
+
+    1. Run `hyve` once
+    2. Go to System Preferences → Security & Privacy
+    3. Click "Allow Anyway" for the hyve binary
+  </Accordion>
+
+  <Accordion title="Linux">
+    Ensure you have the necessary dependencies:
+
+    ```bash
+    # Debian/Ubuntu
+    sudo apt-get install git
+
+    # RHEL/CentOS
+    sudo yum install git
+    ```
+  </Accordion>
+
+  <Accordion title="Windows">
+    Variable substitution in workflows uses:
+    - Windows: `cmd /C "command"`
+    - Use `%VAR%` for environment variables alongside `${VAR}` for workflow variables
+  </Accordion>
+</AccordionGroup>
+
+## Verifying Installation
+
+Run these commands to verify everything is set up correctly:
+
+```bash
+# Check version
+hyve --help
+
+# Verify API token
+hyve config get-token civo
+
+# List stored tokens
+hyve config list-tokens
+
+# Check Git credentials (if configured)
+hyve git credentials
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    Ensure the `hyve` binary is in your PATH:
+
+    ```bash
+    # Check if hyve is in PATH
+    which hyve
+
+    # If not, add directory to PATH
+    export PATH=$PATH:/path/to/hyve/directory
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    Make the binary executable:
+
+    ```bash
+    chmod +x hyve
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection error">
+    Ensure the `.hyve` directory has proper permissions:
+
+    ```bash
+    chmod 755 ~/.hyve
+    chmod 644 ~/.hyve/*.db
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create your first cluster
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Configure repositories and credentials
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Explore all commands
+  </Card>
+
+  <Card title="Git Management" icon="git" href="/guides/git-management">
+    Set up repositories
+  </Card>
+</CardGroup>

@@ -1,0 +1,641 @@
+---
+title: "CLI Overview"
+description: "Complete reference for Hyve command-line interface"
+---
+
+## Introduction
+
+The Hyve CLI provides a complete set of commands for managing Kubernetes clusters, Git repositories, workflows, and templates using GitOps principles.
+
+<CardGroup cols={2}>
+  <Card title="Git Management" icon="git" href="/cli/git">
+    Repository operations
+  </Card>
+
+  <Card title="Cluster Management" icon="server" href="/cli/cluster">
+    Cluster lifecycle
+  </Card>
+
+  <Card title="Workflows" icon="diagram-project" href="/cli/workflow">
+    Automated pipelines
+  </Card>
+
+  <Card title="Templates" icon="stamp" href="/cli/template">
+    Reusable patterns
+  </Card>
+
+  <Card title="Kubeconfig" icon="key" href="/cli/kubeconfig">
+    Cluster access
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/cli/config">
+    API tokens and credentials
+  </Card>
+</CardGroup>
+
+## Command Structure
+
+All Hyve commands follow a consistent structure:
+
+```bash
+hyve <command> <subcommand> [arguments] [flags]
+```
+
+### Examples
+
+```bash
+# Command with subcommand
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# Command with arguments
+hyve cluster add my-cluster --region PHX1
+
+# Command with flags
+hyve workflow run deploy-app --cluster production
+
+# Get help
+hyve --help
+hyve git --help
+hyve cluster add --help
+```
+
+## Core Commands
+
+### Git Commands
+
+Manage Git repositories for infrastructure state:
+
+```bash
+# Add repository
+hyve git add <name> --repo-url <url>
+
+# List repositories
+hyve git list
+
+# Switch active repository
+hyve git use <name>
+
+# Show current repository
+hyve git current
+
+# Configure credentials
+hyve git credentials --username <user> --password <token>
+
+# Remove repository
+hyve git remove <name>
+```
+
+<Note>
+  See [Git CLI Reference](/cli/git) for complete documentation.
+</Note>
+
+### Cluster Commands
+
+Manage Kubernetes cluster definitions:
+
+```bash
+# Add cluster
+hyve cluster add <name> --region <region> --nodes <nodes>
+
+# List clusters
+hyve cluster list
+
+# View cluster details
+hyve cluster get <name>
+
+# Remove cluster
+hyve cluster remove <name>
+
+# Reconcile clusters
+hyve reconcile [--cluster <name>]
+```
+
+<Note>
+  See [Cluster CLI Reference](/cli/cluster) for complete documentation.
+</Note>
+
+### Workflow Commands
+
+Execute and manage automated workflows:
+
+```bash
+# Run workflow
+hyve workflow run <name> [--cluster <cluster>]
+
+# List workflows
+hyve workflow list
+
+# Validate workflow
+hyve workflow validate <name>
+
+# Create workflow from template
+hyve workflow create --template <template>
+```
+
+<Note>
+  See [Workflow CLI Reference](/cli/workflow) for complete documentation.
+</Note>
+
+### Template Commands
+
+Manage cluster templates:
+
+```bash
+# Create template
+hyve template create <name> --region <region> --nodes <nodes>
+
+# Execute template
+hyve template execute <template> <cluster-name>
+
+# List templates
+hyve template list
+
+# Delete template
+hyve template delete <name>
+```
+
+<Note>
+  See [Template CLI Reference](/cli/template) for complete documentation.
+</Note>
+
+### Kubeconfig Commands
+
+Manage cluster kubeconfigs:
+
+```bash
+# Sync kubeconfigs
+hyve kubeconfig sync [cluster]
+
+# Use cluster
+eval $(hyve kubeconfig use <cluster> --eval)
+
+# List kubeconfigs
+hyve kubeconfig list
+
+# Get kubeconfig path
+hyve kubeconfig get <cluster>
+```
+
+<Note>
+  See [Kubeconfig CLI Reference](/cli/kubeconfig) for complete documentation.
+</Note>
+
+### Config Commands
+
+Manage API tokens and credentials:
+
+```bash
+# Set token
+hyve config set-token <provider> [--token <token>]
+
+# Get token
+hyve config get-token <provider>
+
+# List tokens
+hyve config list-tokens
+
+# Remove token
+hyve config remove-token <provider>
+```
+
+<Note>
+  See [Config CLI Reference](/cli/config) for complete documentation.
+</Note>
+
+## Global Flags
+
+Flags that work with all commands:
+
+<ParamField path="--help" type="boolean" default={false}>
+  Show help for command
+</ParamField>
+
+<ParamField path="--version" type="boolean" default={false}>
+  Show Hyve version
+</ParamField>
+
+<ParamField path="--verbose" type="boolean" default={false}>
+  Enable verbose output
+</ParamField>
+
+<ParamField path="--quiet" type="boolean" default={false}>
+  Suppress non-error output
+</ParamField>
+
+### Examples
+
+```bash
+# Get help
+hyve --help
+hyve git --help
+hyve cluster add --help
+
+# Show version
+hyve --version
+
+# Verbose output
+hyve cluster add my-cluster --region PHX1 --verbose
+
+# Quiet mode
+hyve reconcile --quiet
+```
+
+## Common Workflows
+
+### Initial Setup
+
+```bash
+# 1. Set API token
+hyve config set-token civo
+
+# 2. Configure Git credentials (for private repos)
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# 3. Add repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# 4. Create cluster
+hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.medium
+
+# 5. Sync kubeconfig
+hyve kubeconfig sync
+
+# 6. Use cluster
+eval $(hyve kubeconfig use my-cluster --eval)
+kubectl get nodes
+```
+
+### Multi-Environment Setup
+
+```bash
+# Production
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+hyve cluster add prod-app --region NYC1 --nodes g4s.kube.large,g4s.kube.large
+
+# Staging
+hyve git add staging --repo-url https://github.com/company/hyve-staging.git
+hyve git use staging
+hyve cluster add staging-app --region PHX1 --nodes g4s.kube.medium
+
+# Development
+hyve git add development --repo-url https://github.com/company/hyve-dev.git
+hyve git use development
+hyve cluster add dev-app --region LON1 --nodes g4s.kube.small
+```
+
+### Deploy with Workflow
+
+```bash
+# 1. Switch to production
+hyve git use production
+
+# 2. Run deployment workflow
+hyve workflow run deploy-app --cluster prod-app
+
+# 3. Verify deployment
+eval $(hyve kubeconfig use prod-app --eval)
+kubectl get pods
+```
+
+### Create from Template
+
+```bash
+# 1. Create template
+hyve template create prod-template \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring,deploy-app
+
+# 2. Execute template
+hyve template execute prod-template prod-cluster-01
+
+# 3. Access cluster
+eval $(hyve kubeconfig use prod-cluster-01 --eval)
+kubectl get nodes
+```
+
+## Output Formats
+
+### Standard Output
+
+Default human-readable output:
+
+```bash
+hyve cluster list
+```
+
+Output:
+```
+Clusters in repository 'production':
+  - production (NYC1) - 3 nodes
+  - staging (PHX1) - 2 nodes
+```
+
+### Verbose Output
+
+Detailed logging:
+
+```bash
+hyve cluster add my-cluster --region PHX1 --verbose
+```
+
+Output:
+```
+[DEBUG] Loading repository configuration
+[DEBUG] Active repository: production
+[INFO] Creating cluster definition
+[DEBUG] Writing file: clusters/my-cluster.yaml
+[INFO] Committing to Git
+[DEBUG] Running: git add clusters/my-cluster.yaml
+[DEBUG] Running: git commit -m "Add cluster 'my-cluster'"
+[INFO] Reconciling cluster
+[DEBUG] Calling Civo API
+[INFO] Cluster 'my-cluster' created successfully
+```
+
+### Quiet Output
+
+Suppress non-error messages:
+
+```bash
+hyve reconcile --quiet
+```
+
+Only shows errors, no info messages.
+
+## Exit Codes
+
+Hyve uses standard exit codes:
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | Validation error |
+| `4` | Network error |
+| `5` | Authentication error |
+
+### Examples
+
+```bash
+# Check exit code
+hyve cluster add my-cluster --region PHX1
+echo $?  # 0 = success
+
+# Handle errors in scripts
+if ! hyve workflow run deploy-app; then
+  echo "Deployment failed!"
+  exit 1
+fi
+```
+
+## Environment Variables
+
+Configure Hyve behavior with environment variables:
+
+<ParamField path="CIVO_TOKEN" type="string">
+  Civo API token (alternative to `hyve config set-token`)
+</ParamField>
+
+<ParamField path="HYVE_GIT_TOKEN" type="string">
+  Git authentication token
+</ParamField>
+
+<ParamField path="HYVE_REPO" type="string">
+  Default active repository
+</ParamField>
+
+<ParamField path="HYVE_HOME" type="string" default="~/.hyve">
+  Hyve data directory
+</ParamField>
+
+### Examples
+
+```bash
+# Set tokens via environment
+export CIVO_TOKEN=your-civo-token
+export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
+
+# Custom data directory
+export HYVE_HOME=/custom/path
+hyve git list  # Uses /custom/path/repositories.db
+
+# Default repository
+export HYVE_REPO=production
+hyve cluster list  # Uses production repository
+```
+
+## Command Aliases
+
+Common command shortcuts:
+
+```bash
+# Short forms (if supported)
+hyve c list          # hyve cluster list
+hyve w run deploy    # hyve workflow run deploy
+hyve t list          # hyve template list
+```
+
+<Note>
+  Alias support may vary. Use `hyve --help` to see available aliases.
+</Note>
+
+## Shell Completion
+
+Enable shell completion for faster typing:
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    eval "$(hyve completion bash)"
+    ```
+  </Tab>
+
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    eval "$(hyve completion zsh)"
+    ```
+  </Tab>
+
+  <Tab title="Fish">
+    ```bash
+    # Add to ~/.config/fish/config.fish
+    hyve completion fish | source
+    ```
+  </Tab>
+</Tabs>
+
+After enabling, use Tab to complete commands:
+
+```bash
+hyve c<Tab>          # Completes to 'cluster'
+hyve cluster a<Tab>  # Completes to 'add'
+hyve git u<Tab>      # Completes to 'use'
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Verbose Mode for Debugging">
+    ```bash
+    # When something doesn't work
+    hyve cluster add my-cluster --region PHX1 --verbose
+    ```
+  </Accordion>
+
+  <Accordion title="2. Check Exit Codes in Scripts">
+    ```bash
+    #!/bin/bash
+    set -e  # Exit on error
+
+    hyve git use production
+    hyve workflow run deploy-app --cluster prod-app
+
+    if [ $? -eq 0 ]; then
+      echo "Deployment successful!"
+    else
+      echo "Deployment failed!"
+      exit 1
+    fi
+    ```
+  </Accordion>
+
+  <Accordion title="3. Use Environment Variables in CI/CD">
+    ```bash
+    # In CI/CD environment
+    export CIVO_TOKEN=${{ secrets.CIVO_TOKEN }}
+    export HYVE_GIT_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+    hyve cluster add ci-cluster --region PHX1
+    ```
+  </Accordion>
+
+  <Accordion title="4. Validate Before Executing">
+    ```bash
+    # Validate workflow first
+    hyve workflow validate deploy-app
+
+    # Then run
+    hyve workflow run deploy-app
+    ```
+  </Accordion>
+
+  <Accordion title="5. Use Templates for Consistency">
+    ```bash
+    # Create template once
+    hyve template create standard \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large
+
+    # Use multiple times
+    hyve template execute standard cluster-01
+    hyve template execute standard cluster-02
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    **Error:** `hyve: command not found`
+
+    **Solution:**
+    ```bash
+    # Add Hyve to PATH
+    export PATH=$PATH:/path/to/hyve
+
+    # Or move to system location
+    sudo mv hyve /usr/local/bin/
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    **Error:** `Permission denied: /Users/user/.hyve/credentials.db`
+
+    **Solution:**
+    ```bash
+    # Fix permissions
+    chmod 600 ~/.hyve/credentials.db
+    chmod 700 ~/.hyve/
+    ```
+  </Accordion>
+
+  <Accordion title="No repository configured">
+    **Error:** `No active repository configured`
+
+    **Solution:**
+    ```bash
+    # Add a repository
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    ```
+  </Accordion>
+
+  <Accordion title="API authentication fails">
+    **Error:** `API authentication failed`
+
+    **Solution:**
+    ```bash
+    # Update token
+    hyve config set-token civo --token NEW_TOKEN
+
+    # Or use environment variable
+    export CIVO_TOKEN=your-new-token
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Command Help" icon="circle-question">
+    ```bash
+    hyve --help
+    hyve git --help
+    hyve cluster add --help
+    ```
+  </Card>
+
+  <Card title="Documentation" icon="book">
+    Visit [docs.hyve.dev](https://docs.hyve.dev) for complete documentation
+  </Card>
+
+  <Card title="GitHub Issues" icon="github">
+    Report bugs and request features on GitHub
+  </Card>
+
+  <Card title="Community" icon="discord">
+    Join our Discord for community support
+  </Card>
+</CardGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Git CLI" icon="git" href="/cli/git">
+    Git command reference
+  </Card>
+
+  <Card title="Cluster CLI" icon="server" href="/cli/cluster">
+    Cluster command reference
+  </Card>
+
+  <Card title="Workflow CLI" icon="diagram-project" href="/cli/workflow">
+    Workflow command reference
+  </Card>
+
+  <Card title="Template CLI" icon="stamp" href="/cli/template">
+    Template command reference
+  </Card>
+
+  <Card title="Kubeconfig CLI" icon="key" href="/cli/kubeconfig">
+    Kubeconfig command reference
+  </Card>
+
+  <Card title="Config CLI" icon="sliders" href="/cli/config">
+    Config command reference
+  </Card>
+</CardGroup>
