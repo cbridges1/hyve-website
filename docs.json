@@ -1,0 +1,94 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Hyve",
+  "colors": {
+    "primary": "#000000",
+    "light": "#FFFFFF",
+    "dark": "#9C9C9C"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "why-hyve",
+          "quickstart",
+          "installation",
+          "configuration"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/git-management",
+          "guides/cluster-management",
+          "guides/cicd",
+          "guides/workflow-management",
+          "guides/template-management",
+          "guides/kubeconfig-management",
+          "guides/credentials",
+          "guides/access-control",
+          "guides/argocd"
+        ]
+      },
+      {
+        "group": "CLI Reference",
+        "pages": [
+          "cli/overview",
+          "cli/git",
+          "cli/cluster",
+          "cli/workflow",
+          "cli/template",
+          "cli/kubeconfig",
+          "cli/config",
+          "cli/interactive",
+          "cli/use",
+          "cli/run"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/cbridges1/hyve",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "https://github.com/cbridges1/hyve/issues"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "/quickstart"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "cursor"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/cbridges1/hyve"
+    }
+  }
+}

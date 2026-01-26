@@ -1,0 +1,51 @@
+---
+title: 'hyve use'
+description: 'Shortcut to merge a cluster kubeconfig and set it as the active kubectl context'
+---
+
+`hyve use` is a convenience command that merges a cluster's kubeconfig into `~/.kube/config` and sets it as the active `kubectl` context. It is equivalent to `hyve kubeconfig use <cluster>`.
+
+## Usage
+
+```bash
+hyve use <cluster-name>
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name of the cluster whose kubeconfig should be activated
+</ParamField>
+
+## Examples
+
+```bash
+# Switch kubectl context to the production cluster
+hyve use production
+
+# Switch to staging
+hyve use staging
+```
+
+**Output:**
+
+```
+✅ Kubeconfig for 'production' merged into ~/.kube/config
+✅ kubectl context set to 'production'
+```
+
+After running, standard `kubectl` commands target the selected cluster without any extra flags:
+
+```bash
+hyve use production
+kubectl get nodes
+kubectl get pods -A
+```
+
+## Notes
+
+- The kubeconfig must already be synced locally. Run `hyve kubeconfig sync` first if the cluster was recently created.
+- `hyve use` is a direct alias for `hyve kubeconfig use`. Both commands are identical in behavior.
+
+## Related Commands
+
+- [hyve kubeconfig](/cli/kubeconfig) — full kubeconfig management (sync, list, get, merge)
+- [hyve run](/cli/run) — run a single command scoped to a cluster without changing the active context

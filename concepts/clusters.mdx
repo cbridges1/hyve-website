@@ -1,0 +1,1033 @@
+---
+title: "Cluster Management"
+description: "Understanding Kubernetes cluster definitions and lifecycle"
+---
+
+## Overview
+
+Hyve manages Kubernetes clusters through declarative YAML definitions stored in Git repositories. Each cluster is defined once and automatically reconciled to match the desired state in your cloud provider.
+
+<CardGroup cols={2}>
+  <Card title="Declarative" icon="file-code" color="#06b6d4">
+    Define clusters as YAML files in Git
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch" color="#8b5cf6">
+    Full history of cluster changes
+  </Card>
+
+  <Card title="Automated" icon="robot" color="#22c55e">
+    Automatic reconciliation to cloud
+  </Card>
+
+  <Card title="Multi-Cloud" icon="cloud" color="#0ea5e9">
+    Supports AWS (EKS), GCP (GKE), Azure (AKS), and Civo
+  </Card>
+</CardGroup>
+
+## Cluster Definition
+
+Clusters are defined using YAML files following a standard structure. The required fields vary by provider:
+
+<Tabs>
+  <Tab title="Civo">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: PHX1           # PHX1, NYC1, LON1, FRA1
+    spec:
+      provider: civo
+      civoOrganization: my-org   # alias registered with hyve config civo org add
+      nodes:
+        - g4s.kube.large
+        - g4s.kube.large
+        - g4s.kube.large
+      clusterType: k3s
+      workflows:
+        beforeCreate:
+          - provision-network
+        onCreate:
+          - setup-monitoring
+          - deploy-app
+        onDelete:
+          - backup-data
+        afterDelete:
+          - cleanup-network
+    ```
+  </Tab>
+
+  <Tab title="Azure (AKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: eastus
+    spec:
+      provider: azure
+      azureSubscription: prod-sub    # alias from hyve config azure subscription add
+      nodeGroups:
+        - name: system               # first pool must be System mode
+          instanceType: Standard_DS2_v2
+          count: 2
+          mode: System
+        - name: workers
+          instanceType: Standard_DS3_v2
+          count: 3
+          minCount: 1
+          maxCount: 8
+          mode: User
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreate:
+          - setup-monitoring
+          - deploy-app
+        onDelete:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="AWS (EKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-east-1
+    spec:
+      provider: aws
+      awsAccount: prod             # alias from hyve config aws account add
+      awsVpcId: vpc-0abc123456789  # VPC ID
+      awsEksRoleName: eks-role     # EKS cluster role name
+      nodeGroups:
+        - name: system
+          instanceType: t3.medium
+          count: 2
+        - name: workers
+          instanceType: m5.xlarge
+          count: 4
+          minCount: 2
+          maxCount: 10
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreate:
+          - setup-monitoring
+        onDelete:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="GCP (GKE)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-central1
+    spec:
+      provider: gcp
+      gcpProject: prod             # alias from hyve config gcp project add
+      nodeGroups:
+        - name: workers
+          instanceType: e2-standard-4
+          count: 3
+          minCount: 2
+          maxCount: 8
+      clusterType: k3s
+      workflows:
+        onCreate:
+          - setup-monitoring
+        onDelete:
+          - backup-data
+    ```
+  </Tab>
+</Tabs>
+
+### Metadata Fields
+
+<ParamField path="metadata.name" type="string" required>
+  Unique cluster identifier
+</ParamField>
+
+<ParamField path="metadata.region" type="string" required>
+  Cloud provider region (e.g., PHX1, NYC1, LON1, FRA1)
+</ParamField>
+
+### Spec Fields
+
+<ParamField path="spec.provider" type="string" default="civo">
+  Cloud provider: `civo`, `aws`, `gcp`, or `azure`
+</ParamField>
+
+<ParamField path="spec.nodes" type="array">
+  List of node sizes for simple single-pool clusters. Each entry represents one node. Use `spec.nodeGroups` instead for named multi-pool configurations with autoscaling. One of `nodes` or `nodeGroups` should be specified.
+
+  Examples by provider:
+  - **AWS**: `t3.medium`, `t3.large`, `m5.xlarge`
+  - **GCP**: `e2-medium`, `e2-standard-4`, `n1-standard-8`
+  - **Azure**: `Standard_DS2_v2`, `Standard_DS3_v2`, `Standard_DS4_v2`
+  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
+</ParamField>
+
+<ParamField path="spec.nodeGroups" type="NodeGroup[]">
+  Array of named node group definitions. Preferred over `spec.nodes` for AWS (EKS), GCP (GKE), and Azure (AKS) — providers that natively support multiple named node pools with independent scaling.
+
+  Each `NodeGroup` supports:
+  - `name` (string, required) — Unique pool name
+  - `instanceType` (string, required) — Instance/VM size
+  - `count` (int) — Desired node count
+  - `minCount` (int) — Minimum count for autoscaling
+  - `maxCount` (int) — Maximum count for autoscaling
+  - `diskSize` (int) — OS disk size in GB
+  - `labels` (map) — Kubernetes node labels
+  - `taints` (array) — Kubernetes node taints (`key`, `value`, `effect`)
+  - `mode` (string) — Azure only: `System` or `User`
+  - `spot` (bool) — Use spot/preemptible instances
+</ParamField>
+
+<ParamField path="spec.kubernetesVersion" type="string">
+  Kubernetes version to use when creating the cluster (e.g. `"1.30"`). Supported by AWS (EKS), GCP (GKE), and Azure (AKS). Omit to use the cloud provider's current default.
+</ParamField>
+
+<ParamField path="spec.awsProfile" type="string">
+  Named AWS CLI profile to use for authentication (e.g. `"prod-admin"`). When set, Hyve uses `~/.aws/config` profile credentials instead of static key/secret. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsKmsKeyAlias" type="string">
+  AWS KMS key alias for encrypting Kubernetes secrets at rest (e.g. `"alias/my-eks-key"`). When set, EKS envelope encryption is enabled on cluster creation. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsClusterSgId" type="string">
+  Pre-existing EC2 security group ID to use as the EKS cluster security group. When omitted, EKS creates one automatically. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsWorkerSgId" type="string">
+  Pre-existing EC2 security group ID to attach to worker nodes via an EC2 launch template. AWS only.
+</ParamField>
+
+<ParamField path="spec.workflows.beforeCreate" type="array">
+  List of workflow names to execute before the cluster is created. The cluster does not yet exist when these run — do not use `kubectl` or any tool that requires cluster access. Output variables printed in `HYVE_KEY=value` format are captured and can influence the cluster definition (e.g. setting `HYVE_VPC_ID`, `HYVE_CLUSTER_SG_ID`, `HYVE_WORKER_SG_ID`).
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="array">
+  List of workflow names to execute after the cluster is created and ready during reconcile. Kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="array">
+  List of workflow names to execute before cluster deletion during reconcile. Cluster is still running; kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="array">
+  List of workflow names to execute after the cluster has been deleted from the cloud provider. The cluster no longer exists — do not use `kubectl` or any tool that requires cluster access. Useful for cleaning up cloud resources provisioned by `beforeCreate` workflows.
+</ParamField>
+
+<ParamField path="spec.workflows.preReconcile" type="array">
+  List of workflow names to execute at the start of every reconcile loop for this cluster, before any create/update/delete logic. Runs regardless of whether the cluster definition changed.
+</ParamField>
+
+<ParamField path="spec.delete" type="boolean" default="false">
+  When `true`, the reconciler runs any `onDelete` workflows, deletes the cluster from the cloud provider, runs `afterDelete` workflows, and removes this YAML file from the repository. Do not delete the file directly if you need `onDelete` or `afterDelete` workflows to run — set this flag instead.
+</ParamField>
+
+<ParamField path="spec.pause" type="boolean" default="false">
+  When `true`, the reconciler skips this cluster entirely on every run. The cluster continues to run in the cloud; Hyve does not compare or modify it until `pause` is removed. Useful for maintenance windows or temporary divergence. A paused cluster is not affected by orphan cleanup or `strictDelete`.
+</ParamField>
+
+<ParamField path="spec.expiresAt" type="string">
+  An RFC 3339 timestamp (e.g. `"2026-05-01T00:00:00Z"`). When the current time passes this value the reconciler automatically treats the cluster as if `spec.delete: true` is set — running `onDelete` and `afterDelete` workflows, deleting from the cloud provider, and removing the YAML file. With an hourly scheduled reconcile, clusters are cleaned up within ~1 hour of their deadline. A paused cluster (`spec.pause: true`) is never checked for expiry.
+</ParamField>
+
+## Creating Clusters
+
+### Using CLI
+
+```bash
+# Civo — simple nodes list
+hyve cluster add my-cluster \
+  --provider civo \
+  --region PHX1 \
+  --nodes g4s.kube.medium
+
+# AWS EKS — named node groups (recommended for multi-cloud providers)
+hyve cluster add production \
+  --provider aws \
+  --region us-east-1 \
+  --account-name main \
+  --vpc-id vpc-0abc123456789 \
+  --eks-role-name eks-role \
+  --node-role-name node-role \
+  --node-group "name=system,type=t3.medium,count=2" \
+  --node-group "name=workers,type=m5.large,count=4,min=2,max=10"
+```
+
+This command:
+1. Creates `clusters/my-cluster.yaml` in the active repository
+2. Commits the file to Git
+3. Automatically runs reconciliation to create the cluster in Civo
+
+### Manual YAML Creation
+
+Create the file directly in your repository:
+
+```bash
+# Navigate to repository
+cd ~/.hyve/repositories/production
+
+# Create cluster definition
+cat > clusters/production.yaml <<EOF
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+EOF
+
+# Commit to Git
+git add clusters/production.yaml
+git commit -m "Add production cluster"
+
+# Reconcile to create in cloud
+hyve reconcile
+```
+
+## Cluster Lifecycle
+
+### Creation
+
+<Steps>
+  <Step title="Define cluster">
+    Create YAML definition in Git repository
+
+    ```bash
+    hyve cluster add staging --provider civo --region PHX1 --nodes g4s.kube.medium
+    ```
+  </Step>
+
+  <Step title="Commit to Git">
+    Changes are automatically committed
+
+    ```bash
+    git log -1
+    # commit: Add cluster 'staging'
+    ```
+  </Step>
+
+  <Step title="Reconcile">
+    Cluster is created in cloud provider
+
+    ```bash
+    hyve reconcile
+    # Creates cluster in Civo Cloud
+    ```
+  </Step>
+
+  <Step title="Access cluster">
+    Sync kubeconfig to access the cluster
+
+    ```bash
+    hyve kubeconfig sync
+    eval $(hyve kubeconfig use staging --eval)
+    kubectl get nodes
+    ```
+  </Step>
+</Steps>
+
+### Scaling
+
+Modify the cluster definition to add or remove nodes:
+
+<Tabs>
+  <Tab title="Scale Up">
+    ```bash
+    # Edit cluster definition
+    # Add more nodes to spec.nodes array
+
+    # Before (2 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (4 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # Commit and reconcile
+    git commit -am "Scale staging cluster to 4 nodes"
+    hyve reconcile
+    ```
+  </Tab>
+
+  <Tab title="Scale Down">
+    ```bash
+    # Edit cluster definition
+    # Remove nodes from spec.nodes array
+
+    # Before (4 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (2 nodes)
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # Commit and reconcile
+    git commit -am "Scale down to 2 nodes"
+    hyve reconcile
+    ```
+  </Tab>
+
+  <Tab title="Change Size">
+    ```bash
+    # Edit cluster definition
+    # Change node sizes
+
+    # Before
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+
+    # After (larger nodes)
+    spec:
+      nodes:
+        - g4s.kube.large
+        - g4s.kube.large
+
+    # Commit and reconcile
+    git commit -am "Upgrade to larger nodes"
+    hyve reconcile
+    ```
+  </Tab>
+</Tabs>
+
+### Deletion
+
+Remove a cluster by deleting its definition:
+
+```bash
+# List clusters
+hyve cluster list
+
+# Remove cluster definition
+hyve cluster remove staging
+
+# Or set spec.delete: true to trigger lifecycle workflows before deletion
+# (do not rm the file directly if you need onDelete/afterDelete workflows to run)
+```
+
+<Warning>
+  Deleting a cluster definition and reconciling will delete the cluster from the cloud provider. To ensure `onDelete` and `afterDelete` lifecycle workflows run, set `spec.delete: true` rather than removing the YAML file directly.
+</Warning>
+
+## Managing Clusters
+
+### List Clusters
+
+```bash
+# List all clusters in active repository
+hyve cluster list
+```
+
+Output:
+```
+Clusters in repository 'production':
+  - production (NYC1) - 3 nodes
+  - staging (PHX1) - 2 nodes
+  - development (LON1) - 1 node
+```
+
+### View Cluster Details
+
+```bash
+# View cluster YAML
+cat ~/.hyve/repositories/production/clusters/production.yaml
+```
+
+### Edit Cluster
+
+```bash
+# Edit cluster definition
+vim ~/.hyve/repositories/production/clusters/production.yaml
+
+# Commit changes
+git commit -am "Update production cluster configuration"
+
+# Apply changes
+hyve reconcile
+```
+
+## Node Sizes
+
+<Tabs>
+  <Tab title="AWS (EKS)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `t3.medium` | 2 | 4GB |
+    | `t3.large` | 2 | 8GB |
+    | `m5.large` | 2 | 8GB |
+    | `m5.xlarge` | 4 | 16GB |
+  </Tab>
+
+  <Tab title="GCP (GKE)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `e2-medium` | 2 | 4GB |
+    | `e2-standard-4` | 4 | 16GB |
+    | `n1-standard-4` | 4 | 15GB |
+    | `n1-standard-8` | 8 | 30GB |
+  </Tab>
+
+  <Tab title="Azure (AKS)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `Standard_DS2_v2` | 2 | 7GB |
+    | `Standard_DS3_v2` | 4 | 14GB |
+    | `Standard_DS4_v2` | 8 | 28GB |
+    | `Standard_DS5_v2` | 16 | 56GB |
+  </Tab>
+
+  <Tab title="Civo">
+    | Size | vCPUs | RAM | Storage |
+    |------|-------|-----|---------|
+    | `g4s.kube.small` | 1 | 2GB | 30GB |
+    | `g4s.kube.medium` | 2 | 4GB | 50GB |
+    | `g4s.kube.large` | 4 | 8GB | 100GB |
+    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+  </Tab>
+</Tabs>
+
+<Tip>
+  Choose node sizes based on your workload requirements. Start small and scale up as needed.
+</Tip>
+
+## Regions
+
+<Tabs>
+  <Tab title="AWS">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US East | N. Virginia | `us-east-1` |
+    | US West | Oregon | `us-west-2` |
+    | EU | Ireland | `eu-west-1` |
+    | EU | Frankfurt | `eu-central-1` |
+  </Tab>
+
+  <Tab title="GCP">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US Central | Iowa | `us-central1` |
+    | US East | S. Carolina | `us-east1` |
+    | EU | Belgium | `europe-west1` |
+    | EU | London | `europe-west2` |
+  </Tab>
+
+  <Tab title="Azure">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US East | Virginia | `eastus` |
+    | US West | California | `westus2` |
+    | EU | Netherlands | `westeurope` |
+    | EU | UK South | `uksouth` |
+  </Tab>
+
+  <Tab title="Civo">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | Phoenix, USA | Arizona | `PHX1` |
+    | New York, USA | New York | `NYC1` |
+    | London, UK | United Kingdom | `LON1` |
+    | Frankfurt, Germany | Germany | `FRA1` |
+  </Tab>
+</Tabs>
+
+<Note>
+  Region availability may vary. Check your cloud provider's documentation for current regions.
+</Note>
+
+## Lifecycle Workflows
+
+Clusters can define workflows that run automatically during reconciliation:
+
+| Hook | When It Runs | Cluster Exists? | Kubeconfig Available? |
+|------|--------------|-----------------|----------------------|
+| `beforeCreate` | Before cluster is created | No | No |
+| `onCreate` | After cluster is ready | Yes | Yes |
+| `onDelete` | Before cluster is deleted | Yes | Yes |
+| `afterDelete` | After cluster is deleted | No | No |
+| `preReconcile` | At the start of every reconcile for this cluster | Depends | Depends |
+
+### beforeCreate Workflows
+
+Run before the cluster is created. Use these to provision prerequisites like VPCs, IAM roles, or security groups. Output variables printed by steps in `HYVE_KEY=value` format are captured and applied to the cluster definition (e.g. `HYVE_VPC_ID`, `HYVE_CLUSTER_SG_ID`, `HYVE_WORKER_SG_ID`):
+
+```yaml
+spec:
+  workflows:
+    beforeCreate:
+      - provision-vpc         # Create VPC and subnets
+      - create-iam-roles      # Create EKS IAM roles
+```
+
+### onCreate Workflows
+
+Run after a cluster is created and becomes ready. Kubeconfig is available:
+
+```yaml
+spec:
+  workflows:
+    onCreate:
+      - setup-monitoring      # Install Prometheus/Grafana
+      - configure-networking  # Set up network policies
+      - deploy-app           # Deploy application
+```
+
+### onDelete Workflows
+
+Run before a cluster is deleted. Cluster is still running and kubeconfig is available:
+
+```yaml
+spec:
+  workflows:
+    onDelete:
+      - backup-data          # Final backup
+      - export-logs          # Export audit logs
+      - cleanup-dns          # Remove DNS records
+      - notify-team          # Send notifications
+```
+
+### afterDelete Workflows
+
+Run after the cluster has been deleted from the cloud provider. Use these to tear down infrastructure provisioned by `beforeCreate` workflows:
+
+```yaml
+spec:
+  workflows:
+    afterDelete:
+      - destroy-vpc          # Remove VPC and subnets
+      - delete-iam-roles     # Clean up IAM roles
+```
+
+### preReconcile Workflows
+
+Run at the start of every reconcile loop for this cluster, before any create/update/delete logic:
+
+```yaml
+spec:
+  workflows:
+    preReconcile:
+      - refresh-credentials  # Refresh short-lived tokens
+```
+
+<Tip>
+  Use `beforeCreate` and `afterDelete` together to manage cloud resources that outlive the cluster itself, such as VPCs and IAM roles.
+</Tip>
+
+## Reconciliation
+
+Reconciliation ensures clusters in the cloud match definitions in Git:
+
+```bash
+# Reconcile all clusters
+hyve reconcile
+
+# Reconcile specific cluster
+hyve reconcile --cluster production
+
+# Dry run (preview changes)
+hyve reconcile --dry-run
+```
+
+### What Reconciliation Does
+
+<AccordionGroup>
+  <Accordion title="Creates Missing Clusters">
+    If a cluster is defined in Git but doesn't exist in cloud:
+
+    ```bash
+    # clusters/new-cluster.yaml exists in Git
+    # but not in Civo Cloud
+
+    hyve reconcile
+    # Creates cluster in Civo Cloud
+    ```
+  </Accordion>
+
+  <Accordion title="Updates Existing Clusters">
+    If cluster configuration changed (e.g., node count):
+
+    ```bash
+    # Changed nodes from 2 to 3 in Git
+
+    hyve reconcile
+    # Scales cluster to 3 nodes
+    ```
+  </Accordion>
+
+  <Accordion title="Deletes Orphaned Clusters">
+    If cluster definition removed from Git:
+
+    ```bash
+    # clusters/old-cluster.yaml deleted from Git
+
+    hyve reconcile
+    # Deletes cluster from Civo Cloud
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Kubeconfig Management
+
+Access clusters using kubeconfig files:
+
+### Sync Kubeconfigs
+
+```bash
+# Sync all cluster kubeconfigs
+hyve kubeconfig sync
+
+# Sync specific cluster
+hyve kubeconfig sync production
+```
+
+### Use Cluster
+
+```bash
+# Switch to cluster
+eval $(hyve kubeconfig use production --eval)
+
+# Verify access
+kubectl get nodes
+```
+
+### List Kubeconfigs
+
+```bash
+# List available kubeconfigs
+hyve kubeconfig list
+```
+
+## Examples
+
+### Development Cluster
+
+```yaml
+# clusters/development.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: development
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.small
+```
+
+Small, single-node cluster for development work.
+
+### Staging Cluster
+
+```yaml
+# clusters/staging.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.medium
+    - g4s.kube.medium
+```
+
+Medium-sized cluster mirroring production setup.
+
+### Production Cluster (Civo)
+
+```yaml
+# clusters/production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+  workflows:
+    onCreate:
+      - setup-monitoring
+      - deploy-app
+    onDelete:
+      - backup-data
+      - notify-team
+```
+
+High-availability cluster with multiple large nodes and lifecycle workflows.
+
+### AWS EKS Cluster
+
+```yaml
+# clusters/aws-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: aws-production
+  region: us-east-1
+spec:
+  provider: aws
+  awsAccount: main-account
+  awsProfile: prod-admin         # optional: named AWS CLI profile
+  awsVpcId: vpc-0abc123456789
+  awsEksRoleName: eks-cluster-role
+  awsNodeRoleName: node-role
+  awsKmsKeyAlias: alias/eks-secrets  # optional: KMS encryption for secrets
+  kubernetesVersion: "1.30"          # optional: pin k8s version
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.large
+      count: 4
+      minCount: 2
+      maxCount: 10
+  workflows:
+    beforeCreate:
+      - provision-iam-roles
+    onCreate:
+      - setup-monitoring
+    onDelete:
+      - backup-data
+    afterDelete:
+      - cleanup-iam-roles
+```
+
+### GCP GKE Cluster
+
+```yaml
+# clusters/gcp-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: gcp-production
+  region: us-central1
+spec:
+  provider: gcp
+  gcpProject: my-project
+  nodeGroups:
+    - name: default-pool
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 2
+      maxCount: 8
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+### Azure AKS Cluster
+
+```yaml
+# clusters/azure-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: azure-production
+  region: eastus
+spec:
+  provider: azure
+  azureSubscription: my-subscription
+  nodeGroups:
+    - name: system
+      instanceType: Standard_DS2_v2
+      count: 2
+      mode: System
+    - name: workers
+      instanceType: Standard_DS3_v2
+      count: 3
+      minCount: 1
+      maxCount: 8
+      mode: User
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Names">
+    Name clusters according to their purpose:
+
+    ```yaml
+    # Good
+    metadata:
+      name: prod-api-us-east
+
+    # Avoid
+    metadata:
+      name: cluster1
+    ```
+  </Accordion>
+
+  <Accordion title="2. Choose Appropriate Regions">
+    Select regions close to your users:
+
+    ```yaml
+    # US users
+    metadata:
+      region: NYC1
+
+    # EU users
+    metadata:
+      region: FRA1
+    ```
+  </Accordion>
+
+  <Accordion title="3. Start Small and Scale">
+    Begin with smaller nodes and scale as needed:
+
+    ```yaml
+    # Initial setup
+    spec:
+      nodes:
+        - g4s.kube.small
+
+    # Scale when needed
+    spec:
+      nodes:
+        - g4s.kube.medium
+        - g4s.kube.medium
+    ```
+  </Accordion>
+
+  <Accordion title="4. Document Changes">
+    Use clear commit messages:
+
+    ```bash
+    # Good
+    git commit -m "Scale production to 5 nodes for Black Friday traffic"
+
+    # Bad
+    git commit -m "Update cluster"
+    ```
+  </Accordion>
+
+  <Accordion title="5. Test in Development First">
+    Always test changes in development before production:
+
+    ```bash
+    # Switch to development
+    hyve git use development
+
+    # Test changes
+    hyve cluster add test --provider civo --region PHX1 --nodes g4s.kube.small
+    hyve reconcile
+
+    # If successful, apply to production
+    hyve git use production
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cluster creation fails">
+    Error: `Failed to create cluster`
+
+    **Possible causes:**
+    - Invalid API token
+    - Insufficient quota
+    - Invalid region or node size
+
+    **Solution:**
+    ```bash
+    # Verify Civo CLI authentication
+    civo apikey list
+
+    # Check Civo dashboard for quota
+    # Verify region and node sizes are valid
+    ```
+  </Accordion>
+
+  <Accordion title="Reconciliation errors">
+    Error: `Reconciliation failed for cluster 'production'`
+
+    **Solution:**
+    ```bash
+    # Check cluster definition
+    cat clusters/production.yaml
+
+    # Verify YAML syntax
+    # Ensure required fields are present
+
+    # Try dry run first
+    hyve reconcile --dry-run
+    ```
+  </Accordion>
+
+  <Accordion title="Cannot access cluster">
+    Error: `Unable to connect to cluster`
+
+    **Solution:**
+    ```bash
+    # Sync kubeconfig
+    hyve kubeconfig sync production
+
+    # Use cluster
+    eval $(hyve kubeconfig use production --eval)
+
+    # Verify connection
+    kubectl cluster-info
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="GitOps Principles" icon="code-branch" href="/concepts/gitops" color="#8b5cf6">
+    Learn about GitOps
+  </Card>
+
+  <Card title="Cluster Management Guide" icon="server" href="/guides/cluster-management" color="#3b82f6">
+    Complete cluster management guide
+  </Card>
+
+  <Card title="Templates" icon="stamp" href="/concepts/templates" color="#06b6d4">
+    Reusable cluster patterns
+  </Card>
+
+  <Card title="CLI Cluster" icon="terminal" href="/cli/cluster" color="#10b981">
+    Cluster command reference
+  </Card>
+</CardGroup>

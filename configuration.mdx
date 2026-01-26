@@ -1,0 +1,622 @@
+---
+title: "Configuration"
+description: "Configure API tokens, Git credentials, and environment variables"
+---
+
+## Overview
+
+Hyve requires configuration for cloud provider authentication, Git credentials, and provider-specific settings. The authentication model varies by provider:
+
+- **Civo**: Token read from `~/.civo.json` (Civo CLI) or `CIVO_TOKEN` environment variable — no credentials stored in Hyve
+- **AWS, GCP, Azure**: Native CLI authentication (no credentials stored in Hyve)
+
+<Tip>
+  **Prefer menus over flags?** Run `hyve interactive` and select **config** from the root menu. All provider setup — tokens, org aliases, accounts, and subscriptions — is available through guided prompts.
+</Tip>
+
+## Storage Location
+
+All configuration data is stored in the `~/.hyve/` directory:
+
+```
+~/.hyve/
+├── credentials.db      # Encrypted Git credentials (AES-GCM)
+├── kubeconfigs.db     # Encrypted cluster kubeconfigs
+├── repositories.db    # Repository configurations (SQLite)
+├── temp/              # Temporary kubeconfig files
+└── repositories/      # Cloned repository storage
+    └── <repo-name>/
+        └── provider-configs/  # Provider-specific configuration
+            ├── aws.yaml       # All AWS accounts
+            ├── gcp.yaml       # All GCP projects
+            ├── azure.yaml     # All Azure subscriptions
+            └── civo.yaml      # All Civo organizations
+```
+
+<Note>
+  All cloud provider credentials (AWS, GCP, Azure, Civo) use their native credential systems — none are stored in Hyve.
+</Note>
+
+## Repository Configuration
+
+Each Hyve state repository can contain an optional `hyve.yaml` file at its root that controls repository-level behaviour such as the reconciliation mode.
+
+### hyve.yaml
+
+```yaml
+# hyve.yaml — placed in the root of your Hyve state repository
+reconcile:
+  mode: local          # "local" (default) or "cicd"
+  strictDelete: false  # set to true to delete unmanaged cloud clusters
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reconcile.mode` | string | `local` | `local` — Hyve provisions clusters directly from the machine running `hyve reconcile`. `cicd` — Hyve validates and pushes desired state to Git; a CI/CD pipeline calls `hyve reconcile --path .` to provision. |
+| `reconcile.strictDelete` | bool | `false` | When `true`, any cloud cluster with no matching YAML definition in your `clusters/` directory is deleted during reconciliation. When `false`, only clusters whose names begin with a managed prefix (`hyve-`, `civo-deploy-`) are eligible for cleanup. |
+
+<Info>
+  If `hyve.yaml` is absent or a field is not set, Hyve uses the defaults shown above.
+</Info>
+
+<Warning>
+  Enable `strictDelete` only after ensuring your state repository contains definitions for every cluster you want to keep. Any cloud cluster without a matching YAML file will be permanently deleted.
+</Warning>
+
+See the [CI/CD Workflow Guide](/guides/cicd) for a complete walkthrough of CI/CD mode with GitHub Actions.
+
+## Cloud Provider Authentication
+
+Hyve uses different authentication methods depending on the cloud provider.
+
+<CardGroup cols={2}>
+  <Card title="AWS" icon="aws" color="#f97316">
+    Native AWS CLI authentication
+
+    **Setup:** `aws configure`
+  </Card>
+
+  <Card title="Civo" icon="key" color="#3b82f6">
+    Civo CLI (`~/.civo.json`) or `CIVO_TOKEN` env var
+
+    **Setup:** `civo apikey save <name> <token> && civo apikey use <name>`
+  </Card>
+
+  <Card title="GCP" icon="google" color="#22c55e">
+    Application Default Credentials
+
+    **Setup:** `gcloud auth application-default login`
+  </Card>
+
+  <Card title="Azure" icon="microsoft" color="#8b5cf6">
+    Azure CLI authentication
+
+    **Setup:** `az login`
+  </Card>
+</CardGroup>
+
+### Why Native CLI Authentication?
+
+For AWS, GCP, and Azure, Hyve uses native cloud CLI authentication instead of storing credentials. This provides:
+
+- **Security**: Credentials managed by official cloud CLIs with their security features
+- **Consistency**: Same credentials used by other tools (Terraform, kubectl, etc.)
+- **SSO Support**: Works with corporate SSO, MFA, and identity federation
+- **No Duplication**: No need to manage credentials in multiple places
+
+Civo uses the same pattern — Hyve reads the active token from `~/.civo.json`, written by the Civo CLI. No tokens are stored in Hyve.
+
+### Civo API Token
+
+<Steps>
+  <Step title="Get your API token">
+    1. Log in to [Civo Dashboard](https://dashboard.civo.com/)
+    2. Navigate to Settings → Security → API Keys
+    3. Create or copy your API token
+  </Step>
+
+  <Step title="Authenticate with the Civo CLI">
+    ```bash
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+    ```
+
+    This writes `~/.civo.json`. Hyve reads the active key automatically.
+  </Step>
+
+  <Step title="Verify">
+    ```bash
+    # List Civo Kubernetes clusters to confirm auth works
+    civo kubernetes list
+    ```
+
+    For CI/CD, set `CIVO_TOKEN` as a pipeline secret instead of using `~/.civo.json`.
+  </Step>
+</Steps>
+
+### AWS Credentials
+
+AWS uses native CLI authentication. Hyve does not store AWS credentials.
+
+<Steps>
+  <Step title="Configure AWS CLI">
+    ```bash
+    # Configure default profile
+    aws configure
+
+    # Or configure named profile
+    aws configure --profile production
+    ```
+  </Step>
+
+  <Step title="Alternative: Environment Variables">
+    ```bash
+    export AWS_ACCESS_KEY_ID=your-access-key
+    export AWS_SECRET_ACCESS_KEY=your-secret-key
+    export AWS_REGION=us-east-1
+    ```
+  </Step>
+
+  <Step title="Verify authentication">
+    ```bash
+    aws sts get-caller-identity
+    ```
+  </Step>
+</Steps>
+
+### GCP Credentials
+
+GCP uses Application Default Credentials. Hyve does not store GCP credentials.
+
+<Steps>
+  <Step title="Authenticate with gcloud">
+    ```bash
+    # For user authentication
+    gcloud auth application-default login
+
+    # For service account (CI/CD)
+    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+    ```
+  </Step>
+
+  <Step title="Configure GCP projects in Hyve">
+    GCP projects are configured with aliases in your repository:
+
+    ```bash
+    # Add project with alias
+    hyve config gcp project add --name dev --id my-dev-project-123
+    hyve config gcp project add --name prod --id my-prod-project-456
+
+    # Use alias when creating clusters
+    hyve cluster add my-cluster --provider gcp --project-name dev --region us-central1
+    ```
+  </Step>
+</Steps>
+
+### Azure Credentials
+
+Azure uses Azure CLI authentication. Hyve does not store Azure credentials.
+
+<Steps>
+  <Step title="Authenticate with Azure CLI">
+    ```bash
+    az login
+    ```
+  </Step>
+
+  <Step title="Set subscription (if multiple)">
+    ```bash
+    az account set --subscription "Your Subscription Name"
+    ```
+  </Step>
+</Steps>
+
+### Environment Variable Alternative
+
+You can supply credentials via environment variables instead of using the CLI auth tools. This is the primary method for CI/CD pipelines.
+
+```bash
+# Civo (alternative to ~/.civo.json from Civo CLI)
+export CIVO_TOKEN=your-civo-token
+
+# AWS (alternative to aws configure)
+export AWS_ACCESS_KEY_ID=your-key-id
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+
+# GCP (alternative to gcloud auth application-default login)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# Azure (alternative to az login)
+export AZURE_TENANT_ID=your-tenant-id
+export AZURE_CLIENT_ID=your-client-id
+export AZURE_CLIENT_SECRET=your-client-secret
+```
+
+For CI/CD pipelines managing **multiple cloud accounts**, Hyve also supports named account environment variables following the pattern `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}`. See the [CI/CD guide](/guides/cicd#named-account-secrets) for details.
+
+<Warning>
+  Environment variables are not encrypted. For local development, use the native CLI auth tools (`civo apikey`, `aws configure`, `gcloud auth`, `az login`). For CI/CD, store credentials as pipeline secrets (e.g., GitHub Actions secrets).
+</Warning>
+
+## Provider Configuration
+
+Provider-specific configurations (like GCP project IDs and AWS account IDs) are stored in your Git repository under `provider-configs/`. Each account, project, subscription, or organization has its own YAML file under a per-provider subdirectory. This allows team sharing and version control.
+
+### GCP Configuration
+
+```bash
+# Add GCP projects with aliases
+hyve config gcp project add --name dev --id my-dev-project-123
+hyve config gcp project add --name prod --id my-prod-project-456
+
+# List configured projects
+hyve config gcp project list
+
+# Get project ID by alias
+hyve config gcp project get dev
+
+# Remove a project
+hyve config gcp project remove dev
+
+# Use alias when creating clusters
+hyve cluster add my-cluster --provider gcp --project-name dev --region us-central1
+```
+
+### AWS Configuration
+
+```bash
+# Account management (with aliases)
+hyve config aws account add --name prod --id 123456789012
+hyve config aws account list
+hyve config aws account get prod
+hyve config aws account remove prod
+```
+
+### Azure Configuration
+
+```bash
+# Add subscription aliases
+hyve config azure subscription add --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+hyve config azure subscription list
+hyve config azure subscription remove prod-sub
+```
+
+### Provider Config Files
+
+All accounts, projects, subscriptions, and organizations for each provider are stored in a single flat file per provider:
+
+**provider-configs/gcp.yaml:**
+```yaml
+projects:
+  - name: dev
+    project_id: my-dev-project-123
+  - name: prod
+    project_id: my-prod-project-456
+```
+
+**provider-configs/aws.yaml:**
+```yaml
+accounts:
+  - name: prod
+    account_id: "123456789012"
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+  - name: dev
+    account_id: "987654321098"
+    access_key_id: ${DEV_AWS_ACCESS_KEY_ID}
+    secret_access_key: ${DEV_AWS_SECRET_ACCESS_KEY}
+```
+
+**provider-configs/azure.yaml:**
+```yaml
+subscriptions:
+  - name: prod-sub
+    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    tenant_id: ${AZURE_TENANT_ID}
+    client_id: ${AZURE_CLIENT_ID}
+    client_secret: ${AZURE_CLIENT_SECRET}
+```
+
+## Git Credentials
+
+Configure Git credentials for private repositories.
+
+### Global Git Credentials
+
+Set credentials that apply to all repositories:
+
+```bash
+# Interactive mode
+hyve git credentials --username your-username --password your_token
+
+# Or provide directly
+hyve git credentials \
+  --username myusername \
+  --password ghp_xxxxxxxxxxxx
+```
+
+### Environment Variables
+
+Use environment variables for temporary access:
+
+```bash
+# GitHub Personal Access Token
+export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
+
+# Or use Git credential helpers
+git config --global credential.helper store
+```
+
+### SSH Keys
+
+For SSH-based authentication:
+
+```bash
+# Ensure SSH key is loaded
+eval $(ssh-agent)
+ssh-add ~/.ssh/id_rsa
+
+# Add repository with SSH URL
+hyve git add production --repo-url git@github.com:company/hyve-prod.git
+```
+
+## Environment Files
+
+Create a `.env` file for environment-specific configuration:
+
+```bash
+# .env file in your working directory
+CIVO_TOKEN=your-civo-token
+DOCKER_TOKEN=your-docker-token
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+DATADOG_API_KEY=your-datadog-key
+```
+
+Hyve will automatically load `.env` files when running workflows.
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    # .env
+    CIVO_TOKEN=civo_token_here
+    DOCKER_TOKEN=docker_token_here
+    GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+    ```
+  </Tab>
+
+  <Tab title=".env.production">
+    ```bash
+    # .env.production
+    CIVO_TOKEN=prod_civo_token
+    DATABASE_URL=postgres://prod-db:5432/app
+    ```
+  </Tab>
+
+  <Tab title=".env.development">
+    ```bash
+    # .env.development
+    CIVO_TOKEN=dev_civo_token
+    DATABASE_URL=postgres://dev-db:5432/app
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration Priority
+
+Hyve uses the following priority order for configuration values:
+
+<Steps>
+  <Step title="1. Command-line flags">
+    Highest priority - overrides all other sources
+
+    ```bash
+    hyve cluster add --region PHX1
+    ```
+  </Step>
+
+  <Step title="2. Environment variables">
+    Second priority - from shell or .env files
+
+    ```bash
+    export CIVO_TOKEN=token
+    ```
+  </Step>
+
+  <Step title="3. Provider credential files">
+    Third priority - native CLI credential stores (`~/.civo.json`, `~/.aws/`, GCP ADC, `az login` session)
+  </Step>
+
+  <Step title="4. Default values">
+    Lowest priority - built-in defaults
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use the Civo CLI for local dev">
+    Use the Civo CLI to store tokens in `~/.civo.json`. Hyve reads the active token automatically — no need to set environment variables in your shell profile.
+
+    ```bash
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+    ```
+  </Accordion>
+
+  <Accordion title="2. Rotate Tokens Regularly">
+    Update tokens periodically for security:
+
+    ```bash
+    # Generate new token in Civo Dashboard
+    # Update via Civo CLI
+    civo apikey save my-token NEW_TOKEN
+    civo apikey use my-token
+    ```
+  </Accordion>
+
+  <Accordion title="3. Use Repository-Specific Credentials">
+    For different environments, use separate repositories with different credentials:
+
+    ```bash
+    # Production repository
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+    # Development repository
+    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    ```
+  </Accordion>
+
+  <Accordion title="4. Never Commit Secrets">
+    Add `.env` files to `.gitignore`:
+
+    ```bash
+    # .gitignore
+    .env
+    .env.*
+    !.env.example
+    ```
+  </Accordion>
+
+  <Accordion title="5. Protect shell history">
+    ```bash
+    # Clear a specific history entry if a token was exposed
+    history -d <line_number>
+
+    # Or clear all history
+    history -c
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Configuration Examples
+
+### Complete Initial Setup
+
+```bash
+# 1. Configure cloud provider authentication
+
+# For Civo (uses Civo CLI — reads ~/.civo.json)
+civo apikey save my-token YOUR_CIVO_TOKEN
+civo apikey use my-token
+
+# For AWS (uses native CLI)
+aws configure
+
+# For GCP (uses Application Default Credentials)
+gcloud auth application-default login
+
+# For Azure (uses Azure CLI)
+az login
+
+# 2. Configure Git credentials
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# 3. Add repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# 4. Configure provider settings (stored in repository)
+hyve config gcp project add --name dev --id my-gcp-project-id
+hyve config aws account add --name prod --id 123456789012
+```
+
+### AWS Cluster Creation
+
+```bash
+# Register account alias, then create cluster
+hyve config aws account add --name prod --id 123456789012
+
+# Provide VPC ID and EKS role name directly (or select via TUI live lookup):
+hyve cluster add my-eks-cluster \
+  --provider aws \
+  --account-name prod \
+  --eks-role-name eks-cluster-role \
+  --vpc-id vpc-0abc123456789 \
+  --region us-east-1
+```
+
+### Using .env Files
+
+```bash
+# Create .env file
+cat > .env <<EOF
+CIVO_TOKEN=your-civo-token
+DOCKER_TOKEN=your-docker-token
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+EOF
+
+# Hyve automatically loads .env when running workflows
+hyve workflow run deploy-app
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Civo token not found">
+    Hyve reads the active token from `~/.civo.json`. If this file is missing or has no active key, authentication will fail.
+
+    ```bash
+    # Authenticate with the Civo CLI
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+
+    # Or use environment variable
+    export CIVO_TOKEN=YOUR_TOKEN
+    ```
+  </Accordion>
+
+  <Accordion title="Git authentication fails">
+    Error: `Failed to authenticate with Git repository`
+
+    **Solution:**
+    ```bash
+    # Update Git credentials
+    hyve git credentials --username your-username --password YOUR_PAT
+
+    # Or use SSH
+    eval $(ssh-agent)
+    ssh-add ~/.ssh/id_rsa
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied on credentials.db">
+    Error: `Permission denied: ~/.hyve/credentials.db`
+
+    **Solution:**
+    ```bash
+    # Fix permissions
+    chmod 600 ~/.hyve/credentials.db
+    ```
+  </Accordion>
+
+  <Accordion title="Encryption key not found">
+    Error: `Encryption key not found`
+
+    The credentials database stores only Git credentials. If the key is lost, recreate it:
+
+    ```bash
+    # Or initialize new key (will lose existing Git credentials — re-enter them)
+    rm ~/.hyve/credentials.db
+    hyve git credentials --username user --password token
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart" color="#3b82f6">
+    Complete setup walkthrough
+  </Card>
+
+  <Card title="Git Management" icon="git" href="/guides/git-management" color="#8b5cf6">
+    Configure Git repositories
+  </Card>
+
+  <Card title="Workflow Requirements" icon="list-check" href="/workflows/requirements" color="#22c55e">
+    Using secrets in workflows
+  </Card>
+
+  <Card title="CLI Config" icon="terminal" href="/cli/config" color="#10b981">
+    Config command reference
+  </Card>
+</CardGroup>

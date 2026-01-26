@@ -1,0 +1,320 @@
+---
+title: "CLI Overview"
+description: "Complete reference for the Hyve command-line interface"
+---
+
+The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templates using GitOps principles.
+
+<CardGroup cols={3}>
+  <Card title="cluster" icon="server" href="/cli/cluster" color="#3b82f6">
+    Cluster lifecycle
+  </Card>
+  <Card title="git" icon="git" href="/cli/git" color="#8b5cf6">
+    Repository operations
+  </Card>
+  <Card title="config" icon="sliders" href="/cli/config" color="#f97316">
+    Tokens & provider config
+  </Card>
+  <Card title="workflow" icon="diagram-project" href="/cli/workflow" color="#22c55e">
+    Automated pipelines
+  </Card>
+  <Card title="template" icon="stamp" href="/cli/template" color="#06b6d4">
+    Reusable cluster patterns
+  </Card>
+  <Card title="kubeconfig" icon="key" href="/cli/kubeconfig" color="#f43f5e">
+    Cluster access
+  </Card>
+  <Card title="interactive" icon="terminal" href="/cli/interactive" color="#eab308">
+    Guided TUI
+  </Card>
+  <Card title="use" icon="circle-play" href="/cli/use" color="#10b981">
+    Switch kubectl context
+  </Card>
+  <Card title="run" icon="bolt" href="/cli/run" color="#8b5cf6">
+    Scoped command execution
+  </Card>
+</CardGroup>
+
+## Command Structure
+
+```bash
+hyve <command> <subcommand> [arguments] [flags]
+
+hyve --help
+hyve cluster --help
+hyve cluster add --help
+```
+
+## Global Flags
+
+These flags are accepted by every command:
+
+| Flag | Description |
+|------|-------------|
+| `--home <dir>` | Override the Hyve data directory (default: `~/.hyve`). Also configurable via the `HYVE_HOME` environment variable. |
+
+```bash
+# Use a custom data directory for this invocation
+hyve --home /tmp/hyve-test reconcile
+
+# Or set it persistently via environment variable
+export HYVE_HOME=/tmp/hyve-test
+hyve reconcile
+```
+
+---
+
+## Commands
+
+### cluster
+
+```bash
+hyve cluster add <name> --provider <provider> --region <region> --nodes <sizes>
+hyve cluster modify <name> [--region] [--nodes] [--provider]
+hyve cluster delete <name> [--force] [--force-cloud]
+hyve cluster force-delete <name> [--region <region>]
+hyve cluster list
+```
+
+[Full reference →](/cli/cluster)
+
+### reconcile
+
+```bash
+# Local mode — provisions clusters from this machine
+hyve reconcile
+
+# CI/CD pipeline mode — uses a checked-out repo path directly
+hyve reconcile --path .
+hyve reconcile --path /path/to/repo
+```
+
+Reconciliation mode and strict delete are controlled by `hyve.yaml` in your state repository. See the [CI/CD guide](/guides/cicd).
+
+### git
+
+```bash
+hyve git add <name> --repo-url <url>
+hyve git list
+hyve git use <name>
+hyve git current
+hyve git credentials --username <user> --password <token>
+hyve git remove <name>
+```
+
+[Full reference →](/cli/git)
+
+### config
+
+```bash
+# Civo organization aliases (stored in repository)
+hyve config civo org add --name/-n <alias> --id/-i <org-id>
+hyve config civo org list
+
+# Provider config (stored in repository)
+hyve config gcp project add --name/-n <alias> --id/-i <project-id>
+hyve config aws account add --name/-n <alias> --id/-i <account-id>
+hyve config azure subscription add --name/-n <alias> --id/-i <subscription-id>
+```
+
+[Full reference →](/cli/config)
+
+### workflow
+
+```bash
+hyve workflow run <name> [--cluster <cluster>]
+hyve workflow list
+hyve workflow validate <name>
+```
+
+[Full reference →](/cli/workflow)
+
+### template
+
+```bash
+hyve template create <name> --region <region> --nodes <sizes>
+hyve template execute <template> <cluster-name>
+hyve template list
+hyve template delete <name>
+```
+
+[Full reference →](/cli/template)
+
+### kubeconfig
+
+```bash
+hyve kubeconfig sync [cluster]
+hyve kubeconfig list
+hyve kubeconfig get <cluster>
+eval $(hyve kubeconfig use <cluster> --eval)
+```
+
+[Full reference →](/cli/kubeconfig)
+
+### interactive
+
+```bash
+hyve interactive
+hyve tui          # alias
+```
+
+Launches a full-screen guided TUI. Navigates all command groups — cluster, git, config, workflow, template, kubeconfig — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+
+[Full reference →](/cli/interactive)
+
+### use
+
+```bash
+hyve use <cluster-name>
+```
+
+Shortcut that merges a cluster's kubeconfig into `~/.kube/config` and sets it as the active `kubectl` context. Equivalent to `hyve kubeconfig use`.
+
+[Full reference →](/cli/use)
+
+### run
+
+```bash
+hyve run --cluster <cluster> <command> [args...]
+hyve run --cluster <cluster> --string "<command string>"
+```
+
+Execute any command with `KUBECONFIG` scoped to a specific cluster — without permanently changing the active context.
+
+[Full reference →](/cli/run)
+
+---
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (SDK default chain fallback) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (ADC fallback) |
+| `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Azure service principal (SDK fallback) |
+| `AZURE_SUBSCRIPTION_ID` / `AZURE_RESOURCE_GROUP` | Azure subscription/resource group (fallback) |
+| `HYVE_GIT_TOKEN` | Git authentication token |
+| `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
+
+For CI/CD pipelines, credentials are configured directly in `provider-configs/*.yaml` using `${ENV_VAR}` references — you choose the variable names. See the [CI/CD guide](/guides/cicd#provider-config-secret-mapping).
+
+---
+
+## Common Workflows
+
+### Initial setup
+
+```bash
+# 1. Authenticate with Civo CLI (for local dev)
+civo apikey save my-token YOUR_CIVO_TOKEN && civo apikey use my-token
+
+# 2. Configure Git credentials
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# 3. Add state repository
+hyve git add production --repo-url https://github.com/company/hyve-state.git
+
+# 4. Create a cluster
+hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
+
+# 5. Sync kubeconfig and connect
+hyve kubeconfig sync
+hyve use my-cluster
+kubectl get nodes
+
+# Run a one-off command without changing active context
+hyve run --cluster my-cluster kubectl get pods -A
+```
+
+### CI/CD pipeline
+
+```yaml
+# hyve.yaml in state repository root
+reconcile:
+  mode: cicd
+  strictDelete: true
+```
+
+```bash
+# Engineer pushes desired state (no cloud credentials needed locally)
+hyve reconcile
+
+# Pipeline step — provisions the actual cloud resources
+hyve reconcile --path .
+```
+
+### Delete a cluster
+
+```bash
+# Default — removes YAML, commits, reconciles (CI/CD pipeline handles cloud deletion)
+hyve cluster delete my-cluster
+
+# Force — deletes from cloud immediately
+hyve cluster delete my-cluster --force
+```
+
+---
+
+## Shell Completion
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    eval "$(hyve completion bash)"
+    ```
+  </Tab>
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    eval "$(hyve completion zsh)"
+    ```
+  </Tab>
+  <Tab title="Fish">
+    ```bash
+    hyve completion fish | source
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="hyve: command not found">
+    ```bash
+    sudo mv hyve /usr/local/bin/
+    # or
+    export PATH=$PATH:/path/to/hyve
+    ```
+  </Accordion>
+
+  <Accordion title="No active repository configured">
+    ```bash
+    hyve git add production --repo-url https://github.com/company/hyve-state.git
+    ```
+  </Accordion>
+
+  <Accordion title="API authentication failed">
+    ```bash
+    # Civo — authenticate with the Civo CLI (writes ~/.civo.json)
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+    # or set env var: export CIVO_TOKEN=your_token
+    # AWS
+    aws configure
+    # GCP
+    gcloud auth application-default login
+    # Azure
+    az login
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied on credentials.db">
+    ```bash
+    chmod 600 ~/.hyve/credentials.db
+    chmod 700 ~/.hyve/
+    ```
+  </Accordion>
+</AccordionGroup>

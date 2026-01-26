@@ -1,0 +1,209 @@
+---
+title: "Welcome to Hyve"
+description: "GitOps Kubernetes Cluster Management CLI"
+---
+
+<p align="center">
+  <img src="/images/banner.svg" alt="Hyve Banner" width="auto" height="auto" />
+</p>
+
+## What is Hyve?
+
+Hyve solves the **day-one Kubernetes problem**: getting your first cluster shouldn't require manual cloud console work or one-off scripts. Whether you wire up a CI/CD pipeline from the very start or bootstrap locally and hand off later, Hyve gives you a consistent, GitOps-driven workflow from day one.
+
+Define clusters as YAML, commit the change, and Hyve reconciles the desired state against your cloud provider — directly from the CLI or through a CI/CD pipeline. Both paths are fully supported on day one. Every change is version-controlled, every deployment is repeatable, and your state repository is always the single source of truth.
+
+It supports **AWS (EKS), GCP (GKE), Azure (AKS), and Civo** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+    horizontal
+    color="#3b82f6"
+  >
+    Get up and running with Hyve in minutes.
+  </Card>
+
+  <Card
+    title="Interactive Mode"
+    icon="terminal"
+    href="/cli/interactive"
+    horizontal
+    color="#eab308"
+  >
+    New to Hyve? Skip the flags — `hyve interactive` guides you through everything.
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Not sure where to start?** Run `hyve interactive` (or `hyve tui`) after installing. A guided menu walks you through every command — clusters, git, config, workflows, templates, and kubeconfigs — with no flags required.
+</Tip>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="GitOps Workflow" icon="code-branch" color="#f97316">
+    All cluster state is managed through Git repositories with automatic reconciliation
+  </Card>
+
+  <Card title="Multi-Repository Support" icon="folder-tree" color="#8b5cf6">
+    Manage separate repositories for different environments (dev/staging/prod)
+  </Card>
+
+  <Card title="Automated Workflows" icon="gears" color="#22c55e">
+    Define and execute deployment pipelines with requirements validation
+  </Card>
+
+  <Card title="Cluster Templates" icon="file-code" color="#06b6d4">
+    Reusable cluster configurations with automated post-deployment workflows
+  </Card>
+
+  <Card title="Secure Credentials" icon="shield" color="#f43f5e">
+    AES-GCM encrypted storage for API tokens, Git credentials, and kubeconfigs
+  </Card>
+
+  <Card title="Variable Substitution" icon="brackets-curly" color="#eab308">
+    Full shell support with workflow and environment variable expansion
+  </Card>
+</CardGroup>
+
+## Architecture
+
+Hyve follows a declarative approach to cluster management:
+
+1. **Define** clusters as YAML files in Git repositories
+2. **Commit** changes to version control
+3. **Reconcile** to apply changes to cloud infrastructure
+4. **Automate** with workflows and templates
+
+<Note>
+  **Git Requirements:**
+  Hyve requires Git repositories for all state management. The `git` binary must be installed and available in your `PATH` — Hyve delegates all git operations to the system git. See the [Git Management guide](/guides/git-management) for setup and authentication options.
+</Note>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Repositories" icon="git" href="/concepts/repositories" color="#8b5cf6">
+    Git-based state management for infrastructure
+  </Card>
+
+  <Card title="Clusters" icon="server" href="/concepts/clusters" color="#3b82f6">
+    Kubernetes cluster definitions and lifecycle management
+  </Card>
+
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows" color="#22c55e">
+    Automated deployment pipelines with validation
+  </Card>
+
+  <Card title="Templates" icon="stamp" href="/concepts/templates" color="#06b6d4">
+    Reusable cluster patterns with workflows
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+```bash
+# 1. Configure Git repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# 2. Map GCP credentials in provider-configs/gcp.yaml
+#    credentials_json: ${GCP_CREDENTIALS_JSON}
+
+# 3. Create a cluster
+hyve cluster add production --provider gcp --project-name my-project --region us-central1 --nodes e2-standard-4
+
+# 4. Execute a workflow
+hyve workflow run deploy-app --cluster production
+
+# 5. Hand off to CI/CD — all future changes reconcile through your pipeline
+hyve template execute prod-template prod-cluster-01
+```
+
+## Why Hyve?
+
+**You probably need less infrastructure code than you think.**
+
+<AccordionGroup>
+  <Accordion title="Git is the state backend — no S3, no Terraform Cloud">
+    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. There is no separate backend to configure or pay for. The full history of every cluster change is inherent in Git — who changed what, when, and why, reviewed through pull requests like any other code.
+  </Accordion>
+
+  <Accordion title="Continuous reconciliation — no plan files or approval gates">
+    Terraform models infrastructure changes as a plan-and-apply cycle. For ephemeral environments (feature branches, load tests, short-lived demos) this adds friction to every iteration. Hyve treats the cluster definition as continuous desired state: commit to create, remove the file to delete, update a field to reconcile — all with the same `hyve reconcile` command.
+  </Accordion>
+
+  <Accordion title="Built-in post-deploy hooks — no extra orchestration">
+    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreate` and `onDelete` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
+  </Accordion>
+
+  <Accordion title="Consistent multi-cloud without a plugin ecosystem">
+    Adding a cloud provider in Terraform means finding or writing a provider plugin and learning its resource schema. Hyve has first-party support for Civo, AWS EKS, GCP GKE, and Azure AKS behind a single consistent YAML interface. The same structure, the same CLI commands, and the same workflow hooks work across all four providers.
+  </Accordion>
+
+  <Accordion title="Automatic kubeconfig management">
+    Terraform outputs a kubeconfig as a sensitive value you then have to route somewhere useful. Hyve automatically retrieves, AES-GCM encrypts, and stores kubeconfigs per cluster on every reconcile. One command merges any cluster into `~/.kube/config`. When a cluster is removed, Hyve removes the corresponding context automatically.
+  </Accordion>
+
+  <Accordion title="Native cluster templates — no Terragrunt required">
+    For teams provisioning clusters repeatedly to the same pattern, Terraform requires copy-pasted modules or Terragrunt. Hyve has native cluster templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreate` workflows run — all in one step.
+  </Accordion>
+</AccordionGroup>
+
+<Card
+  title="Why Hyve vs. Terraform"
+  icon="scale-balanced"
+  href="/why-hyve"
+  horizontal
+  color="#8b5cf6"
+>
+  Full comparison: state management, reconciliation, post-deploy hooks, multi-cloud, and kubeconfig handling.
+</Card>
+
+## Get Started
+
+<Steps>
+  <Step title="Install Hyve">
+    ```bash
+    go install github.com/cbridges1/hyve@latest
+    ```
+  </Step>
+
+  <Step title="Configure Repository">
+    Set up your first Git repository for state management
+
+    ```bash
+    hyve git add production --repo-url https://github.com/company/hyve-state.git
+    ```
+  </Step>
+
+  <Step title="Create Cluster">
+    Define and deploy your first Kubernetes cluster
+
+    ```bash
+    hyve cluster add my-cluster --provider gcp --project-name my-project --region us-central1
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation" color="#3b82f6">
+    Complete installation guide
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/configuration" color="#f97316">
+    Configure API tokens and credentials
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview" color="#10b981">
+    Complete command reference
+  </Card>
+
+  <Card title="Workflow Guide" icon="diagram-project" href="/guides/workflow-management" color="#a855f7">
+    Learn workflow automation
+  </Card>
+</CardGroup>

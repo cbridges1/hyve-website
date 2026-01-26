@@ -1,0 +1,320 @@
+---
+title: "Installation"
+description: "Install and set up Hyve on your system"
+---
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Go 1.21+" icon="code" color="#6366f1">
+    [Install Go](https://golang.org/doc/install)
+  </Card>
+
+  <Card title="Git" icon="git" color="#8b5cf6">
+    **Required** - Hyve uses system git by default for easier onboarding
+  </Card>
+</CardGroup>
+
+<Note>
+  **Cloud Provider Account:** You'll need at least one cloud provider account:
+  - [AWS](https://aws.amazon.com/) with EKS permissions
+  - [Google Cloud](https://console.cloud.google.com/) with GKE permissions
+  - [Azure](https://portal.azure.com/) with AKS permissions
+  - [Civo](https://dashboard.civo.com/)
+</Note>
+
+<Note>
+  **Git Requirement:** Hyve uses your system's `git` binary for all repository operations. Git must be installed and available in your `PATH` before using any `hyve git` commands.
+</Note>
+
+## Install
+
+<Steps>
+  <Step title="Install with Go">
+    ```bash
+    go install github.com/cbridges1/hyve@latest
+    ```
+
+    This installs the `hyve` binary to your `$GOPATH/bin` directory (usually `~/go/bin`).
+  </Step>
+
+  <Step title="Ensure Go bin is in PATH">
+    ```bash
+    export PATH=$PATH:$(go env GOPATH)/bin
+    ```
+
+    Add this line to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make it permanent.
+  </Step>
+
+  <Step title="Verify installation">
+    ```bash
+    hyve --help
+    ```
+
+    You should see the Hyve help output.
+  </Step>
+</Steps>
+
+## Git Requirement
+
+Hyve delegates all git operations to the system `git` binary.
+
+```bash
+# Verify git is installed
+git --version
+```
+
+If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
+
+```bash
+# macOS
+brew install git
+
+# Ubuntu / Debian
+sudo apt install git
+
+# Windows
+winget install Git.Git
+```
+
+## Configuration
+
+### Provider Authentication
+
+Hyve uses each provider's native authentication — no credentials are stored in Hyve.
+
+<Tabs>
+  <Tab title="Civo">
+    ```bash
+    # Authenticate with the Civo CLI (writes ~/.civo.json)
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+
+    # Or via environment variable
+    export CIVO_TOKEN=your_civo_api_token
+    ```
+
+    Hyve reads the active token from `~/.civo.json` automatically.
+  </Tab>
+
+  <Tab title="AWS">
+    ```bash
+    # AWS CLI (recommended for local dev)
+    aws configure
+
+    # Or via environment variables
+    export AWS_ACCESS_KEY_ID=your_access_key
+    export AWS_SECRET_ACCESS_KEY=your_secret_key
+    export AWS_REGION=us-east-1
+    ```
+
+    AWS credentials are **not** stored in Hyve — the AWS SDK credential chain is used directly.
+  </Tab>
+
+  <Tab title="GCP">
+    ```bash
+    # Application Default Credentials (recommended for local dev)
+    gcloud auth application-default login
+
+    # Or via service account
+    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+    ```
+
+    You must also set your GCP project ID:
+
+    ```bash
+    export GCP_PROJECT_ID=my-gcp-project-123
+    # or
+    export GOOGLE_CLOUD_PROJECT=my-gcp-project-123
+    ```
+
+    GCP credentials are **not** stored in Hyve — Application Default Credentials are used directly.
+  </Tab>
+
+  <Tab title="Azure">
+    ```bash
+    # Azure CLI (recommended for local dev)
+    az login
+
+    # Or via service principal
+    export AZURE_TENANT_ID=your_tenant_id
+    export AZURE_CLIENT_ID=your_client_id
+    export AZURE_CLIENT_SECRET=your_client_secret
+    ```
+
+    Azure credentials are **not** stored in Hyve — Azure CLI or service principal env vars are used directly.
+  </Tab>
+</Tabs>
+
+### Credential Resolution Order
+
+Hyve resolves credentials in this order for each provider:
+
+1. **Named account env var** — `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}` (for multi-account CI/CD)
+2. **Standard env var** — `CIVO_TOKEN`, `AWS_ACCESS_KEY_ID`, etc.
+3. **Provider SDK default chain** — AWS credential chain, GCP ADC, `az login` session
+
+### Git Credentials (Optional)
+
+For private Git repositories, set your token via environment variable or configure git's credential manager:
+
+```bash
+# Environment variable
+export HYVE_GIT_TOKEN=your_personal_access_token
+
+# Or configure git's credential manager (credentials persist across sessions)
+git config --global credential.helper osxkeychain  # macOS
+git config --global credential.helper manager      # Windows
+```
+
+See the [Git Management guide](/guides/git-management) for full authentication options.
+
+## Directory Structure
+
+After installation, Hyve creates:
+
+```
+~/.hyve/
+├── credentials.db      # Git credentials (AES-256-GCM encrypted)
+├── kubeconfigs.db      # Cluster kubeconfigs (encrypted)
+├── repositories.db     # Repository configurations
+├── temp/               # Temporary kubeconfig files
+└── repositories/       # Cloned repository storage
+    ├── production/
+    │   ├── clusters/
+    │   ├── workflows/
+    │   └── templates/
+    └── development/
+```
+
+<Note>
+  All credentials and kubeconfigs are encrypted using AES-GCM
+</Note>
+
+### Overriding the data directory
+
+The default `~/.hyve` location can be overridden with the `--home` flag or the `HYVE_HOME` environment variable. This is useful for testing multiple isolated instances:
+
+```bash
+# Use a custom directory for a single command
+hyve --home /tmp/hyve-staging reconcile
+
+# Set it persistently for a shell session
+export HYVE_HOME=~/hyve-staging
+hyve git add staging --repo-url https://github.com/company/staging-state.git
+
+# Or point to an existing directory
+HYVE_HOME=/opt/hyve hyve cluster list
+```
+
+The flag and environment variable are equivalent; the `--home` flag takes precedence over `HYVE_HOME`.
+
+## Platform-Specific Notes
+
+<AccordionGroup>
+  <Accordion title="macOS">
+    On macOS, you may need to allow the binary in Security & Privacy settings:
+
+    1. Run `hyve` once
+    2. Go to System Preferences → Security & Privacy
+    3. Click "Allow Anyway" for the hyve binary
+  </Accordion>
+
+  <Accordion title="Linux">
+    Ensure you have the necessary dependencies:
+
+    ```bash
+    # Debian/Ubuntu
+    sudo apt-get install git
+
+    # RHEL/CentOS
+    sudo yum install git
+    ```
+  </Accordion>
+
+  <Accordion title="Windows">
+    Variable substitution in workflows uses:
+    - Windows: `cmd /C "command"`
+    - Use `%VAR%` for environment variables alongside `${VAR}` for workflow variables
+
+    **GCP on Windows:** `gcloud auth application-default login` stores credentials at `%APPDATA%\gcloud\application_default_credentials.json`. The Google SDK picks this up automatically.
+
+    Set your project ID in PowerShell:
+    ```powershell
+    $env:GCP_PROJECT_ID = "my-gcp-project-123"
+    ```
+
+    To persist it across sessions, add it to your PowerShell profile or set it as a system environment variable via System Properties.
+  </Accordion>
+</AccordionGroup>
+
+## Verifying Installation
+
+Run these commands to verify everything is set up correctly:
+
+```bash
+# Check Hyve installation
+hyve --help
+
+# Verify system git is available (required for default backend)
+git --version
+
+# Verify Civo CLI authentication
+civo apikey list
+
+# List configured git repositories
+hyve git list
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    Ensure the `hyve` binary is in your PATH:
+
+    ```bash
+    # Check if hyve is in PATH
+    which hyve
+
+    # If not, add directory to PATH
+    export PATH=$PATH:/path/to/hyve/directory
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    Make the binary executable:
+
+    ```bash
+    chmod +x hyve
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection error">
+    Ensure the `.hyve` directory has proper permissions:
+
+    ```bash
+    chmod 755 ~/.hyve
+    chmod 644 ~/.hyve/*.db
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart" color="#3b82f6">
+    Create your first cluster
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/configuration" color="#f97316">
+    Configure repositories and credentials
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview" color="#10b981">
+    Explore all commands
+  </Card>
+
+  <Card title="Git Management" icon="git" href="/guides/git-management" color="#8b5cf6">
+    Set up repositories
+  </Card>
+</CardGroup>

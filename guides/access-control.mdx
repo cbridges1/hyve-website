@@ -1,0 +1,342 @@
+---
+title: "Access Control"
+description: "Use GitHub rulesets and CODEOWNERS to enforce role-based access across your Hyve state repository"
+---
+
+## Overview
+
+A Hyve state repository contains files with very different blast radii. A misconfigured `provider-configs/aws.yaml` can affect every cluster in every AWS account. A misconfigured `clusters/production.yaml` can destroy a single cluster. A kubeconfig fetch has no write side-effects at all.
+
+GitHub rulesets and `CODEOWNERS` let you map those risk levels to team roles without building any custom access infrastructure.
+
+---
+
+## Role Model
+
+Three roles cover most organisations. Map them to GitHub teams in your organisation.
+
+<CardGroup cols={3}>
+  <Card title="App User" icon="user" color="#22c55e">
+    Connects to clusters and runs workflows against them. Never writes to the state repository directly.
+  </Card>
+  <Card title="Platform Engineer" icon="wrench" color="#3b82f6">
+    Provisions, modifies, and destroys clusters. Cannot change foundational configuration.
+  </Card>
+  <Card title="Platform Architect" icon="building-columns" color="#8b5cf6">
+    Owns all repository configuration: provider credentials, reconcile settings, and branch protection itself.
+  </Card>
+</CardGroup>
+
+| Capability | App User | Platform Engineer | Platform Architect |
+|---|:---:|:---:|:---:|
+| `hyve kubeconfig use <cluster>` | ✅ | ✅ | ✅ |
+| `hyve run <workflow>` | ✅ | ✅ | ✅ |
+| Open PR against `clusters/**` | — | ✅ | ✅ |
+| Approve cluster PRs | — | ✅ | ✅ |
+| Open PR against `provider-configs/**` | — | — | ✅ |
+| Open PR against `hyve.yaml` | — | — | ✅ |
+| Approve config PRs | — | — | ✅ |
+| Manage GitHub secrets (CI credentials) | — | — | ✅ |
+| Merge to `main` without PR | — | — | ✅ |
+
+---
+
+## Repository Layout
+
+```
+hyve-state/
+├── .github/
+│   ├── CODEOWNERS               ← path-level review requirements
+│   └── workflows/
+│       └── reconcile.yml
+├── hyve.yaml                    ← architects only
+├── clusters/                    ← engineers + architects
+│   ├── production.yaml
+│   └── staging.yaml
+├── provider-configs/            ← architects only
+│   ├── aws/
+│   │   └── prod.yaml
+│   ├── gcp/
+│   │   └── my-project.yaml
+│   ├── azure/
+│   │   └── prod-sub.yaml
+│   └── civo/
+│       └── my-org.yaml
+└── workflows/                   ← engineers + architects
+    └── deploy-app.yaml
+```
+
+---
+
+## Step 1 — Create GitHub Teams
+
+In your GitHub organisation, create three teams that mirror the role model:
+
+| Team | Suggested members |
+|---|---|
+| `@your-org/platform-architects` | Infrastructure leads, security team |
+| `@your-org/platform-engineers` | Infrastructure / DevOps engineers |
+| `@your-org/app-users` | Application developers, data engineers |
+
+Teams are nested: `platform-engineers` can be a child of `platform-architects` if your org structure warrants it, but keeping them flat is easier to reason about.
+
+---
+
+## Step 2 — CODEOWNERS
+
+`CODEOWNERS` maps file paths to the teams that must approve any PR touching those paths. Create `.github/CODEOWNERS`:
+
+```
+# .github/CODEOWNERS
+
+# Foundational configuration — architects must review any change
+hyve.yaml                   @your-org/platform-architects
+provider-configs/            @your-org/platform-architects
+.github/                     @your-org/platform-architects
+
+# Cluster definitions — engineers or architects can review
+clusters/                    @your-org/platform-engineers @your-org/platform-architects
+
+# Workflow definitions — engineers or architects can review
+workflows/                   @your-org/platform-engineers @your-org/platform-architects
+```
+
+When a PR is opened, GitHub automatically requests reviews from the matching code owners. The PR cannot be merged until the required owners approve.
+
+<Info>
+  CODEOWNERS only enforces review requirements when branch protection rules require code owner review. Configure that in Step 3.
+</Info>
+
+---
+
+## Step 3 — Branch Ruleset
+
+GitHub rulesets (available on all GitHub plans) replace classic branch protection and support file-path restrictions, bypass lists, and organisation-level enforcement.
+
+### Create the ruleset
+
+Go to your repository → **Settings → Rules → Rulesets → New ruleset → New branch ruleset**.
+
+#### Target
+
+| Setting | Value |
+|---|---|
+| Ruleset name | `main protection` |
+| Enforcement status | Active |
+| Target branches | Default branch (`main`) |
+
+#### Rules to enable
+
+| Rule | Setting |
+|---|---|
+| Restrict deletions | ✅ |
+| Require a pull request before merging | ✅ |
+| — Required approvals | `1` |
+| — Require review from Code Owners | ✅ |
+| — Dismiss stale pull request approvals | ✅ |
+| Require status checks to pass | ✅ (add your reconcile workflow check) |
+| Block force pushes | ✅ |
+
+#### Bypass list
+
+Add `@your-org/platform-architects` to the bypass list so architects can merge hotfixes directly without a PR when necessary. The CI/CD service account (`github-actions[bot]`) also needs bypass access so the reconciler can push cluster file removals back to `main`.
+
+```
+Bypass actors:
+  • @your-org/platform-architects  (role: Organisation admin or custom)
+  • github-actions[bot]            (role: GitHub App)
+```
+
+---
+
+## Step 4 — Push Ruleset for Protected Paths
+
+To prevent platform engineers from directly pushing changes to `hyve.yaml` or `provider-configs/` even on feature branches, add a **push ruleset** with file path restrictions.
+
+Go to **Settings → Rules → Rulesets → New ruleset → New push ruleset**.
+
+| Setting | Value |
+|---|---|
+| Ruleset name | `config path protection` |
+| Enforcement status | Active |
+| Target branches | All branches |
+
+Enable **Restrict file paths** and add:
+
+```
+hyve.yaml
+provider-configs/**
+.github/**
+```
+
+Add `@your-org/platform-architects` and `github-actions[bot]` to the bypass list. Any push that touches these paths from a non-architect account is rejected at the Git level — before a PR is even opened.
+
+---
+
+## Role Workflows
+
+### App User — connect to a cluster
+
+App users never interact with the state repository directly. They install Hyve locally, connect it to the repo, and use `hyve use` or `hyve kubeconfig use` to fetch credentials.
+
+```bash
+# Connect Hyve to the state repository (one-time setup)
+hyve git add hyve-state --repo-url https://github.com/your-org/hyve-state
+
+# Activate the repository
+hyve git use hyve-state
+
+# List available clusters
+hyve cluster list
+
+# Fetch kubeconfig for a cluster
+hyve kubeconfig use production
+# → kubeconfig merged into ~/.kube/config
+
+# Run a workflow against a cluster
+hyve workflow run deploy-app --cluster staging
+```
+
+App users need **read access** to the state repository (or it must be public within the organisation). They do not need write access.
+
+---
+
+### Platform Engineer — provision a cluster
+
+Platform engineers work entirely through pull requests. The reconcile pipeline handles the actual provisioning.
+
+```bash
+# Create a cluster definition
+hyve cluster add staging \
+  --provider aws \
+  --account-name prod \
+  --vpc-id vpc-0abc123456789 \
+  --eks-role-name eks-role \
+  --node-role-name node-role \
+  --region us-east-1
+
+# This commits clusters/staging.yaml to a feature branch and opens a PR.
+# A platform architect (or another engineer) reviews and approves.
+# On merge, the reconcile workflow provisions the cluster.
+```
+
+Because `clusters/**` is owned by `@your-org/platform-engineers` in `CODEOWNERS`, engineers can both open _and_ approve cluster PRs. They do not need architect involvement for normal cluster changes.
+
+If an engineer tries to modify `provider-configs/aws.yaml`, their push is blocked by the push ruleset before the branch is even created.
+
+---
+
+### Platform Architect — update provider configuration
+
+Architects are the only team that can land changes to `provider-configs/**` or `hyve.yaml`.
+
+```bash
+# Add a new GCP project to provider config
+# Edit provider-configs/gcp.yaml locally (or run hyve config gcp project add), then:
+git checkout -b add-gcp-project
+git add provider-configs/gcp.yaml
+git commit -m "Add gcp project: analytics-prod"
+git push origin add-gcp-project
+# Open a PR — only architects can approve and merge
+```
+
+Because `provider-configs/` is in `CODEOWNERS` under `@your-org/platform-architects`, no PR touching that path can merge without architect approval — even if another architect authored it (a second architect must approve).
+
+Architects can also use the `--bypass` capability to merge directly in an emergency:
+
+```bash
+# Emergency: fix a broken provider config directly on main
+git checkout main
+git pull
+# ... edit provider-configs/aws.yaml ...
+git commit -m "hotfix: restore correct AWS access key reference"
+git push origin main   # bypass list allows this for architects
+```
+
+---
+
+## Advanced: Organisation-Level Rulesets
+
+If you manage multiple Hyve state repositories across an organisation, define rulesets at the **organisation level** to avoid repeating the configuration per repo.
+
+Go to your **GitHub Organisation → Settings → Rules → Rulesets**.
+
+Create the same `main protection` and `config path protection` rulesets but target repositories by topic or naming pattern:
+
+```
+Repository targeting:
+  • Topic: hyve-state
+  • Name pattern: *-infra-state
+```
+
+Any repository matching the pattern inherits the rulesets automatically. New state repos are protected from day one.
+
+---
+
+## Complete CODEOWNERS Reference
+
+```
+# .github/CODEOWNERS
+#
+# Role mapping:
+#   platform-architects  — foundational config, CI/CD, billing-relevant settings
+#   platform-engineers   — cluster lifecycle, workflow definitions
+#   app-users            — no write paths (read-only repo access)
+
+# Protect the ruleset and CODEOWNERS file itself
+.github/                    @your-org/platform-architects
+
+# Reconcile configuration and provider credentials
+hyve.yaml                   @your-org/platform-architects
+provider-configs/            @your-org/platform-architects
+
+# Cluster definitions: engineers can propose and review; architects can too
+clusters/                   @your-org/platform-engineers @your-org/platform-architects
+
+# Workflow definitions: same as clusters
+workflows/                  @your-org/platform-engineers @your-org/platform-architects
+
+# Templates: same as clusters
+templates/                  @your-org/platform-engineers @your-org/platform-architects
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="An engineer can still push to provider-configs on their branch">
+    The push ruleset must have **Target branches: All branches**, not just `main`. If it only targets `main`, engineers can push to feature branches and open a PR — CODEOWNERS then blocks the merge, but the commits are already in the branch. Setting the push ruleset to all branches rejects the push at the Git transport level.
+  </Accordion>
+
+  <Accordion title="github-actions[bot] is being blocked from pushing cluster file removals">
+    The reconciler pushes cluster YAML deletions back to `main` after a `spec.delete: true` cluster is destroyed. Add `github-actions[bot]` (GitHub App) to the bypass list of both the branch ruleset and the push ruleset. Without the push ruleset bypass, the bot cannot delete files in `clusters/` even if it has repository write access.
+  </Accordion>
+
+  <Accordion title="A PR touching both clusters/ and provider-configs/ is blocked unexpectedly">
+    When a PR modifies files owned by multiple CODEOWNERS entries, **all** matching owners must approve. A PR that changes both `clusters/staging.yaml` and `provider-configs/aws.yaml` requires approval from both `@your-org/platform-engineers` (or architects) _and_ `@your-org/platform-architects`. Split the changes into separate PRs to avoid coupling the review gates.
+  </Accordion>
+
+  <Accordion title="App users can see kubeconfigs they shouldn't">
+    Hyve stores kubeconfigs in a local SQLite database (`~/.hyve/kubeconfigs.db`), not in the state repository. Access to a kubeconfig requires both read access to the state repository _and_ running `hyve kubeconfig use <cluster>` locally. To restrict which clusters an app user can connect to, use Kubernetes RBAC inside the cluster — the kubeconfig grants API access, but the cluster's own role bindings control what that identity can do.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="CI/CD Workflow" icon="arrows-rotate" href="/guides/cicd" color="#3b82f6">
+    How the reconcile pipeline runs with the secrets architects configure
+  </Card>
+  <Card title="Credentials" icon="key" href="/guides/credentials" color="#8b5cf6">
+    Provider authentication and secret management
+  </Card>
+  <Card title="Git Management" icon="git" href="/guides/git-management" color="#22c55e">
+    Connecting Hyve to your state repository
+  </Card>
+  <Card title="Kubeconfig Management" icon="server" href="/guides/kubeconfig-management" color="#f97316">
+    How app users fetch and use cluster credentials
+  </Card>
+</CardGroup>
