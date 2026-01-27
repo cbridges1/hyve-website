@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Hyve",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#000000",
+    "light": "#FFFFFF",
+    "dark": "#9C9C9C"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -63,17 +63,6 @@
               "cli/template",
               "cli/kubeconfig",
               "cli/config"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "Internal APIs",
-            "pages": [
-              "api-reference/introduction"
             ]
           }
         ]
