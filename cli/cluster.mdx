@@ -1,0 +1,493 @@
+---
+title: 'hyve cluster'
+description: 'Complete reference for all cluster management commands'
+---
+
+The `hyve cluster` command group manages Kubernetes cluster definitions stored in Git repositories. Clusters are defined as YAML files and can be created, modified, listed, and deleted through these commands.
+
+## Overview
+
+Hyve manages clusters declaratively through YAML files stored in your Git repository's `clusters/` directory. Each cluster definition includes provider details, region, node specifications, and optional ingress configuration.
+
+## Commands
+
+### hyve cluster add
+
+Create a new cluster configuration YAML file.
+
+```bash
+hyve cluster add [cluster-name] [flags]
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name of the cluster to create. This will be used as the filename and cluster identifier.
+</ParamField>
+
+<ParamField path="--region" type="string" default="PHX1">
+  Cloud provider region where the cluster will be created
+</ParamField>
+
+<ParamField path="--provider" type="string" default="civo">
+  Cloud provider (e.g., civo, aws, gcp, azure)
+</ParamField>
+
+<ParamField path="--nodes" type="string[]" default='["g4s.kube.small"]'>
+  Node sizes for the cluster (comma-separated). Each entry creates one node.
+</ParamField>
+
+<ParamField path="--cluster-type" type="string" default="k3s">
+  Type of Kubernetes cluster (k3s, talos)
+</ParamField>
+
+**Example:**
+
+```bash
+# Create a simple cluster
+hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.medium
+
+# Create a production cluster with multiple nodes
+hyve cluster add production \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+  --cluster-type k3s
+```
+
+**Output:**
+
+```
+Using Git repository 'production': https://github.com/company/hyve-prod.git
+Git repository synchronized
+Created cluster definition file: /Users/username/.hyve/repositories/production/clusters/my-cluster.yaml
+Cluster my-cluster configuration:
+  Region: PHX1
+  Provider: civo
+  Nodes: [g4s.kube.medium]
+  Cluster Type: k3s
+Changes committed and pushed to Git repository
+Exporting cluster information...
+🔄 Reconciling cluster state with cloud provider...
+✅ Reconciliation completed successfully
+```
+
+**Generated YAML:**
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.medium
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+<Info>
+  The cluster configuration is automatically committed to Git and reconciliation is triggered to create the cluster in the cloud provider.
+</Info>
+
+---
+
+### hyve cluster modify
+
+Update an existing cluster configuration YAML file.
+
+```bash
+hyve cluster modify [cluster-name] [flags]
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name of the cluster to modify
+</ParamField>
+
+<ParamField path="--region" type="string">
+  Update the region
+</ParamField>
+
+<ParamField path="--provider" type="string">
+  Update the cloud provider
+</ParamField>
+
+<ParamField path="--nodes" type="string[]">
+  Update node sizes (comma-separated)
+</ParamField>
+
+<ParamField path="--cluster-type" type="string">
+  Update the cluster type
+</ParamField>
+
+**Example:**
+
+```bash
+# Scale up by adding more nodes
+hyve cluster modify my-cluster \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+# Change region (requires recreation)
+hyve cluster modify staging-cluster --region FRA1
+```
+
+**Output:**
+
+```
+Using Git repository 'production': https://github.com/company/hyve-prod.git
+Git repository synchronized
+Updated cluster definition file: /Users/username/.hyve/repositories/production/clusters/my-cluster.yaml
+Cluster my-cluster updated configuration:
+  Region: PHX1
+  Provider: civo
+  Nodes: [g4s.kube.large g4s.kube.large g4s.kube.large]
+  Cluster Type: k3s
+Changes committed and pushed to Git repository
+Exporting cluster information...
+```
+
+<Warning>
+  Modifying certain fields (like region or provider) may require cluster recreation. Hyve's reconciliation process will handle this automatically.
+</Warning>
+
+---
+
+### hyve cluster delete
+
+Delete a cluster from both the cloud provider and configuration.
+
+```bash
+hyve cluster delete [cluster-name] [flags]
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name of the cluster to delete
+</ParamField>
+
+<ParamField path="--config-only" type="boolean" default="false">
+  Only remove configuration file, skip cloud provider deletion
+</ParamField>
+
+<ParamField path="--force-cloud" type="boolean" default="false">
+  Delete from cloud even if no configuration file exists
+</ParamField>
+
+**Example:**
+
+```bash
+# Delete cluster completely
+hyve cluster delete my-cluster
+
+# Only remove configuration
+hyve cluster delete my-cluster --config-only
+
+# Force delete from cloud
+hyve cluster delete orphaned-cluster --force-cloud
+```
+
+**Output:**
+
+```
+Using Git repository 'production': https://github.com/company/hyve-prod.git
+Git repository synchronized
+🗑️ Deleting cluster 'my-cluster' from cloud provider...
+🔍 Explicitly searching for cluster 'my-cluster' in region PHX1...
+🗑️ Found cluster 'my-cluster' with ID abc123, explicitly deleting...
+🔌 Attempting to remove any ingress controllers...
+✅ Successfully deleted cluster 'my-cluster' from cloud provider
+Deleted cluster definition file: /Users/username/.hyve/repositories/production/clusters/my-cluster.yaml
+Changes committed and pushed to Git repository
+Cluster my-cluster has been removed from configuration
+🔄 Reconciling cluster state with cloud provider...
+✅ Reconciliation completed successfully
+```
+
+**Process:**
+
+1. Explicitly searches for and deletes the cluster from the cloud provider
+2. Removes any ingress controllers
+3. Deletes the cluster configuration YAML file
+4. Commits changes to Git
+5. Runs reconciliation to clean up any remaining resources
+
+<Info>
+  Use `--config-only` when you want to remove the configuration but keep the cloud resources (useful for importing clusters later).
+</Info>
+
+---
+
+### hyve cluster force-delete
+
+Force delete a cluster by name directly from the cloud provider without requiring a configuration file.
+
+```bash
+hyve cluster force-delete [cluster-name] [flags]
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name of the cluster to force delete
+</ParamField>
+
+<ParamField path="--region" type="string">
+  Specific region to search. If not provided, searches common regions (PHX1, NYC1, FRA1, LON1).
+</ParamField>
+
+**Example:**
+
+```bash
+# Force delete with region hint
+hyve cluster force-delete orphaned-cluster --region NYC1
+
+# Search all common regions
+hyve cluster force-delete lost-cluster
+```
+
+**Output:**
+
+```
+🔍 No region specified, searching common regions: [PHX1 NYC1 FRA1 LON1]
+🔍 Searching for cluster 'orphaned-cluster' in region PHX1...
+❌ Cluster 'orphaned-cluster' not found in region PHX1
+🔍 Searching for cluster 'orphaned-cluster' in region NYC1...
+✅ Found cluster 'orphaned-cluster' in region NYC1 with ID xyz789
+🗑️ Force deleting cluster 'orphaned-cluster'...
+🔌 Attempting to remove any ingress controllers...
+✅ Successfully force deleted cluster 'orphaned-cluster' from region NYC1
+```
+
+<Warning>
+  This command does not remove configuration files or run reconciliation. It only deletes the cloud resources. Useful when configuration files are lost or corrupted.
+</Warning>
+
+---
+
+### hyve cluster list
+
+List all stored cluster kubeconfigs in the current repository.
+
+```bash
+hyve cluster list
+```
+
+**Example:**
+
+```bash
+hyve cluster list
+```
+
+**Output:**
+
+```
+🔑 Clusters in repository 'production' (3):
+
+  production-cluster
+    Repository: production
+    Stored: 2024-01-15 14:30:45
+
+  staging-cluster
+    Repository: production
+    Stored: 2024-01-15 10:15:22
+
+  development-cluster
+    Repository: production
+    Stored: 2024-01-14 16:45:10
+
+💡 Commands:
+  eval $(hyve use <cluster-name>)              # Quickly set kubeconfig (recommended)
+  hyve kubeconfig get <cluster-name>           # Display kubeconfig
+  hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
+  hyve kubeconfig get <cluster-name> -o <file> # Save to specific file
+  hyve kubeconfig use <cluster-name>           # Set kubeconfig for current terminal session
+```
+
+<Info>
+  This command lists clusters that have kubeconfigs stored in the database. Run `hyve kubeconfig sync` to retrieve kubeconfigs from active clusters.
+</Info>
+
+---
+
+## Cluster Definition Format
+
+Clusters are defined in YAML format and stored in the `clusters/` directory of your Git repository.
+
+### Basic Structure
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.small
+    - g4s.kube.small
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+### Field Reference
+
+<ParamField path="apiVersion" type="string" required>
+  API version of the cluster definition (currently `v1`)
+</ParamField>
+
+<ParamField path="kind" type="string" required>
+  Resource kind (must be `Cluster`)
+</ParamField>
+
+<ParamField path="metadata.name" type="string" required>
+  Unique name for the cluster
+</ParamField>
+
+<ParamField path="metadata.region" type="string" required>
+  Cloud provider region (e.g., PHX1, NYC1, FRA1, LON1 for Civo)
+</ParamField>
+
+<ParamField path="spec.provider" type="string" required>
+  Cloud provider name (civo, aws, gcp, azure)
+</ParamField>
+
+<ParamField path="spec.nodes" type="string[]" required>
+  Array of node sizes. Each entry creates one node in the cluster.
+</ParamField>
+
+<ParamField path="spec.clusterType" type="string" default="k3s">
+  Kubernetes distribution type (k3s, talos)
+</ParamField>
+
+<ParamField path="spec.ingress.enabled" type="boolean" default="true">
+  Enable ingress controller installation
+</ParamField>
+
+<ParamField path="spec.ingress.loadBalancer" type="boolean" default="true">
+  Enable load balancer for ingress controller
+</ParamField>
+
+---
+
+## Civo Node Sizes
+
+When using Civo as the provider, the following node sizes are available:
+
+| Size | vCPUs | RAM | Disk |
+|------|-------|-----|------|
+| `g4s.kube.xsmall` | 1 | 1 GB | 30 GB |
+| `g4s.kube.small` | 1 | 2 GB | 40 GB |
+| `g4s.kube.medium` | 2 | 4 GB | 50 GB |
+| `g4s.kube.large` | 4 | 8 GB | 60 GB |
+| `g4s.kube.xlarge` | 6 | 16 GB | 80 GB |
+
+---
+
+## Civo Regions
+
+Available regions for Civo clusters:
+
+- `PHX1` - Phoenix, USA
+- `NYC1` - New York, USA
+- `FRA1` - Frankfurt, Germany
+- `LON1` - London, UK
+
+---
+
+## Reconciliation
+
+After creating or modifying cluster configurations, Hyve automatically triggers reconciliation to synchronize the desired state (Git) with the actual state (cloud provider).
+
+### Reconciliation Process
+
+1. **Load Definitions**: Read all cluster YAML files from Git repository
+2. **Check Cloud State**: Query cloud provider for existing clusters
+3. **Determine Actions**: Compare desired vs actual state
+4. **Execute Changes**: Create, update, or delete clusters as needed
+5. **Configure Ingress**: Set up ingress controllers if enabled
+
+### Actions
+
+- **Create**: Cluster exists in Git but not in cloud
+- **Update**: Cluster exists in both but configuration differs
+- **Delete**: Cluster exists in cloud but not in Git
+- **None**: States match, no action needed
+
+---
+
+## Common Use Cases
+
+### Create a Production Cluster
+
+```bash
+# Create cluster with 3 large nodes
+hyve cluster add production \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+  --cluster-type k3s
+
+# Wait for cluster to be ready (check with kubectl)
+eval $(hyve use production)
+kubectl get nodes
+```
+
+### Scale a Cluster
+
+```bash
+# Add more nodes to existing cluster
+hyve cluster modify my-cluster \
+  --nodes g4s.kube.medium,g4s.kube.medium,g4s.kube.medium,g4s.kube.medium
+
+# Reconciliation will update the cluster
+```
+
+### Multi-Region Deployment
+
+```bash
+# Create clusters in different regions
+hyve cluster add us-east --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
+hyve cluster add us-west --region PHX1 --nodes g4s.kube.medium,g4s.kube.medium
+hyve cluster add eu-central --region FRA1 --nodes g4s.kube.medium,g4s.kube.medium
+
+# All clusters managed in the same Git repository
+```
+
+### Cleanup Orphaned Clusters
+
+```bash
+# List all clusters
+hyve cluster list
+
+# Force delete cluster not in Git
+hyve cluster force-delete orphaned-cluster --region PHX1
+
+# Or delete with configuration
+hyve cluster delete old-cluster
+```
+
+---
+
+## Storage
+
+Cluster configurations are stored in:
+
+```
+~/.hyve/repositories/<repository-name>/
+└── clusters/
+    ├── production.yaml
+    ├── staging.yaml
+    └── development.yaml
+```
+
+These files are version-controlled in your Git repository.
+
+---
+
+## Related Commands
+
+- [hyve git](/cli/git) - Manage Git repositories that store cluster configs
+- [hyve kubeconfig](/cli/kubeconfig) - Manage kubeconfigs for clusters
+- [hyve workflow](/cli/workflow) - Run workflows on clusters
+- [hyve template](/cli/template) - Create clusters from templates
+- [hyve reconcile](/cli/reconcile) - Manually trigger reconciliation

@@ -1,0 +1,650 @@
+---
+title: "Template Concepts"
+description: "Understanding reusable cluster patterns and automated workflows"
+---
+
+## Overview
+
+Templates in Hyve are reusable cluster configurations that combine cluster definitions with automated post-deployment workflows. They enable consistent cluster creation with standardized configurations and deployment processes.
+
+<CardGroup cols={2}>
+  <Card title="Reusable Patterns" icon="stamp">
+    Define once, use multiple times
+  </Card>
+
+  <Card title="Workflow Integration" icon="diagram-project">
+    Automatic workflow execution after cluster creation
+  </Card>
+
+  <Card title="Consistency" icon="check-double">
+    Ensure all clusters follow the same pattern
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch">
+    Templates stored in Git with full history
+  </Card>
+</CardGroup>
+
+## Template Structure
+
+Templates are YAML files that define cluster specifications and optional workflows:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+  description: Production cluster template with monitoring
+spec:
+  cluster:
+    region: NYC1
+    provider: civo
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring
+    - deploy-base-apps
+```
+
+### Metadata
+
+<ParamField path="metadata.name" type="string" required>
+  Unique template identifier
+</ParamField>
+
+<ParamField path="metadata.description" type="string">
+  Human-readable description of the template
+</ParamField>
+
+### Spec
+
+<ParamField path="spec.cluster" type="object" required>
+  Cluster configuration (region, provider, nodes)
+</ParamField>
+
+<ParamField path="spec.workflows" type="array">
+  List of workflow names to execute after cluster creation
+</ParamField>
+
+## Creating Templates
+
+### Using CLI
+
+```bash
+# Create basic template
+hyve template create prod-template \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+# Create template with workflows
+hyve template create prod-template \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+  --workflows setup-monitoring,deploy-apps
+```
+
+### Manual YAML Creation
+
+Create template file in repository:
+
+```bash
+# Navigate to repository
+cd ~/.hyve/repositories/production
+
+# Create template
+cat > templates/prod-template.yaml <<EOF
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+  description: Production cluster with 3 large nodes
+spec:
+  cluster:
+    region: NYC1
+    provider: civo
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring
+    - deploy-base-apps
+EOF
+
+# Commit to Git
+git add templates/prod-template.yaml
+git commit -m "Add production cluster template"
+```
+
+## Executing Templates
+
+Execute a template to create a cluster:
+
+```bash
+# Execute template
+hyve template execute prod-template my-prod-cluster
+
+# This will:
+# 1. Create cluster 'my-prod-cluster' using template specs
+# 2. Wait for cluster to be ready
+# 3. Run 'setup-monitoring' workflow
+# 4. Run 'deploy-base-apps' workflow
+```
+
+### Execution Flow
+
+<Steps>
+  <Step title="Load Template">
+    Read template YAML from repository
+
+    ```bash
+    # templates/prod-template.yaml
+    ```
+  </Step>
+
+  <Step title="Create Cluster">
+    Create cluster using template specifications
+
+    ```
+    [INFO] Creating cluster 'my-prod-cluster' from template 'prod-template'
+    [INFO] Region: NYC1
+    [INFO] Nodes: 3x g4s.kube.large
+    ```
+  </Step>
+
+  <Step title="Wait for Ready">
+    Wait for cluster to become ready
+
+    ```
+    [INFO] Waiting for cluster to be ready...
+    [INFO] Cluster is ready!
+    ```
+  </Step>
+
+  <Step title="Execute Workflows">
+    Run each workflow in sequence
+
+    ```
+    [INFO] Running workflow 'setup-monitoring'
+    [INFO] Workflow 'setup-monitoring' completed
+    [INFO] Running workflow 'deploy-base-apps'
+    [INFO] Workflow 'deploy-base-apps' completed
+    ```
+  </Step>
+
+  <Step title="Complete">
+    Template execution finished
+
+    ```
+    [INFO] Template 'prod-template' executed successfully
+    [INFO] Cluster 'my-prod-cluster' is ready
+    ```
+  </Step>
+</Steps>
+
+## Template Types
+
+### Production Template
+
+High-availability cluster with monitoring:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: production-template
+  description: Production-ready cluster with HA and monitoring
+spec:
+  cluster:
+    region: NYC1
+    provider: civo
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring
+    - setup-logging
+    - deploy-ingress-controller
+    - setup-cert-manager
+```
+
+### Staging Template
+
+Mid-sized cluster for testing:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: staging-template
+  description: Staging environment cluster
+spec:
+  cluster:
+    region: PHX1
+    provider: civo
+    nodes:
+      - g4s.kube.medium
+      - g4s.kube.medium
+  workflows:
+    - setup-monitoring
+    - deploy-test-apps
+```
+
+### Development Template
+
+Small cluster for development:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: dev-template
+  description: Development cluster (single node)
+spec:
+  cluster:
+    region: LON1
+    provider: civo
+    nodes:
+      - g4s.kube.small
+  workflows:
+    - setup-dev-tools
+```
+
+### Specialized Template
+
+Template for specific use cases:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: ml-cluster-template
+  description: Machine learning cluster with GPU nodes
+spec:
+  cluster:
+    region: NYC1
+    provider: civo
+    nodes:
+      - g4s.kube.xlarge
+      - g4s.kube.xlarge
+      - g4s.kube.xlarge
+  workflows:
+    - install-cuda-drivers
+    - setup-jupyter
+    - deploy-ml-platform
+```
+
+## Workflow Integration
+
+Templates can automatically run workflows after cluster creation:
+
+```yaml
+# Template with workflows
+spec:
+  cluster:
+    region: NYC1
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring      # Run first
+    - deploy-apps          # Run second
+    - configure-ingress    # Run third
+```
+
+### Workflow Requirements
+
+Workflows referenced in templates must exist in the repository:
+
+```
+~/.hyve/repositories/production/
+├── templates/
+│   └── prod-template.yaml
+└── workflows/
+    ├── setup-monitoring.yaml
+    ├── deploy-apps.yaml
+    └── configure-ingress.yaml
+```
+
+## Managing Templates
+
+### List Templates
+
+```bash
+# List all templates
+hyve template list
+```
+
+Output:
+```
+Templates in repository 'production':
+  - production-template (NYC1, 3 nodes)
+  - staging-template (PHX1, 2 nodes)
+  - dev-template (LON1, 1 node)
+```
+
+### View Template
+
+```bash
+# View template details
+cat ~/.hyve/repositories/production/templates/prod-template.yaml
+```
+
+### Edit Template
+
+```bash
+# Edit template
+vim ~/.hyve/repositories/production/templates/prod-template.yaml
+
+# Commit changes
+git commit -am "Update production template"
+```
+
+### Delete Template
+
+```bash
+# Delete template
+hyve template delete prod-template
+
+# Or delete manually
+rm templates/prod-template.yaml
+git commit -am "Remove production template"
+```
+
+## Use Cases
+
+### Rapid Environment Creation
+
+Create identical environments quickly:
+
+```bash
+# Create production cluster
+hyve template execute prod-template prod-cluster-01
+
+# Create another production cluster
+hyve template execute prod-template prod-cluster-02
+
+# Both clusters identical: same size, region, and workflows
+```
+
+### Standardization
+
+Ensure all clusters follow organizational standards:
+
+```yaml
+# templates/company-standard.yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: company-standard
+  description: Company standard cluster configuration
+spec:
+  cluster:
+    region: NYC1
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - install-security-policies
+    - setup-monitoring
+    - configure-networking
+    - deploy-compliance-tools
+```
+
+### Multi-Region Deployment
+
+Deploy to multiple regions with same configuration:
+
+```bash
+# US East
+hyve template execute prod-template us-east-prod
+# Edit template to change region to NYC1
+
+# US West
+hyve template execute prod-template us-west-prod
+# Edit template to change region to PHX1
+
+# EU
+hyve template execute prod-template eu-prod
+# Edit template to change region to FRA1
+```
+
+### Testing Infrastructure Changes
+
+Test changes in development before production:
+
+```bash
+# Create test cluster from template
+hyve git use development
+hyve template execute prod-template test-new-config
+
+# If successful, use in production
+hyve git use production
+hyve template execute prod-template prod-new-cluster
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Names">
+    Name templates according to their purpose:
+
+    ```yaml
+    # Good
+    metadata:
+      name: production-ha-template
+      description: Production HA cluster with monitoring and logging
+
+    # Avoid
+    metadata:
+      name: template1
+    ```
+  </Accordion>
+
+  <Accordion title="2. Document Template Purpose">
+    Add detailed descriptions:
+
+    ```yaml
+    metadata:
+      name: ml-cluster
+      description: |
+        Machine learning cluster template
+        - 3x xlarge nodes for compute
+        - Pre-installed CUDA drivers
+        - Jupyter notebook deployment
+        - ML framework setup
+    ```
+  </Accordion>
+
+  <Accordion title="3. Include Essential Workflows">
+    Add workflows for consistent configuration:
+
+    ```yaml
+    workflows:
+      - setup-monitoring        # Always monitor
+      - configure-security      # Security baseline
+      - setup-backup           # Disaster recovery
+      - deploy-core-services   # Essential services
+    ```
+  </Accordion>
+
+  <Accordion title="4. Version Templates">
+    Use Git tags for template versions:
+
+    ```bash
+    # Create template version
+    git tag -a prod-template-v1.0 -m "Production template v1.0"
+    git push origin prod-template-v1.0
+
+    # Use specific version
+    git checkout prod-template-v1.0
+    hyve template execute prod-template my-cluster
+    ```
+  </Accordion>
+
+  <Accordion title="5. Test Templates">
+    Always test templates in development first:
+
+    ```bash
+    # Test in development
+    hyve git use development
+    hyve template execute new-template test-cluster
+
+    # Verify workflows run successfully
+    # Then use in production
+    hyve git use production
+    hyve template execute new-template prod-cluster
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Template Inheritance
+
+While Hyve doesn't support template inheritance directly, you can create base templates and extend them:
+
+```yaml
+# Base template
+# templates/base-cluster.yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: base-cluster
+spec:
+  cluster:
+    provider: civo
+    nodes:
+      - g4s.kube.medium
+  workflows:
+    - setup-monitoring
+
+# Production variant (copy and modify)
+# templates/prod-cluster.yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-cluster
+spec:
+  cluster:
+    provider: civo
+    region: NYC1
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring
+    - setup-logging
+    - deploy-ingress
+```
+
+## Complete Example
+
+### Production Template with Workflows
+
+```yaml
+# templates/production-complete.yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: production-complete
+  description: |
+    Complete production cluster template
+    - HA configuration (3 large nodes)
+    - Monitoring and logging
+    - Security policies
+    - Ingress controller
+    - Cert manager
+spec:
+  cluster:
+    region: NYC1
+    provider: civo
+    nodes:
+      - g4s.kube.large
+      - g4s.kube.large
+      - g4s.kube.large
+  workflows:
+    - setup-monitoring
+    - setup-logging
+    - install-security-policies
+    - deploy-ingress-controller
+    - setup-cert-manager
+```
+
+### Workflows for Template
+
+```yaml
+# workflows/setup-monitoring.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: setup-monitoring
+spec:
+  requirements:
+    tools:
+      - name: helm
+        version: "3.12"
+  jobs:
+    - name: install-prometheus
+      steps:
+        - name: add-repo
+          command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        - name: install
+          command: helm install prometheus prometheus-community/kube-prometheus-stack
+
+# workflows/setup-logging.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: setup-logging
+spec:
+  requirements:
+    tools:
+      - name: helm
+  jobs:
+    - name: install-loki
+      steps:
+        - name: add-repo
+          command: helm repo add grafana https://grafana.github.io/helm-charts
+        - name: install
+          command: helm install loki grafana/loki-stack
+```
+
+### Execute Template
+
+```bash
+# Create production cluster
+hyve template execute production-complete prod-app-01
+
+# Output:
+# [INFO] Creating cluster 'prod-app-01' from template 'production-complete'
+# [INFO] Cluster created successfully
+# [INFO] Running workflow 'setup-monitoring'
+# [INFO] Workflow 'setup-monitoring' completed
+# [INFO] Running workflow 'setup-logging'
+# [INFO] Workflow 'setup-logging' completed
+# ...
+# [INFO] Template execution completed successfully
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+    Learn about workflows
+  </Card>
+
+  <Card title="Clusters" icon="server" href="/concepts/clusters">
+    Cluster definitions
+  </Card>
+
+  <Card title="Template Management" icon="stamp" href="/guides/template-management">
+    Complete template guide
+  </Card>
+
+  <Card title="CLI Template" icon="terminal" href="/cli/template">
+    Template command reference
+  </Card>
+</CardGroup>

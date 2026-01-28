@@ -1,0 +1,528 @@
+---
+title: 'hyve config'
+description: 'Complete reference for all configuration management commands'
+---
+
+The `hyve config` command group manages API tokens and configuration settings for cloud providers. All credentials are encrypted using AES-GCM and stored securely in a local database.
+
+## Overview
+
+Hyve requires API tokens to interact with cloud providers like Civo. The `hyve config` commands provide secure storage and management of these credentials.
+
+## Commands
+
+### hyve config set-token
+
+Store an encrypted API token for a cloud provider.
+
+```bash
+hyve config set-token [provider] [flags]
+```
+
+<ParamField path="provider" type="string" required>
+  Cloud provider name (currently supported: `civo`)
+</ParamField>
+
+<ParamField path="--token" type="string">
+  API token. If not provided, you'll be prompted securely (recommended).
+</ParamField>
+
+**Examples:**
+
+```bash
+# Prompt for token (recommended - input hidden)
+hyve config set-token civo
+
+# Provide token via flag
+hyve config set-token civo --token YOUR_TOKEN_HERE
+```
+
+**Output (prompt):**
+
+```
+Enter API token for civo (input will be hidden):
+✅ API token for 'civo' stored successfully
+
+💡 The token is encrypted and stored in ~/.hyve/credentials.db
+💡 Hyve will now use this token automatically for civo operations
+```
+
+**Output (flag):**
+
+```
+✅ API token for 'civo' stored successfully
+
+💡 The token is encrypted and stored in ~/.hyve/credentials.db
+💡 Hyve will now use this token automatically for civo operations
+```
+
+<Info>
+  When prompted for the token, your input is hidden for security. This is the recommended method for entering tokens.
+</Info>
+
+---
+
+### hyve config get-token
+
+Retrieve and display the stored API token for a provider.
+
+```bash
+hyve config get-token [provider]
+```
+
+<ParamField path="provider" type="string" required>
+  Cloud provider name
+</ParamField>
+
+**Example:**
+
+```bash
+hyve config get-token civo
+```
+
+**Output:**
+
+```
+🔑 API token for 'civo':
+abcdef1234567890abcdef1234567890abcdef1234567890
+```
+
+<Warning>
+  This command displays the token in plaintext. Use with caution and avoid sharing terminal output.
+</Warning>
+
+---
+
+### hyve config clear-token
+
+Remove the stored API token for a provider.
+
+```bash
+hyve config clear-token [provider]
+```
+
+<ParamField path="provider" type="string" required>
+  Cloud provider name
+</ParamField>
+
+**Example:**
+
+```bash
+hyve config clear-token civo
+```
+
+**Output:**
+
+```
+✅ API token for 'civo' removed successfully
+```
+
+---
+
+### hyve config list-tokens
+
+List all providers with stored tokens.
+
+```bash
+hyve config list-tokens
+```
+
+**Example:**
+
+```bash
+hyve config list-tokens
+```
+
+**Output:**
+
+```
+🔑 Stored API tokens (1):
+
+  ✓ civo
+
+💡 Commands:
+  hyve config get-token <provider>    # View token
+  hyve config clear-token <provider>  # Remove token
+```
+
+**Output (no tokens):**
+
+```
+❌ No API tokens stored
+
+💡 Store a token with: hyve config set-token <provider>
+   Supported providers: civo
+```
+
+---
+
+## Supported Providers
+
+### Civo
+
+Civo Cloud is currently the primary supported cloud provider for Hyve.
+
+**Getting a Civo API Token:**
+
+1. Log in to [Civo Dashboard](https://dashboard.civo.com/)
+2. Navigate to Settings → Security
+3. Click "Generate API Key"
+4. Copy the token and store it with Hyve:
+
+```bash
+hyve config set-token civo
+```
+
+**Required Permissions:**
+
+The Civo API token needs permissions to:
+- Create/delete Kubernetes clusters
+- Manage cluster configurations
+- Retrieve kubeconfigs
+- Manage load balancers (for ingress)
+
+---
+
+## Security
+
+### Encryption
+
+All API tokens are encrypted using AES-GCM (Galois/Counter Mode) before being stored:
+
+- **Algorithm**: AES-256-GCM
+- **Key Derivation**: Hardware-based entropy
+- **Storage**: SQLite database at `~/.hyve/credentials.db`
+
+### Storage Location
+
+```
+~/.hyve/
+└── credentials.db      # Encrypted API tokens and Git credentials
+```
+
+### File Permissions
+
+The credentials database is created with restrictive permissions:
+
+```bash
+# Check permissions
+ls -l ~/.hyve/credentials.db
+# Output: -rw-------  1 user  staff  12288 Jan 15 10:30 credentials.db
+```
+
+Only the owner can read and write the file (mode 600).
+
+---
+
+## Environment Variable Fallback
+
+Hyve also supports environment variables as a fallback authentication method:
+
+### Civo Token
+
+```bash
+# Set Civo token via environment variable
+export CIVO_TOKEN=your_token_here
+
+# Hyve will use this if no stored token found
+hyve cluster list
+```
+
+### Priority Order
+
+Hyve uses the following priority order for authentication:
+
+1. **Stored Token**: Token stored via `hyve config set-token`
+2. **Environment Variable**: `CIVO_TOKEN` environment variable
+3. **Error**: If neither is available, commands will fail with an error
+
+**Example:**
+
+```bash
+# No stored token, no env var
+hyve cluster add my-cluster
+# Error: CIVO API token not found. Please run 'hyve config set-token civo'
+
+# Using environment variable
+export CIVO_TOKEN=abc123
+hyve cluster add my-cluster
+# Success
+
+# Store token permanently
+hyve config set-token civo
+# Now works without env var
+```
+
+---
+
+## Common Use Cases
+
+### Initial Setup
+
+```bash
+# First-time setup
+hyve config set-token civo
+# Enter token when prompted
+
+# Verify token is stored
+hyve config list-tokens
+
+# Test token by creating a cluster
+hyve cluster add test-cluster --region PHX1
+```
+
+---
+
+### Rotating Tokens
+
+```bash
+# Generate new token in Civo dashboard
+
+# Update stored token
+hyve config set-token civo
+# Enter new token when prompted
+
+# Verify new token works
+hyve cluster list
+```
+
+---
+
+### Multi-User Setup
+
+```bash
+# Each user stores their own token
+user1$ hyve config set-token civo
+# Enter user1's token
+
+user2$ hyve config set-token civo
+# Enter user2's token
+
+# Tokens are isolated per user account
+```
+
+---
+
+### CI/CD Pipelines
+
+```bash
+# In CI/CD environment, use environment variable
+export CIVO_TOKEN=${CI_CIVO_TOKEN}
+
+# Run Hyve commands
+hyve cluster add ci-cluster --region PHX1
+hyve workflow run deploy-app --cluster ci-cluster
+```
+
+<Info>
+  For CI/CD, using environment variables is recommended over storing tokens in the database, as it integrates better with secret management systems.
+</Info>
+
+---
+
+### Token Validation
+
+```bash
+# Check if token is stored
+hyve config list-tokens
+
+# Retrieve token to verify
+hyve config get-token civo
+
+# Test token by listing clusters
+hyve cluster list
+
+# If using environment variable
+echo $CIVO_TOKEN
+```
+
+---
+
+### Cleanup
+
+```bash
+# Remove token when decommissioning machine
+hyve config clear-token civo
+
+# Verify removal
+hyve config list-tokens
+```
+
+---
+
+## Troubleshooting
+
+### Token Not Found Error
+
+```bash
+# Error message
+Error: CIVO API token not found. Please run 'hyve config set-token civo' or set CIVO_TOKEN environment variable
+
+# Solution 1: Store token
+hyve config set-token civo
+
+# Solution 2: Use environment variable
+export CIVO_TOKEN=your_token_here
+```
+
+---
+
+### Invalid Token Error
+
+```bash
+# Error message
+Error: Failed to authenticate with Civo API: Invalid token
+
+# Solution: Regenerate token in Civo dashboard and update
+hyve config set-token civo
+```
+
+---
+
+### Permission Denied
+
+```bash
+# Error message
+Error: Failed to create credentials manager: permission denied
+
+# Solution: Check file permissions
+ls -la ~/.hyve/
+chmod 700 ~/.hyve
+chmod 600 ~/.hyve/credentials.db
+```
+
+---
+
+### Database Corruption
+
+```bash
+# Error message
+Error: Failed to create credentials manager: database disk image is malformed
+
+# Solution: Backup and recreate database
+cp ~/.hyve/credentials.db ~/.hyve/credentials.db.backup
+rm ~/.hyve/credentials.db
+hyve config set-token civo
+```
+
+---
+
+## Database Migration
+
+When moving Hyve to a new machine, you may need to migrate the credentials database.
+
+### Copy Database
+
+```bash
+# On old machine
+tar -czf hyve-backup.tar.gz ~/.hyve/
+
+# Transfer to new machine
+scp hyve-backup.tar.gz user@new-machine:~/
+
+# On new machine
+cd ~
+tar -xzf hyve-backup.tar.gz
+```
+
+### Re-encrypt if Needed
+
+If encryption keys are hostname-dependent (older versions):
+
+```bash
+# On new machine, get old hostname
+old_hostname="old-machine.local"
+
+# Note: Token re-encryption may be needed for older Hyve versions
+# For current versions, tokens are portable
+```
+
+---
+
+## Best Practices
+
+### 1. Use Secure Input
+
+```bash
+# Always use prompt method (input hidden)
+hyve config set-token civo
+# Preferred
+
+# Avoid flag method in shared environments
+hyve config set-token civo --token abc123
+# Less secure - visible in command history
+```
+
+### 2. Rotate Tokens Regularly
+
+```bash
+# Set calendar reminder to rotate tokens every 90 days
+# 1. Generate new token in Civo dashboard
+# 2. Update Hyve
+hyve config set-token civo
+# 3. Revoke old token in Civo dashboard
+```
+
+### 3. Use Environment Variables in CI/CD
+
+```bash
+# .gitlab-ci.yml or similar
+deploy:
+  script:
+    - export CIVO_TOKEN=${CI_CIVO_TOKEN}
+    - hyve cluster add ${CI_CLUSTER_NAME}
+    - hyve workflow run deploy --cluster ${CI_CLUSTER_NAME}
+```
+
+### 4. Backup Credentials Database
+
+```bash
+# Include in regular backup routine
+cp ~/.hyve/credentials.db ~/backups/credentials-$(date +%Y%m%d).db
+```
+
+### 5. Limit Token Permissions
+
+```bash
+# In Civo dashboard, create tokens with minimal required permissions
+# - Read/Write Kubernetes clusters
+# - Read/Write Load Balancers
+# Avoid giving full account access if possible
+```
+
+---
+
+## Storage Schema
+
+The credentials database (`credentials.db`) is a SQLite database with encrypted values:
+
+```sql
+-- API Tokens Table
+CREATE TABLE api_tokens (
+    provider TEXT PRIMARY KEY,
+    token_encrypted BLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Git Credentials Table (used by hyve git credentials)
+CREATE TABLE git_credentials (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL,
+    password_encrypted BLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+<Info>
+  The same database is used for both API tokens (`hyve config`) and Git credentials (`hyve git credentials`).
+</Info>
+
+---
+
+## Related Commands
+
+- [hyve git credentials](/cli/git#hyve-git-credentials) - Manage Git authentication
+- [hyve cluster](/cli/cluster) - Commands that use API tokens
+- [hyve kubeconfig](/cli/kubeconfig) - Kubeconfig retrieval requires API token

@@ -1,0 +1,634 @@
+---
+title: "Variable Substitution"
+description: "Dynamic configuration with environment and workflow variables"
+---
+
+## Overview
+
+Hyve workflows support full shell variable substitution, allowing you to create dynamic, reusable workflows. Variables can be defined at the workflow level, job level, or loaded from the environment.
+
+<CardGroup cols={2}>
+  <Card title="Shell Syntax" icon="dollar-sign">
+    Standard bash variable syntax (`${VAR}`)
+  </Card>
+
+  <Card title="Multiple Sources" icon="layer-group">
+    Environment, workflow, and job variables
+  </Card>
+
+  <Card title="Default Values" icon="arrow-right-to-bracket">
+    Fallback values with `${VAR:-default}`
+  </Card>
+
+  <Card title="Dynamic" icon="wand-magic-sparkles">
+    Variables evaluated at runtime
+  </Card>
+</CardGroup>
+
+## Variable Syntax
+
+### Basic Substitution
+
+```yaml
+env:
+  APP_NAME: my-app
+
+jobs:
+  - name: deploy
+    steps:
+      - name: deploy-app
+        command: kubectl apply -f ${APP_NAME}/manifests/
+```
+
+### With Default Values
+
+```yaml
+steps:
+  - name: deploy
+    command: kubectl apply -f manifests/ -n ${NAMESPACE:-default}
+    # Uses 'default' if NAMESPACE is not set
+```
+
+### Nested Variables
+
+```yaml
+env:
+  REGISTRY: docker.io
+  USERNAME: myuser
+  IMAGE: my-app
+  TAG: v1.0.0
+
+steps:
+  - name: push
+    command: docker push ${REGISTRY}/${USERNAME}/${IMAGE}:${TAG}
+    # Expands to: docker push docker.io/myuser/my-app:v1.0.0
+```
+
+## Variable Sources
+
+Variables can come from multiple sources, with a defined priority:
+
+<Steps>
+  <Step title="1. Environment Variables (Highest Priority)">
+    Variables from shell environment or `.env` files
+
+    ```bash
+    export APP_NAME=my-app
+    hyve workflow run deploy-app
+    ```
+  </Step>
+
+  <Step title="2. Job-Level Variables">
+    Variables defined in specific job
+
+    ```yaml
+    jobs:
+      - name: deploy
+        env:
+          NAMESPACE: production
+        steps:
+          - name: deploy
+            command: kubectl apply -f manifests/ -n ${NAMESPACE}
+    ```
+  </Step>
+
+  <Step title="3. Workflow-Level Variables">
+    Variables defined in workflow spec
+
+    ```yaml
+    spec:
+      env:
+        APP_NAME: my-app
+      jobs:
+        - name: deploy
+          steps:
+            - name: deploy
+              command: kubectl apply -f ${APP_NAME}/
+    ```
+  </Step>
+
+  <Step title="4. Default Values (Lowest Priority)">
+    Fallback values in substitution syntax
+
+    ```yaml
+    command: kubectl apply -f manifests/ -n ${NAMESPACE:-default}
+    ```
+  </Step>
+</Steps>
+
+## Workflow-Level Variables
+
+Define variables that apply to all jobs:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deploy-app
+spec:
+  env:
+    APP_NAME: my-app
+    REGISTRY: docker.io/myuser
+    VERSION: v1.0.0
+    NAMESPACE: production
+
+  jobs:
+    - name: build
+      steps:
+        - name: docker-build
+          command: docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+
+    - name: deploy
+      steps:
+        - name: kubectl-apply
+          command: kubectl set image deployment/${APP_NAME} ${APP_NAME}=${REGISTRY}/${APP_NAME}:${VERSION} -n ${NAMESPACE}
+```
+
+## Job-Level Variables
+
+Override or add variables for specific jobs:
+
+```yaml
+spec:
+  env:
+    APP_NAME: my-app
+    REPLICAS: "1"
+
+  jobs:
+    - name: deploy-dev
+      env:
+        NAMESPACE: development
+        REPLICAS: "1"
+      steps:
+        - name: deploy
+          command: kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+
+    - name: deploy-prod
+      env:
+        NAMESPACE: production
+        REPLICAS: "3"
+      steps:
+        - name: deploy
+          command: kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+```
+
+## Environment Files
+
+Load variables from `.env` files:
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    # .env
+    APP_NAME=my-app
+    REGISTRY=docker.io/myuser
+    VERSION=v1.0.0
+    DOCKER_TOKEN=secret-token
+    ```
+
+    Hyve automatically loads `.env` files when running workflows.
+  </Tab>
+
+  <Tab title="Workflow">
+    ```yaml
+    apiVersion: v1
+    kind: Workflow
+    metadata:
+      name: deploy-app
+    spec:
+      # No need to define variables here
+      # They're loaded from .env
+      jobs:
+        - name: deploy
+          steps:
+            - name: build
+              command: docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+    ```
+  </Tab>
+
+  <Tab title="Usage">
+    ```bash
+    # Create .env file
+    cat > .env <<EOF
+    APP_NAME=my-app
+    VERSION=v2.0.0
+    EOF
+
+    # Run workflow (loads .env automatically)
+    hyve workflow run deploy-app
+    ```
+  </Tab>
+</Tabs>
+
+## Default Values
+
+Provide fallback values when variables might not be set:
+
+```yaml
+steps:
+  - name: deploy
+    script: |
+      # Use 'default' namespace if NAMESPACE not set
+      kubectl apply -f manifests/ -n ${NAMESPACE:-default}
+
+      # Use 'latest' tag if VERSION not set
+      kubectl set image deployment/app app=${REGISTRY}/${APP_NAME}:${VERSION:-latest}
+
+      # Use '3' replicas if REPLICAS not set
+      kubectl scale deployment/app --replicas=${REPLICAS:-3}
+```
+
+### Syntax Variations
+
+<ParamField path="${VAR}" type="string">
+  Basic substitution - error if not set
+</ParamField>
+
+<ParamField path="${VAR:-default}" type="string">
+  Use default if VAR is unset or empty
+</ParamField>
+
+<ParamField path="${VAR:=default}" type="string">
+  Set VAR to default if unset, then substitute
+</ParamField>
+
+<ParamField path="${VAR:?error message}" type="string">
+  Show error message if VAR is unset
+</ParamField>
+
+## Common Patterns
+
+### Registry Configuration
+
+```yaml
+env:
+  REGISTRY: docker.io
+  REGISTRY_USER: myuser
+  IMAGE_NAME: my-app
+  IMAGE_TAG: v1.0.0
+
+jobs:
+  - name: build-push
+    steps:
+      - name: build
+        command: docker build -t ${REGISTRY}/${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG} .
+      - name: push
+        command: docker push ${REGISTRY}/${REGISTRY_USER}/${IMAGE_NAME}:${IMAGE_TAG}
+```
+
+### Multi-Environment Deployment
+
+```yaml
+env:
+  APP_NAME: my-app
+  VERSION: v1.0.0
+
+jobs:
+  - name: deploy-dev
+    env:
+      ENVIRONMENT: development
+      NAMESPACE: dev
+      REPLICAS: "1"
+    steps:
+      - name: deploy
+        script: |
+          kubectl apply -f manifests/ -n ${NAMESPACE}
+          kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+
+  - name: deploy-prod
+    env:
+      ENVIRONMENT: production
+      NAMESPACE: prod
+      REPLICAS: "3"
+    steps:
+      - name: deploy
+        script: |
+          kubectl apply -f manifests/ -n ${NAMESPACE}
+          kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+```
+
+### Dynamic Resource Names
+
+```yaml
+env:
+  APP_NAME: my-app
+  ENVIRONMENT: production
+  REGION: us-east
+
+jobs:
+  - name: create-resources
+    steps:
+      - name: create-namespace
+        command: kubectl create namespace ${APP_NAME}-${ENVIRONMENT}-${REGION}
+      - name: create-deployment
+        command: kubectl create deployment ${APP_NAME}-${ENVIRONMENT} -n ${APP_NAME}-${ENVIRONMENT}-${REGION}
+```
+
+### Version Management
+
+```yaml
+env:
+  APP_NAME: my-app
+  MAJOR: "1"
+  MINOR: "0"
+  PATCH: "0"
+
+jobs:
+  - name: tag-version
+    steps:
+      - name: build
+        command: docker build -t ${APP_NAME}:${MAJOR}.${MINOR}.${PATCH} .
+      - name: tag-latest
+        command: docker tag ${APP_NAME}:${MAJOR}.${MINOR}.${PATCH} ${APP_NAME}:latest
+      - name: tag-minor
+        command: docker tag ${APP_NAME}:${MAJOR}.${MINOR}.${PATCH} ${APP_NAME}:${MAJOR}.${MINOR}
+```
+
+## Secret Variables
+
+Load secrets from encrypted database:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: build-push
+spec:
+  requirements:
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+      - name: GITHUB_TOKEN
+        provider: github
+
+  env:
+    REGISTRY: docker.io/myuser
+    IMAGE: my-app
+
+  jobs:
+    - name: build-push
+      steps:
+        - name: login
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+
+        - name: build
+          command: docker build -t ${REGISTRY}/${IMAGE} .
+
+        - name: push
+          command: docker push ${REGISTRY}/${IMAGE}
+```
+
+<Note>
+  Secrets are automatically loaded and available as environment variables. See [Workflow Requirements](/workflows/requirements) for details.
+</Note>
+
+## Advanced Substitution
+
+### Conditional Logic
+
+```yaml
+steps:
+  - name: conditional-deploy
+    script: |
+      if [ "${ENVIRONMENT}" = "production" ]; then
+        kubectl apply -f manifests/production/
+      else
+        kubectl apply -f manifests/development/
+      fi
+```
+
+### Array Variables
+
+```yaml
+env:
+  NAMESPACES: "dev staging prod"
+
+jobs:
+  - name: deploy-all
+    steps:
+      - name: deploy-to-all-namespaces
+        script: |
+          for ns in ${NAMESPACES}; do
+            echo "Deploying to $ns"
+            kubectl apply -f manifests/ -n $ns
+          done
+```
+
+### String Manipulation
+
+```yaml
+env:
+  IMAGE_FULL: "docker.io/myuser/my-app:v1.0.0"
+
+jobs:
+  - name: extract-version
+    steps:
+      - name: get-version
+        script: |
+          # Extract version from image tag
+          VERSION=${IMAGE_FULL##*:}
+          echo "Version: $VERSION"
+```
+
+## Complete Example
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: complete-deployment
+  description: Complete deployment with variable substitution
+spec:
+  requirements:
+    tools:
+      - name: docker
+      - name: kubectl
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+
+  env:
+    # Registry configuration
+    REGISTRY: docker.io
+    REGISTRY_USER: myuser
+
+    # Application configuration
+    APP_NAME: my-app
+    VERSION: v1.0.0
+
+    # Deployment configuration
+    NAMESPACE: production
+    REPLICAS: "3"
+
+  jobs:
+    - name: build
+      steps:
+        - name: docker-login
+          script: |
+            echo "$DOCKER_TOKEN" | docker login ${REGISTRY} -u ${REGISTRY_USER} --password-stdin
+
+        - name: docker-build
+          command: docker build -t ${REGISTRY}/${REGISTRY_USER}/${APP_NAME}:${VERSION} .
+
+        - name: docker-push
+          command: docker push ${REGISTRY}/${REGISTRY_USER}/${APP_NAME}:${VERSION}
+
+    - name: deploy
+      dependsOn: [build]
+      steps:
+        - name: apply-manifests
+          command: kubectl apply -f manifests/ -n ${NAMESPACE}
+
+        - name: set-image
+          command: kubectl set image deployment/${APP_NAME} ${APP_NAME}=${REGISTRY}/${REGISTRY_USER}/${APP_NAME}:${VERSION} -n ${NAMESPACE}
+
+        - name: scale
+          command: kubectl scale deployment/${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+
+        - name: wait-rollout
+          command: kubectl rollout status deployment/${APP_NAME} -n ${NAMESPACE}
+
+        - name: verify
+          script: |
+            echo "Verifying deployment..."
+            READY=$(kubectl get deployment ${APP_NAME} -n ${NAMESPACE} -o jsonpath='{.status.readyReplicas}')
+            if [ "$READY" = "${REPLICAS}" ]; then
+              echo "✅ Deployment successful: ${READY}/${REPLICAS} replicas ready"
+            else
+              echo "❌ Deployment failed: ${READY}/${REPLICAS} replicas ready"
+              exit 1
+            fi
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Variable Names">
+    ```yaml
+    # Good
+    env:
+      APP_NAME: my-app
+      DATABASE_HOST: postgres.example.com
+      MAX_CONNECTIONS: "100"
+
+    # Bad
+    env:
+      NAME: my-app
+      HOST: postgres.example.com
+      MAX: "100"
+    ```
+  </Accordion>
+
+  <Accordion title="2. Provide Default Values">
+    ```yaml
+    # Good - provides fallback
+    command: kubectl apply -f manifests/ -n ${NAMESPACE:-default}
+
+    # Risky - fails if NAMESPACE not set
+    command: kubectl apply -f manifests/ -n ${NAMESPACE}
+    ```
+  </Accordion>
+
+  <Accordion title="3. Document Variables">
+    ```yaml
+    env:
+      APP_NAME: my-app              # Application name
+      VERSION: v1.0.0               # Application version
+      NAMESPACE: production         # Kubernetes namespace
+      REPLICAS: "3"                 # Number of replicas
+    ```
+  </Accordion>
+
+  <Accordion title="4. Group Related Variables">
+    ```yaml
+    env:
+      # Registry configuration
+      REGISTRY: docker.io
+      REGISTRY_USER: myuser
+      REGISTRY_TOKEN: secret
+
+      # Application configuration
+      APP_NAME: my-app
+      APP_VERSION: v1.0.0
+
+      # Deployment configuration
+      NAMESPACE: production
+      REPLICAS: "3"
+    ```
+  </Accordion>
+
+  <Accordion title="5. Use Environment Files for Secrets">
+    ```bash
+    # .env (not committed to Git)
+    DOCKER_TOKEN=secret-token
+    DATABASE_PASSWORD=secret-password
+
+    # .env.example (committed to Git)
+    DOCKER_TOKEN=your-docker-token-here
+    DATABASE_PASSWORD=your-database-password-here
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Variable not substituted">
+    Problem: `${VAR}` appears literally in output
+
+    **Solution:**
+    ```bash
+    # Ensure variable is set
+    echo $VAR
+
+    # Or define in workflow
+    env:
+      VAR: value
+    ```
+  </Accordion>
+
+  <Accordion title="Empty variable value">
+    Problem: Variable expands to empty string
+
+    **Solution:**
+    ```yaml
+    # Use default value
+    command: kubectl apply -f manifests/ -n ${NAMESPACE:-default}
+
+    # Or require variable
+    command: kubectl apply -f manifests/ -n ${NAMESPACE:?NAMESPACE is required}
+    ```
+  </Accordion>
+
+  <Accordion title="Variable precedence issues">
+    Problem: Wrong variable value is used
+
+    **Solution:**
+    Check precedence order:
+    1. Environment variables (highest)
+    2. Job-level variables
+    3. Workflow-level variables
+    4. Default values (lowest)
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflow Overview" icon="diagram-project" href="/workflows/overview">
+    Complete workflow guide
+  </Card>
+
+  <Card title="Requirements" icon="list-check" href="/workflows/requirements">
+    Secret management
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Environment setup
+  </Card>
+
+  <Card title="Workflow Concepts" icon="lightbulb" href="/concepts/workflows">
+    Workflow fundamentals
+  </Card>
+</CardGroup>

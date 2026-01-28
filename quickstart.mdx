@@ -1,80 +1,223 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start"
+description: "Get up and running with Hyve in 5 minutes"
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide will help you set up Hyve and create your first Kubernetes cluster using GitOps principles.
 
-### Step 1: Set up your local environment
+## Prerequisites
+
+Before you begin, ensure you have:
 
 <AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
+  <Accordion icon="cloud" title="Civo Account">
+    Sign up for a [Civo account](https://dashboard.civo.com/) and get your API token from Settings → Security → API Keys
   </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
+
+  <Accordion icon="git" title="Git Repository">
+    A Git repository (GitHub, GitLab, etc.) to store cluster state
+  </Accordion>
+
+  <Accordion icon="code" title="Go 1.21+">
+    Install [Go 1.21 or higher](https://golang.org/doc/install)
   </Accordion>
 </AccordionGroup>
 
-### Step 2: Deploy your changes
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd hyve
+    ```
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Build Hyve">
+    ```bash
+    go build -o hyve .
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Tip>Add the `hyve` binary to your PATH for easy access</Tip>
+  </Step>
 
-### Step 3: Go live
+  <Step title="Verify installation">
+    ```bash
+    ./hyve --help
+    ```
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Configuration
 
-## Next steps
+<Steps>
+  <Step title="Store your Civo API token">
+    ```bash
+    ./hyve config set-token civo
+    # Enter your API token when prompted
+    ```
 
-Now that you have your docs running, explore these key features:
+    The token is encrypted and stored in `~/.hyve/credentials.db`
+
+    <Note>
+      Alternatively, you can set the `CIVO_TOKEN` environment variable or create a `.env` file
+    </Note>
+  </Step>
+
+  <Step title="Configure Git credentials (optional)">
+    For private repositories, store your Git credentials:
+
+    ```bash
+    ./hyve git credentials --username your-username --password your_token
+    ```
+  </Step>
+
+  <Step title="Add your first repository">
+    ```bash
+    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    ```
+
+    This creates a local clone and sets it as your active repository.
+  </Step>
+</Steps>
+
+## Create Your First Cluster
+
+<Steps>
+  <Step title="Add a cluster definition">
+    ```bash
+    ./hyve cluster add my-cluster \
+      --region PHX1 \
+      --nodes g4s.kube.medium,g4s.kube.medium
+    ```
+
+    This creates a YAML file in `clusters/my-cluster.yaml` and automatically runs reconciliation.
+  </Step>
+
+  <Step title="Monitor cluster creation">
+    The cluster will be created in the cloud. You can check status with:
+
+    ```bash
+    # View cluster configuration
+    cat ~/.hyve/repositories/production/clusters/my-cluster.yaml
+    ```
+  </Step>
+
+  <Step title="Access your cluster">
+    Once the cluster is ready, sync the kubeconfig:
+
+    ```bash
+    # Sync all cluster kubeconfigs
+    ./hyve kubeconfig sync
+
+    # List available clusters
+    ./hyve cluster list
+
+    # Use a cluster
+    eval $(./hyve kubeconfig use my-cluster --eval)
+    kubectl get nodes
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Workflow Automation" icon="diagram-project" href="/guides/workflow-management">
+    Learn how to automate deployments with workflows
+  </Card>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+  <Card title="Cluster Templates" icon="file-code" href="/guides/template-management">
+    Create reusable cluster templates
+  </Card>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+  <Card title="Git Management" icon="git" href="/guides/git-management">
+    Master multi-repository workflows
+  </Card>
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Explore all available commands
+  </Card>
 </CardGroup>
 
+## Common Workflows
+
+<AccordionGroup>
+  <Accordion title="Multi-Environment Setup">
+    ```bash
+    # Production
+    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    ./hyve cluster add prod-app --region NYC1 --nodes g4s.kube.large
+
+    # Development
+    ./hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    ./hyve git use development
+    ./hyve cluster add dev-app --region PHX1 --nodes g4s.kube.small
+    ```
+  </Accordion>
+
+  <Accordion title="Create Cluster from Template">
+    ```bash
+    # Create a template
+    ./hyve template create prod-template \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+      --workflows setup-monitoring,deploy-app
+
+    # Execute the template
+    ./hyve template execute prod-template prod-cluster-01
+    ```
+  </Accordion>
+
+  <Accordion title="Run a Workflow">
+    ```bash
+    # Create a workflow
+    ./hyve workflow create --template deployment-pipeline
+
+    # Run the workflow
+    ./hyve workflow run deployment-pipeline --cluster my-cluster
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Git authentication fails">
+    Ensure you've set up credentials:
+
+    ```bash
+    # Set global credentials
+    ./hyve git credentials --username your-username --password your_token
+
+    # Or use environment variable
+    export HYVE_GIT_TOKEN=your_personal_access_token
+    ```
+  </Accordion>
+
+  <Accordion title="Cluster creation fails">
+    Check your API token is valid:
+
+    ```bash
+    # View stored token
+    ./hyve config get-token civo
+
+    # Update token
+    ./hyve config set-token civo --token YOUR_NEW_TOKEN
+    ```
+  </Accordion>
+
+  <Accordion title="No repository configured">
+    You need to add a Git repository first:
+
+    ```bash
+    ./hyve git add my-repo --repo-url https://github.com/user/repo.git
+    ```
+  </Accordion>
+</AccordionGroup>
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Need help?** Check out the [complete guides](/guides/cluster-management) or [CLI reference](/cli/overview).
 </Note>

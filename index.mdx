@@ -1,97 +1,167 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Welcome to Hyve"
+description: "GitOps Kubernetes Cluster Management CLI"
 ---
 
-## Setting up
+## What is Hyve?
 
-Get your documentation site up and running in minutes.
+Hyve is a **GitOps-first** Kubernetes cluster management CLI tool designed for Civo Cloud. It manages infrastructure state through Git repositories with SQLite-backed multi-repository support, automated workflows, and secure credential management.
 
 <Card
-  title="Start here"
+  title="Quick Start"
   icon="rocket"
   href="/quickstart"
   horizontal
 >
-  Follow our three step quickstart guide.
+  Get up and running with Hyve in minutes.
 </Card>
 
-## Make it yours
+## Key Features
 
-Design a docs site that looks great and empowers your users.
+<CardGroup cols={2}>
+  <Card title="GitOps Workflow" icon="code-branch">
+    All cluster state is managed through Git repositories with automatic reconciliation
+  </Card>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+  <Card title="Multi-Repository Support" icon="folder-tree">
+    Manage separate repositories for different environments (dev/staging/prod)
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
 
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+  <Card title="Automated Workflows" icon="gears">
+    Define and execute deployment pipelines with requirements validation
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
 
-## Need inspiration?
+  <Card title="Cluster Templates" icon="file-code">
+    Reusable cluster configurations with automated post-deployment workflows
+  </Card>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+  <Card title="Secure Credentials" icon="shield">
+    AES-GCM encrypted storage for API tokens, Git credentials, and kubeconfigs
+  </Card>
+
+  <Card title="Variable Substitution" icon="brackets-curly">
+    Full shell support with workflow and environment variable expansion
+  </Card>
+</CardGroup>
+
+## Architecture
+
+Hyve follows a declarative approach to cluster management:
+
+1. **Define** clusters as YAML files in Git repositories
+2. **Commit** changes to version control
+3. **Reconcile** to apply changes to cloud infrastructure
+4. **Automate** with workflows and templates
+
+<Note>
+  Hyve requires Git repositories for all state management. This ensures full traceability and enables team collaboration.
+</Note>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Repositories" icon="git" href="/concepts/repositories">
+    Git-based state management for infrastructure
+  </Card>
+
+  <Card title="Clusters" icon="server" href="/concepts/clusters">
+    Kubernetes cluster definitions and lifecycle management
+  </Card>
+
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+    Automated deployment pipelines with validation
+  </Card>
+
+  <Card title="Templates" icon="stamp" href="/concepts/templates">
+    Reusable cluster patterns with workflows
+  </Card>
+</CardGroup>
+
+## Quick Example
+
+```bash
+# 1. Configure Git repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# 2. Store API token
+hyve config set-token civo
+
+# 3. Create a cluster
+hyve cluster add production --region PHX1 --nodes g4s.kube.large
+
+# 4. Execute a workflow
+hyve workflow run deploy-app --cluster production
+
+# 5. Create from template
+hyve template execute prod-template prod-cluster-01
+```
+
+## Why Hyve?
+
+<AccordionGroup>
+  <Accordion title="GitOps Native">
+    Built from the ground up with GitOps principles. Every change is tracked in Git, providing full audit trails and easy rollbacks.
+  </Accordion>
+
+  <Accordion title="Multi-Environment">
+    Manage separate repositories for dev, staging, and production with isolated credentials and configurations.
+  </Accordion>
+
+  <Accordion title="Workflow Automation">
+    Define complex deployment pipelines with tool and secret requirements validation, variable substitution, and error handling.
+  </Accordion>
+
+  <Accordion title="Security First">
+    AES-GCM encrypted credential storage, isolated kubeconfigs per repository, and portable encryption keys.
+  </Accordion>
+</AccordionGroup>
+
+## Get Started
+
+<Steps>
+  <Step title="Install Hyve">
+    Build from source or download pre-built binaries
+
+    ```bash
+    git clone <repository-url>
+    cd hyve
+    go build -o hyve .
+    ```
+  </Step>
+
+  <Step title="Configure Repository">
+    Set up your first Git repository for state management
+
+    ```bash
+    hyve git add production --repo-url https://github.com/company/hyve-state.git
+    ```
+  </Step>
+
+  <Step title="Create Cluster">
+    Define and deploy your first Kubernetes cluster
+
+    ```bash
+    hyve cluster add my-cluster --region PHX1
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Complete installation guide
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Configure API tokens and credentials
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Complete command reference
+  </Card>
+
+  <Card title="Workflow Guide" icon="diagram-project" href="/guides/workflow-management">
+    Learn workflow automation
+  </Card>
+</CardGroup>

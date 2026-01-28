@@ -1,0 +1,609 @@
+---
+title: "Workflow Concepts"
+description: "Understanding automated deployment pipelines and workflow execution"
+---
+
+## Overview
+
+Workflows in Hyve are automated deployment pipelines defined as YAML files in Git repositories. They enable consistent, repeatable operations with built-in validation, secret management, and variable substitution.
+
+<CardGroup cols={2}>
+  <Card title="Automated Pipelines" icon="diagram-project">
+    Define multi-step deployment processes
+  </Card>
+
+  <Card title="Requirements Validation" icon="list-check">
+    Ensure tools and secrets are available before execution
+  </Card>
+
+  <Card title="Variable Substitution" icon="brackets-curly">
+    Use environment and workflow variables
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch">
+    Workflows stored in Git with full history
+  </Card>
+</CardGroup>
+
+## Workflow Structure
+
+Workflows follow a standard YAML structure:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deploy-app
+  description: Deploy application to Kubernetes
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+  env:
+    APP_NAME: my-app
+    NAMESPACE: default
+  jobs:
+    - name: deploy
+      steps:
+        - name: apply-manifests
+          command: kubectl apply -f manifests/
+```
+
+### Metadata
+
+<ParamField path="metadata.name" type="string" required>
+  Unique workflow identifier
+</ParamField>
+
+<ParamField path="metadata.description" type="string">
+  Human-readable description of the workflow
+</ParamField>
+
+### Spec
+
+<ParamField path="spec.requirements" type="object">
+  Prerequisites for workflow execution (tools and secrets)
+</ParamField>
+
+<ParamField path="spec.env" type="object">
+  Environment variables available to all jobs
+</ParamField>
+
+<ParamField path="spec.jobs" type="array" required>
+  List of jobs to execute sequentially
+</ParamField>
+
+## Jobs and Steps
+
+Jobs contain steps that execute commands:
+
+```yaml
+jobs:
+  - name: build
+    steps:
+      - name: docker-build
+        command: docker build -t ${APP_NAME}:latest .
+      - name: docker-push
+        command: docker push ${APP_NAME}:latest
+
+  - name: deploy
+    dependsOn: [build]
+    steps:
+      - name: kubectl-apply
+        command: kubectl apply -f manifests/
+```
+
+### Job Fields
+
+<ParamField path="jobs[].name" type="string" required>
+  Job identifier
+</ParamField>
+
+<ParamField path="jobs[].dependsOn" type="array">
+  List of job names that must complete before this job runs
+</ParamField>
+
+<ParamField path="jobs[].steps" type="array" required>
+  List of steps to execute in sequence
+</ParamField>
+
+### Step Fields
+
+<ParamField path="steps[].name" type="string" required>
+  Step identifier
+</ParamField>
+
+<ParamField path="steps[].command" type="string">
+  Single command to execute
+</ParamField>
+
+<ParamField path="steps[].script" type="string">
+  Multi-line shell script to execute
+</ParamField>
+
+## Requirements
+
+Workflows can validate prerequisites before execution:
+
+### Tool Requirements
+
+Ensure CLI tools are installed:
+
+```yaml
+requirements:
+  tools:
+    - name: kubectl
+      version: "1.28"
+      description: Kubernetes CLI
+    - name: helm
+      version: "3.12"
+      description: Helm package manager
+    - name: docker
+      description: Docker CLI (version optional)
+```
+
+### Secret Requirements
+
+Load secrets from encrypted database or environment:
+
+```yaml
+requirements:
+  secrets:
+    - name: DOCKER_TOKEN
+      provider: docker
+      required: true
+      description: Docker Hub authentication
+    - name: GITHUB_TOKEN
+      provider: github
+      required: false
+      description: GitHub API token (optional)
+```
+
+<Note>
+  See [Workflow Requirements](/workflows/requirements) for detailed documentation.
+</Note>
+
+## Environment Variables
+
+Define variables at workflow or job level:
+
+### Workflow-Level Variables
+
+Available to all jobs:
+
+```yaml
+spec:
+  env:
+    APP_NAME: my-app
+    REGISTRY: docker.io/myuser
+    VERSION: v1.0.0
+  jobs:
+    - name: build
+      steps:
+        - name: build
+          command: docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+```
+
+### Job-Level Variables
+
+Available only to specific job:
+
+```yaml
+jobs:
+  - name: deploy
+    env:
+      NAMESPACE: production
+      REPLICAS: "3"
+    steps:
+      - name: deploy
+        command: kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+```
+
+### Variable Substitution
+
+Hyve supports full shell variable substitution:
+
+```yaml
+steps:
+  - name: example
+    command: echo "Deploying ${APP_NAME} version ${VERSION:-latest} to ${NAMESPACE}"
+```
+
+<Note>
+  See [Variable Substitution](/workflows/variables) for advanced usage.
+</Note>
+
+## Running Workflows
+
+### Basic Execution
+
+```bash
+# Run workflow
+hyve workflow run deploy-app
+
+# Run with specific cluster
+hyve workflow run deploy-app --cluster production
+```
+
+### Execution Flow
+
+<Steps>
+  <Step title="Load Workflow">
+    Read workflow YAML from repository
+
+    ```bash
+    # workflows/deploy-app.yaml
+    ```
+  </Step>
+
+  <Step title="Validate Requirements">
+    Check tools and secrets
+
+    ```
+    [INFO] Validating workflow requirements...
+    [INFO] ✅ All requirements validated successfully
+    ```
+  </Step>
+
+  <Step title="Set Environment">
+    Load environment variables and secrets
+
+    ```bash
+    export APP_NAME=my-app
+    export DOCKER_TOKEN=***
+    ```
+  </Step>
+
+  <Step title="Execute Jobs">
+    Run jobs in sequence
+
+    ```
+    [INFO][build] Starting job 'build'
+    [INFO][build][docker-build] Running step 'docker-build'
+    ```
+  </Step>
+
+  <Step title="Report Results">
+    Show success or failure
+
+    ```
+    [INFO] Workflow 'deploy-app' completed successfully
+    ```
+  </Step>
+</Steps>
+
+## Workflow Types
+
+### Deployment Workflow
+
+Deploy applications to Kubernetes:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deploy-app
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+  env:
+    APP_NAME: my-app
+  jobs:
+    - name: deploy
+      steps:
+        - name: apply
+          command: kubectl apply -f manifests/
+        - name: wait
+          command: kubectl rollout status deployment/${APP_NAME}
+```
+
+### Build Workflow
+
+Build and push Docker images:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: build-image
+spec:
+  requirements:
+    tools:
+      - name: docker
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+  env:
+    IMAGE: myapp
+    TAG: latest
+  jobs:
+    - name: build
+      steps:
+        - name: docker-build
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+            docker build -t ${IMAGE}:${TAG} .
+            docker push ${IMAGE}:${TAG}
+```
+
+### Infrastructure Workflow
+
+Provision infrastructure with Terraform:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: provision-infra
+spec:
+  requirements:
+    tools:
+      - name: terraform
+        version: "1.5"
+    secrets:
+      - name: AWS_ACCESS_KEY_ID
+        provider: aws
+      - name: AWS_SECRET_ACCESS_KEY
+        provider: aws
+  jobs:
+    - name: provision
+      steps:
+        - name: init
+          command: terraform init
+        - name: plan
+          command: terraform plan
+        - name: apply
+          command: terraform apply -auto-approve
+```
+
+## Commands vs Scripts
+
+### Single Commands
+
+For simple operations:
+
+```yaml
+steps:
+  - name: deploy
+    command: kubectl apply -f manifests/
+```
+
+### Multi-Line Scripts
+
+For complex operations:
+
+```yaml
+steps:
+  - name: deploy
+    script: |
+      echo "Starting deployment..."
+      kubectl apply -f manifests/
+      kubectl rollout status deployment/my-app
+      echo "Deployment complete!"
+```
+
+## Job Dependencies
+
+Control execution order with dependencies:
+
+```yaml
+jobs:
+  - name: test
+    steps:
+      - name: run-tests
+        command: npm test
+
+  - name: build
+    dependsOn: [test]
+    steps:
+      - name: docker-build
+        command: docker build -t myapp .
+
+  - name: deploy
+    dependsOn: [build]
+    steps:
+      - name: kubectl-apply
+        command: kubectl apply -f manifests/
+```
+
+Execution order: `test` → `build` → `deploy`
+
+## Error Handling
+
+Workflows stop on first error:
+
+```yaml
+jobs:
+  - name: deploy
+    steps:
+      - name: test
+        command: npm test  # If this fails, workflow stops
+
+      - name: deploy
+        command: kubectl apply -f manifests/  # This won't run
+```
+
+<Warning>
+  If any step fails, the workflow stops immediately. Design workflows with this in mind.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Names">
+    Name workflows, jobs, and steps clearly:
+
+    ```yaml
+    metadata:
+      name: deploy-api-production
+      description: Deploy API service to production cluster
+
+    jobs:
+      - name: run-tests
+        steps:
+          - name: unit-tests
+          - name: integration-tests
+    ```
+  </Accordion>
+
+  <Accordion title="2. Validate Requirements">
+    Always specify required tools and secrets:
+
+    ```yaml
+    requirements:
+      tools:
+        - name: kubectl
+          version: "1.28"
+      secrets:
+        - name: DOCKER_TOKEN
+          provider: docker
+          required: true
+    ```
+  </Accordion>
+
+  <Accordion title="3. Use Environment Variables">
+    Avoid hardcoding values:
+
+    ```yaml
+    # Good
+    env:
+      NAMESPACE: production
+    steps:
+      - name: deploy
+        command: kubectl apply -f manifests/ -n ${NAMESPACE}
+
+    # Bad
+    steps:
+      - name: deploy
+        command: kubectl apply -f manifests/ -n production
+    ```
+  </Accordion>
+
+  <Accordion title="4. Document Workflows">
+    Add descriptions explaining purpose:
+
+    ```yaml
+    metadata:
+      name: deploy-app
+      description: |
+        Deploy application to Kubernetes cluster
+        - Runs tests first
+        - Builds Docker image
+        - Deploys to cluster
+        - Waits for rollout
+    ```
+  </Accordion>
+
+  <Accordion title="5. Test in Development">
+    Test workflows in development before production:
+
+    ```bash
+    # Switch to development
+    hyve git use development
+
+    # Test workflow
+    hyve workflow run deploy-app --cluster dev-cluster
+
+    # If successful, run in production
+    hyve git use production
+    hyve workflow run deploy-app --cluster prod-cluster
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Workflow Examples
+
+### Complete Deployment Pipeline
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: complete-pipeline
+  description: Full CI/CD pipeline
+spec:
+  requirements:
+    tools:
+      - name: docker
+      - name: kubectl
+        version: "1.28"
+      - name: helm
+        version: "3.12"
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+      - name: DATADOG_API_KEY
+        provider: datadog
+        required: false
+
+  env:
+    APP_NAME: my-app
+    REGISTRY: docker.io/myuser
+    VERSION: v1.0.0
+
+  jobs:
+    - name: test
+      steps:
+        - name: unit-tests
+          command: npm test
+        - name: lint
+          command: npm run lint
+
+    - name: build
+      dependsOn: [test]
+      steps:
+        - name: docker-build
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+            docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+            docker push ${REGISTRY}/${APP_NAME}:${VERSION}
+
+    - name: deploy
+      dependsOn: [build]
+      env:
+        NAMESPACE: production
+      steps:
+        - name: helm-upgrade
+          command: |
+            helm upgrade --install ${APP_NAME} ./chart \
+              --set image.tag=${VERSION} \
+              --namespace ${NAMESPACE}
+        - name: wait-rollout
+          command: kubectl rollout status deployment/${APP_NAME} -n ${NAMESPACE}
+
+    - name: notify
+      dependsOn: [deploy]
+      steps:
+        - name: send-notification
+          script: |
+            if [ -n "$DATADOG_API_KEY" ]; then
+              echo "Sending notification to Datadog..."
+              # Send notification
+            fi
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflow Overview" icon="diagram-project" href="/workflows/overview">
+    Complete workflow guide
+  </Card>
+
+  <Card title="Requirements" icon="list-check" href="/workflows/requirements">
+    Tool and secret validation
+  </Card>
+
+  <Card title="Variables" icon="brackets-curly" href="/workflows/variables">
+    Variable substitution
+  </Card>
+
+  <Card title="CLI Workflow" icon="terminal" href="/cli/workflow">
+    Workflow command reference
+  </Card>
+</CardGroup>

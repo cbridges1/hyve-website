@@ -1,0 +1,668 @@
+---
+title: "Cluster Management"
+description: "Complete guide to managing Kubernetes clusters with Hyve"
+---
+
+## Overview
+
+Hyve enables declarative Kubernetes cluster management through Git-based YAML definitions. This guide covers creating, modifying, scaling, deleting, and managing clusters across regions.
+
+## Cluster Basics
+
+### Adding Clusters
+
+Create a new cluster definition and provision it to your cloud provider:
+
+<Tabs>
+  <Tab title="Basic">
+    ```bash
+    # Create a basic cluster
+    hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.small
+    ```
+  </Tab>
+
+  <Tab title="Production">
+    ```bash
+    # Production cluster with multiple nodes
+    hyve cluster add prod-app \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+      --cluster-type k3s
+    ```
+  </Tab>
+
+  <Tab title="Multi-Region">
+    ```bash
+    # US East cluster
+    hyve cluster add us-east-api --region NYC1 --nodes g4s.kube.medium
+
+    # EU cluster
+    hyve cluster add eu-api --region FRA1 --nodes g4s.kube.medium
+
+    # Asia-Pacific cluster
+    hyve cluster add apac-api --region LON1 --nodes g4s.kube.medium
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Cluster definitions are stored as YAML files in `~/.hyve/repositories/<repo>/clusters/`
+</Note>
+
+### Cluster Definition Structure
+
+When you add a cluster, Hyve creates a YAML definition:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: PHX1
+spec:
+  provider: civo
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+## Available Regions
+
+### Civo Cloud Regions
+
+| Region Code | Location | Description |
+|------------|----------|-------------|
+| `PHX1` | Phoenix, AZ | US West (Default) |
+| `NYC1` | New York, NY | US East |
+| `FRA1` | Frankfurt | Europe Central |
+| `LON1` | London | Europe West |
+
+**Example:**
+```bash
+# Deploy to different regions
+hyve cluster add us-west-cluster --region PHX1 --nodes g4s.kube.medium
+hyve cluster add us-east-cluster --region NYC1 --nodes g4s.kube.medium
+hyve cluster add eu-cluster --region FRA1 --nodes g4s.kube.medium
+```
+
+## Node Sizes
+
+### Civo Node Types
+
+Available node sizes for Civo clusters:
+
+| Size | vCPU | RAM | Use Case |
+|------|------|-----|----------|
+| `g4s.kube.xsmall` | 1 | 1 GB | Development, Testing |
+| `g4s.kube.small` | 1 | 2 GB | Small workloads |
+| `g4s.kube.medium` | 2 | 4 GB | Standard workloads |
+| `g4s.kube.large` | 4 | 8 GB | Production workloads |
+| `g4s.kube.xlarge` | 6 | 16 GB | High-performance workloads |
+
+### Sizing Examples
+
+<AccordionGroup>
+  <Accordion title="Development Environment">
+    ```bash
+    # Single small node for dev/test
+    hyve cluster add dev-cluster \
+      --region PHX1 \
+      --nodes g4s.kube.small
+    ```
+  </Accordion>
+
+  <Accordion title="Staging Environment">
+    ```bash
+    # Two medium nodes for staging
+    hyve cluster add staging-cluster \
+      --region NYC1 \
+      --nodes g4s.kube.medium,g4s.kube.medium
+    ```
+  </Accordion>
+
+  <Accordion title="Production Environment">
+    ```bash
+    # Three large nodes for production HA
+    hyve cluster add prod-cluster \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Accordion>
+
+  <Accordion title="Mixed Node Sizes">
+    ```bash
+    # Mixed sizes for different workload types
+    hyve cluster add mixed-cluster \
+      --region PHX1 \
+      --nodes g4s.kube.large,g4s.kube.medium,g4s.kube.medium
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Scaling Clusters
+
+### Scaling Up
+
+Add more nodes to an existing cluster:
+
+```bash
+# Scale from 2 to 3 nodes
+hyve cluster modify production \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+```
+
+### Scaling Down
+
+Reduce the number of nodes:
+
+```bash
+# Scale from 3 to 2 nodes
+hyve cluster modify production \
+  --nodes g4s.kube.large,g4s.kube.large
+```
+
+<Warning>
+  Scaling down removes nodes immediately. Ensure workloads are properly distributed before scaling down.
+</Warning>
+
+### Vertical Scaling
+
+Change node sizes:
+
+```bash
+# Upgrade from medium to large nodes
+hyve cluster modify staging-app \
+  --nodes g4s.kube.large,g4s.kube.large
+```
+
+## Modifying Clusters
+
+### Update Cluster Configuration
+
+Modify existing cluster settings:
+
+<Tabs>
+  <Tab title="Change Region">
+    ```bash
+    hyve cluster modify my-cluster --region NYC1
+    ```
+  </Tab>
+
+  <Tab title="Scale Nodes">
+    ```bash
+    hyve cluster modify my-cluster \
+      --nodes g4s.kube.medium,g4s.kube.medium,g4s.kube.medium
+    ```
+  </Tab>
+
+  <Tab title="Change Node Size">
+    ```bash
+    hyve cluster modify my-cluster --nodes g4s.kube.large,g4s.kube.large
+    ```
+  </Tab>
+
+  <Tab title="Update Provider">
+    ```bash
+    hyve cluster modify my-cluster --provider civo
+    ```
+  </Tab>
+</Tabs>
+
+### Modify Workflow
+
+<Steps>
+  <Step title="Check current configuration">
+    ```bash
+    # View current cluster YAML
+    cat ~/.hyve/repositories/production/clusters/my-cluster.yaml
+    ```
+  </Step>
+
+  <Step title="Modify settings">
+    ```bash
+    # Update node count
+    hyve cluster modify my-cluster \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Step>
+
+  <Step title="Apply changes">
+    ```bash
+    # Reconcile to apply changes
+    hyve reconcile
+    ```
+  </Step>
+</Steps>
+
+## Listing Clusters
+
+View all clusters with stored kubeconfigs:
+
+```bash
+hyve cluster list
+```
+
+**Output:**
+```
+🔑 Clusters in repository 'production' (3):
+
+  prod-app
+    Repository: production
+    Stored: 2024-01-15 10:30:45
+
+  staging-app
+    Repository: production
+    Stored: 2024-01-15 09:15:22
+
+  dev-cluster
+    Repository: production
+    Stored: 2024-01-14 16:45:10
+
+💡 Commands:
+  eval $(hyve use <cluster-name>)              # Quickly set kubeconfig (recommended)
+  hyve kubeconfig get <cluster-name>           # Display kubeconfig
+  hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
+```
+
+## Deleting Clusters
+
+### Standard Delete
+
+Delete both cloud resources and configuration:
+
+```bash
+hyve cluster delete my-cluster
+```
+
+**This command:**
+1. Searches for the cluster in the cloud provider
+2. Removes ingress controllers if present
+3. Deletes the cluster from the cloud
+4. Removes the local YAML configuration
+5. Runs reconciliation to clean up
+
+### Delete Options
+
+<Tabs>
+  <Tab title="Config Only">
+    ```bash
+    # Delete configuration but keep cloud resources
+    hyve cluster delete my-cluster --config-only
+    ```
+  </Tab>
+
+  <Tab title="Force Cloud Delete">
+    ```bash
+    # Delete from cloud even without config file
+    hyve cluster delete my-cluster --force-cloud
+    ```
+  </Tab>
+
+  <Tab title="Force Delete by Name">
+    ```bash
+    # Search and delete cluster by name across regions
+    hyve cluster force-delete my-cluster
+
+    # Force delete in specific region
+    hyve cluster force-delete my-cluster --region NYC1
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Cluster deletion is permanent and cannot be undone. Always backup critical data before deleting clusters.
+</Warning>
+
+## Cluster Types
+
+### K3s Clusters (Default)
+
+Lightweight Kubernetes distribution:
+
+```bash
+hyve cluster add k3s-cluster \
+  --region PHX1 \
+  --nodes g4s.kube.medium \
+  --cluster-type k3s
+```
+
+**Benefits:**
+- Fast startup time
+- Lower resource overhead
+- Perfect for edge/IoT workloads
+- Full Kubernetes compatibility
+
+### Talos Clusters
+
+Immutable Kubernetes OS:
+
+```bash
+hyve cluster add talos-cluster \
+  --region NYC1 \
+  --nodes g4s.kube.large \
+  --cluster-type talos
+```
+
+**Benefits:**
+- Enhanced security
+- Immutable infrastructure
+- API-driven management
+- Minimal attack surface
+
+## Ingress Configuration
+
+### Enable Ingress
+
+Clusters are created with ingress enabled by default:
+
+```yaml
+spec:
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+### Ingress Features
+
+- **Automatic Load Balancer**: External access to services
+- **TLS/SSL Support**: Secure HTTPS connections
+- **Path-Based Routing**: Route traffic by URL path
+- **Host-Based Routing**: Multiple domains on one cluster
+
+## Multi-Environment Strategy
+
+### Separate Clusters per Environment
+
+<Steps>
+  <Step title="Development Environment">
+    ```bash
+    hyve cluster add dev-app \
+      --region PHX1 \
+      --nodes g4s.kube.small
+    ```
+  </Step>
+
+  <Step title="Staging Environment">
+    ```bash
+    hyve cluster add staging-app \
+      --region NYC1 \
+      --nodes g4s.kube.medium,g4s.kube.medium
+    ```
+  </Step>
+
+  <Step title="Production Environment">
+    ```bash
+    hyve cluster add prod-app \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Step>
+</Steps>
+
+### Multi-Region Deployment
+
+Deploy across regions for high availability:
+
+```bash
+# Primary region
+hyve cluster add prod-us-east \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+# Secondary region (failover)
+hyve cluster add prod-us-west \
+  --region PHX1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+# Europe region
+hyve cluster add prod-eu \
+  --region FRA1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Cluster Names">
+    ```bash
+    # Good - clear environment and purpose
+    hyve cluster add prod-api-us-east --region NYC1 --nodes g4s.kube.large
+    hyve cluster add staging-web-app --region PHX1 --nodes g4s.kube.medium
+
+    # Avoid - unclear naming
+    hyve cluster add cluster1 --region NYC1 --nodes g4s.kube.small
+    hyve cluster add test --region PHX1 --nodes g4s.kube.small
+    ```
+  </Accordion>
+
+  <Accordion title="2. High Availability for Production">
+    ```bash
+    # Always use multiple nodes for production
+    hyve cluster add prod-cluster \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+    # Consider multi-region for critical workloads
+    hyve cluster add prod-primary --region NYC1 --nodes g4s.kube.large,g4s.kube.large
+    hyve cluster add prod-failover --region FRA1 --nodes g4s.kube.large,g4s.kube.large
+    ```
+  </Accordion>
+
+  <Accordion title="3. Right-Size Your Clusters">
+    ```bash
+    # Development - small and cost-effective
+    hyve cluster add dev --region PHX1 --nodes g4s.kube.small
+
+    # Staging - similar to production
+    hyve cluster add staging --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
+
+    # Production - appropriate for load
+    hyve cluster add prod --region NYC1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Accordion>
+
+  <Accordion title="4. Use GitOps for Changes">
+    ```bash
+    # Make changes through Git
+    hyve cluster modify prod-cluster --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    hyve git push "Scale production cluster to 3 nodes"
+
+    # Changes are tracked in Git history
+    # Easy to rollback if needed
+    ```
+  </Accordion>
+
+  <Accordion title="5. Regular Reconciliation">
+    ```bash
+    # Sync cluster state regularly
+    hyve reconcile
+
+    # After any manual changes
+    hyve cluster modify staging-app --nodes g4s.kube.medium,g4s.kube.medium
+    hyve reconcile
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cluster Creation Fails">
+    **Problem:** Cluster creation returns an error
+
+    **Solutions:**
+    ```bash
+    # 1. Verify API token is set
+    hyve config list-tokens
+
+    # 2. Check region is valid
+    hyve cluster add test-cluster --region PHX1 --nodes g4s.kube.small
+
+    # 3. Verify node size is available
+    # Use only valid node sizes: xsmall, small, medium, large, xlarge
+
+    # 4. Check provider account limits
+    # Log into Civo dashboard to verify quota
+    ```
+  </Accordion>
+
+  <Accordion title="Cannot Delete Cluster">
+    **Problem:** Cluster deletion fails
+
+    **Solutions:**
+    ```bash
+    # Force delete from cloud provider
+    hyve cluster force-delete my-cluster
+
+    # Search specific region
+    hyve cluster force-delete my-cluster --region NYC1
+
+    # Delete config only (keep cloud resources)
+    hyve cluster delete my-cluster --config-only
+
+    # Manually delete via Civo dashboard as last resort
+    ```
+  </Accordion>
+
+  <Accordion title="Cluster Not Found After Creation">
+    **Problem:** Created cluster doesn't appear in provider
+
+    **Solutions:**
+    ```bash
+    # Check reconciliation status
+    hyve reconcile
+
+    # Sync kubeconfigs
+    hyve kubeconfig sync
+
+    # List clusters in repository
+    hyve cluster list
+
+    # Verify Git sync
+    hyve git pull
+    hyve git status
+    ```
+  </Accordion>
+
+  <Accordion title="Modification Not Applied">
+    **Problem:** Cluster changes don't take effect
+
+    **Solutions:**
+    ```bash
+    # 1. Verify YAML was updated
+    cat ~/.hyve/repositories/production/clusters/my-cluster.yaml
+
+    # 2. Run reconciliation
+    hyve reconcile
+
+    # 3. Check for Git sync issues
+    hyve git pull
+    hyve git status
+
+    # 4. Verify provider API access
+    hyve config get-token civo
+    ```
+  </Accordion>
+
+  <Accordion title="Region Errors">
+    **Problem:** Invalid region specified
+
+    **Solution:**
+    ```bash
+    # Use valid Civo regions only
+    # PHX1, NYC1, FRA1, LON1
+
+    # Update cluster region
+    hyve cluster modify my-cluster --region NYC1
+    hyve reconcile
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Workflows
+
+### Blue-Green Deployments
+
+Deploy new version alongside existing:
+
+```bash
+# Create green cluster with new version
+hyve cluster add prod-green \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+# Test green cluster
+hyve workflow run test-suite --cluster prod-green
+
+# Switch traffic (update DNS/load balancer)
+# ...
+
+# Delete blue cluster when green is stable
+hyve cluster delete prod-blue
+```
+
+### Cluster Migration
+
+Move workloads between regions:
+
+<Steps>
+  <Step title="Create new cluster">
+    ```bash
+    hyve cluster add prod-new-region \
+      --region FRA1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Step>
+
+  <Step title="Sync kubeconfig">
+    ```bash
+    hyve kubeconfig sync
+    ```
+  </Step>
+
+  <Step title="Deploy to new cluster">
+    ```bash
+    hyve workflow run deploy-app --cluster prod-new-region
+    ```
+  </Step>
+
+  <Step title="Verify and switch traffic">
+    ```bash
+    # Test new cluster
+    eval $(hyve use prod-new-region)
+    kubectl get pods
+
+    # Update DNS/LB to new cluster
+    ```
+  </Step>
+
+  <Step title="Decommission old cluster">
+    ```bash
+    hyve cluster delete prod-old-region
+    ```
+  </Step>
+</Steps>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Kubeconfig Management" icon="key" href="/guides/kubeconfig-management">
+    Access and manage cluster credentials
+  </Card>
+
+  <Card title="Workflow Management" icon="diagram-project" href="/guides/workflow-management">
+    Automate deployments to clusters
+  </Card>
+
+  <Card title="Template Management" icon="layer-group" href="/guides/template-management">
+    Create reusable cluster templates
+  </Card>
+
+  <Card title="CLI: Cluster Commands" icon="terminal" href="/cli/cluster">
+    Complete cluster command reference
+  </Card>
+</CardGroup>
