@@ -54,7 +54,10 @@ Hyve follows a declarative approach to cluster management:
 4. **Automate** with workflows and templates
 
 <Note>
-  Hyve requires Git repositories for all state management. This ensures full traceability and enables team collaboration.
+  **Git Requirements:**
+  - Hyve requires Git repositories for all state management
+  - Uses system git by default for easier onboarding (git command must be in PATH)
+  - Optional built-in git library available via `export GIT_BACKEND=builtin`
 </Note>
 
 ## Core Concepts

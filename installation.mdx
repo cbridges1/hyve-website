@@ -11,13 +11,19 @@ description: "Install and set up Hyve on your system"
   </Card>
 
   <Card title="Git" icon="git">
-    Required for repository operations
+    **Required** - Hyve uses system git by default for easier onboarding
   </Card>
 
   <Card title="Civo Account" icon="cloud">
     [Sign up for Civo](https://dashboard.civo.com/)
   </Card>
 </CardGroup>
+
+<Note>
+  **Git Requirement:** Hyve uses your system's git command by default for all repository operations. This provides better compatibility and easier onboarding since you don't need to configure additional libraries.
+
+  If you prefer, you can optionally switch to the built-in go-git library using `hyve config set-git-backend builtin`.
+</Note>
 
 ## Install from Source
 
@@ -53,6 +59,51 @@ description: "Install and set up Hyve on your system"
     You should see the Hyve help output.
   </Step>
 </Steps>
+
+## Git Backend Configuration
+
+Hyve supports two Git backends:
+
+<Tabs>
+  <Tab title="System Git (Default)">
+    Uses your system's installed git command. This is the default and recommended option.
+
+    **Advantages:**
+    - No additional setup required
+    - Works with your existing git configuration
+    - Better compatibility with various authentication methods
+    - Familiar behavior for git users
+
+    **Requirements:**
+    - Git must be installed and available in your PATH
+    - Verify with: `git --version`
+  </Tab>
+
+  <Tab title="Built-in Git">
+    Uses the go-git library embedded in Hyve.
+
+    **Advantages:**
+    - Works without system git installed
+    - Portable across different environments
+
+    **Enable:**
+    ```bash
+    # Set to built-in git (persisted in config)
+    hyve config set-git-backend builtin
+
+    # Verify the setting
+    hyve config get-git-backend
+    ```
+
+    The preference is stored in `~/.hyve/config.yaml` and persists across sessions.
+
+    **Temporary Override:**
+    You can temporarily override the config with an environment variable:
+    ```bash
+    export GIT_BACKEND=builtin
+    ```
+  </Tab>
+</Tabs>
 
 ## Configuration
 
@@ -177,8 +228,11 @@ After installation, Hyve creates:
 Run these commands to verify everything is set up correctly:
 
 ```bash
-# Check version
+# Check Hyve installation
 hyve --help
+
+# Verify system git is available (required for default backend)
+git --version
 
 # Verify API token
 hyve config get-token civo
