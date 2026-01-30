@@ -3,6 +3,10 @@ title: "Welcome to Hyve"
 description: "GitOps Kubernetes Cluster Management CLI"
 ---
 
+<p align="center">
+  <img src="/images/banner.svg" alt="Hyve Banner" width="auto" height="auto" />
+</p>
+
 ## What is Hyve?
 
 Hyve is a **GitOps-first** Kubernetes cluster management CLI tool designed for Civo Cloud. It manages infrastructure state through Git repositories with SQLite-backed multi-repository support, automated workflows, and secure credential management.
@@ -12,6 +16,7 @@ Hyve is a **GitOps-first** Kubernetes cluster management CLI tool designed for C
   icon="rocket"
   href="/quickstart"
   horizontal
+  color="#3b82f6"
 >
   Get up and running with Hyve in minutes.
 </Card>
@@ -19,27 +24,27 @@ Hyve is a **GitOps-first** Kubernetes cluster management CLI tool designed for C
 ## Key Features
 
 <CardGroup cols={2}>
-  <Card title="GitOps Workflow" icon="code-branch">
+  <Card title="GitOps Workflow" icon="code-branch" color="#f97316">
     All cluster state is managed through Git repositories with automatic reconciliation
   </Card>
 
-  <Card title="Multi-Repository Support" icon="folder-tree">
+  <Card title="Multi-Repository Support" icon="folder-tree" color="#8b5cf6">
     Manage separate repositories for different environments (dev/staging/prod)
   </Card>
 
-  <Card title="Automated Workflows" icon="gears">
+  <Card title="Automated Workflows" icon="gears" color="#22c55e">
     Define and execute deployment pipelines with requirements validation
   </Card>
 
-  <Card title="Cluster Templates" icon="file-code">
+  <Card title="Cluster Templates" icon="file-code" color="#06b6d4">
     Reusable cluster configurations with automated post-deployment workflows
   </Card>
 
-  <Card title="Secure Credentials" icon="shield">
+  <Card title="Secure Credentials" icon="shield" color="#f43f5e">
     AES-GCM encrypted storage for API tokens, Git credentials, and kubeconfigs
   </Card>
 
-  <Card title="Variable Substitution" icon="brackets-curly">
+  <Card title="Variable Substitution" icon="brackets-curly" color="#eab308">
     Full shell support with workflow and environment variable expansion
   </Card>
 </CardGroup>
@@ -54,25 +59,28 @@ Hyve follows a declarative approach to cluster management:
 4. **Automate** with workflows and templates
 
 <Note>
-  Hyve requires Git repositories for all state management. This ensures full traceability and enables team collaboration.
+  **Git Requirements:**
+  - Hyve requires Git repositories for all state management
+  - Uses system git by default for easier onboarding (git command must be in PATH)
+  - Optional built-in git library available via `export GIT_BACKEND=builtin`
 </Note>
 
 ## Core Concepts
 
 <CardGroup cols={2}>
-  <Card title="Repositories" icon="git" href="/concepts/repositories">
+  <Card title="Repositories" icon="git" href="/concepts/repositories" color="#8b5cf6">
     Git-based state management for infrastructure
   </Card>
 
-  <Card title="Clusters" icon="server" href="/concepts/clusters">
+  <Card title="Clusters" icon="server" href="/concepts/clusters" color="#3b82f6">
     Kubernetes cluster definitions and lifecycle management
   </Card>
 
-  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows" color="#22c55e">
     Automated deployment pipelines with validation
   </Card>
 
-  <Card title="Templates" icon="stamp" href="/concepts/templates">
+  <Card title="Templates" icon="stamp" href="/concepts/templates" color="#06b6d4">
     Reusable cluster patterns with workflows
   </Card>
 </CardGroup>
@@ -149,19 +157,19 @@ hyve template execute prod-template prod-cluster-01
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Installation" icon="download" href="/installation">
+  <Card title="Installation" icon="download" href="/installation" color="#3b82f6">
     Complete installation guide
   </Card>
 
-  <Card title="Configuration" icon="sliders" href="/configuration">
+  <Card title="Configuration" icon="sliders" href="/configuration" color="#f97316">
     Configure API tokens and credentials
   </Card>
 
-  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview" color="#10b981">
     Complete command reference
   </Card>
 
-  <Card title="Workflow Guide" icon="diagram-project" href="/guides/workflow-management">
+  <Card title="Workflow Guide" icon="diagram-project" href="/guides/workflow-management" color="#a855f7">
     Learn workflow automation
   </Card>
 </CardGroup>

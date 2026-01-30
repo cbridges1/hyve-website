@@ -24,6 +24,57 @@ All configuration data is stored in the `~/.hyve/` directory:
   Credentials are encrypted using AES-GCM. The encryption key is stored separately and can be backed up for portability.
 </Note>
 
+## Git Backend Selection
+
+Hyve supports two Git backends for repository operations. The preference is persisted in the database and can be changed at any time.
+
+<CardGroup cols={2}>
+  <Card title="System Git (Default)" icon="terminal" color="#10b981">
+    Uses your system's installed git command
+
+    **Advantages:**
+    - No additional setup required
+    - Works with existing git configuration
+    - Better authentication compatibility
+    - Familiar behavior
+
+    **Requirement:** Git must be in PATH
+  </Card>
+
+  <Card title="Built-in Git" icon="package" color="#f97316">
+    Uses embedded go-git library
+
+    **Advantages:**
+    - Works without system git
+    - Portable across environments
+  </Card>
+</CardGroup>
+
+### Setting Git Backend
+
+```bash
+# Set to built-in git (persisted in database)
+hyve config set-git-backend builtin
+
+# Set to system git (default)
+hyve config set-git-backend system
+
+# Check current backend
+hyve config get-git-backend
+```
+
+<Info>
+  **Recommended:** Keep the default system git backend for easier onboarding and better compatibility. The built-in backend is available for specialized environments where git cannot be installed.
+</Info>
+
+### Configuration Priority
+
+The git backend is determined by this priority order:
+
+1. **Config file** (`~/.hyve/config.yaml`) - Set via `hyve config set-git-backend`
+2. **Environment variable** - `GIT_BACKEND=builtin` (temporary override)
+3. **Default** - `system` (uses system git)
+
 ## API Token Configuration
 
 ### Civo API Token
@@ -393,19 +444,19 @@ hyve workflow run deploy-app
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
+  <Card title="Quick Start" icon="rocket" href="/quickstart" color="#3b82f6">
     Complete setup walkthrough
   </Card>
 
-  <Card title="Git Management" icon="git" href="/guides/git-management">
+  <Card title="Git Management" icon="git" href="/guides/git-management" color="#8b5cf6">
     Configure Git repositories
   </Card>
 
-  <Card title="Workflow Requirements" icon="list-check" href="/workflows/requirements">
+  <Card title="Workflow Requirements" icon="list-check" href="/workflows/requirements" color="#22c55e">
     Using secrets in workflows
   </Card>
 
-  <Card title="CLI Config" icon="terminal" href="/cli/config">
+  <Card title="CLI Config" icon="terminal" href="/cli/config" color="#10b981">
     Config command reference
   </Card>
 </CardGroup>
