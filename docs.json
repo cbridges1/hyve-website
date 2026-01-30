@@ -9,62 +9,37 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "tabs": [
+    "groups": [
       {
-        "tab": "Documentation",
-        "groups": [
-          {
-            "group": "Getting Started",
-            "pages": [
-              "index",
-              "quickstart",
-              "installation",
-              "configuration"
-            ]
-          },
-          {
-            "group": "Core Concepts",
-            "pages": [
-              "concepts/gitops",
-              "concepts/repositories",
-              "concepts/clusters",
-              "concepts/workflows",
-              "concepts/templates"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/git-management",
-              "guides/cluster-management",
-              "guides/workflow-management",
-              "guides/template-management",
-              "guides/kubeconfig-management",
-              "guides/credentials"
-            ]
-          },
-          {
-            "group": "Workflows",
-            "pages": [
-              "workflows/overview",
-              "workflows/requirements",
-              "workflows/variables",
-              "workflows/validation",
-              "workflows/examples"
-            ]
-          },
-          {
-            "group": "CLI Reference",
-            "pages": [
-              "cli/overview",
-              "cli/git",
-              "cli/cluster",
-              "cli/workflow",
-              "cli/template",
-              "cli/kubeconfig",
-              "cli/config"
-            ]
-          }
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "quickstart",
+          "installation",
+          "configuration"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/git-management",
+          "guides/cluster-management",
+          "guides/workflow-management",
+          "guides/template-management",
+          "guides/kubeconfig-management",
+          "guides/credentials"
+        ]
+      },
+      {
+        "group": "CLI Reference",
+        "pages": [
+          "cli/overview",
+          "cli/git",
+          "cli/cluster",
+          "cli/workflow",
+          "cli/template",
+          "cli/kubeconfig",
+          "cli/config"
         ]
       }
     ],
