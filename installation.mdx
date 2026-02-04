@@ -5,7 +5,7 @@ description: "Install and set up Hyve on your system"
 
 ## Prerequisites
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Go 1.21+" icon="code" color="#6366f1">
     [Install Go](https://golang.org/doc/install)
   </Card>
@@ -13,11 +13,15 @@ description: "Install and set up Hyve on your system"
   <Card title="Git" icon="git" color="#8b5cf6">
     **Required** - Hyve uses system git by default for easier onboarding
   </Card>
-
-  <Card title="Civo Account" icon="cloud" color="#0ea5e9">
-    [Sign up for Civo](https://dashboard.civo.com/)
-  </Card>
 </CardGroup>
+
+<Note>
+  **Cloud Provider Account:** You'll need at least one cloud provider account:
+  - [Civo](https://dashboard.civo.com/)
+  - [AWS](https://aws.amazon.com/) with EKS permissions
+  - [Google Cloud](https://console.cloud.google.com/) with GKE permissions
+  - [Azure](https://portal.azure.com/) with AKS permissions
+</Note>
 
 <Note>
   **Git Requirement:** Hyve uses your system's git command by default for all repository operations. This provides better compatibility and easier onboarding since you don't need to configure additional libraries.
@@ -109,54 +113,76 @@ Hyve supports two Git backends:
 
 ### API Token Setup
 
-<Tabs>
-  <Tab title="Database (Recommended)">
-    Store your Civo API token securely in the encrypted database:
+Configure credentials for your preferred cloud provider:
 
+<Tabs>
+  <Tab title="Civo">
     ```bash
     hyve config set-token civo
     # Enter token when prompted
     ```
 
-    **Benefits:**
-    - AES-GCM encrypted storage
-    - Portable across machines
-    - No environment variables needed
-  </Tab>
-
-  <Tab title="Environment Variable">
-    Set the `CIVO_TOKEN` environment variable:
-
+    Or via environment:
     ```bash
-    export CIVO_TOKEN=your_civo_api_token_here
-    ```
-
-    Add to your shell profile for persistence:
-    ```bash
-    echo 'export CIVO_TOKEN=your_token' >> ~/.bashrc
-    # or ~/.zshrc for zsh
+    export CIVO_TOKEN=your_civo_api_token
     ```
   </Tab>
 
-  <Tab title=".env File">
-    Create a `.env` file in the Hyve directory:
-
+  <Tab title="AWS">
     ```bash
-    echo "CIVO_TOKEN=your_civo_api_token_here" > .env
+    hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
+    hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
     ```
 
-    <Warning>
-      The `.env` file should be added to `.gitignore`
-    </Warning>
+    Or via environment:
+    ```bash
+    export AWS_ACCESS_KEY_ID=your_access_key
+    export AWS_SECRET_ACCESS_KEY=your_secret_key
+    export AWS_REGION=us-east-1
+    ```
+  </Tab>
+
+  <Tab title="GCP">
+    ```bash
+    hyve config set-token gcp-project --token YOUR_PROJECT_ID
+    # Uses Application Default Credentials
+    gcloud auth application-default login
+    ```
+
+    Or via environment:
+    ```bash
+    export GCP_PROJECT_ID=your_project_id
+    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+    ```
+  </Tab>
+
+  <Tab title="Azure">
+    ```bash
+    hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
+    hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
+    # Uses Azure CLI credentials
+    az login
+    ```
+
+    Or via environment:
+    ```bash
+    export AZURE_SUBSCRIPTION_ID=your_subscription_id
+    export AZURE_RESOURCE_GROUP=your_resource_group
+    ```
   </Tab>
 </Tabs>
 
+**Benefits of database storage:**
+- AES-GCM encrypted storage
+- Portable across machines
+- No environment variables needed
+
 ### Token Priority
 
-Hyve checks for API tokens in this order:
+Hyve checks for credentials in this order:
 
 1. **Database** (encrypted storage via `hyve config set-token`)
-2. **Environment variable** (`CIVO_TOKEN`)
+2. **Environment variables**
 3. **`.env` file**
 
 ### Git Credentials (Optional)

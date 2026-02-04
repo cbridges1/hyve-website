@@ -77,6 +77,8 @@ The git backend is determined by this priority order:
 
 ## API Token Configuration
 
+Hyve supports multiple cloud providers. Configure credentials for each provider you plan to use.
+
 ### Civo API Token
 
 <Steps>
@@ -108,15 +110,102 @@ The git backend is determined by this priority order:
   </Step>
 </Steps>
 
+### AWS Credentials
+
+<Steps>
+  <Step title="Get your credentials">
+    1. Log in to [AWS Console](https://console.aws.amazon.com/)
+    2. Navigate to IAM → Users → Your User → Security Credentials
+    3. Create an Access Key with EKS permissions
+  </Step>
+
+  <Step title="Store the credentials">
+    ```bash
+    # Set AWS access key
+    hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
+
+    # Set AWS secret key
+    hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
+    ```
+  </Step>
+</Steps>
+
+### GCP Credentials
+
+<Steps>
+  <Step title="Get your credentials">
+    1. Log in to [Google Cloud Console](https://console.cloud.google.com/)
+    2. Navigate to IAM & Admin → Service Accounts
+    3. Create a service account with GKE permissions
+    4. Download the JSON key file
+  </Step>
+
+  <Step title="Store the credentials">
+    ```bash
+    # Set GCP project ID
+    hyve config set-token gcp-project --token YOUR_PROJECT_ID
+
+    # Set GCP credentials (optional - uses ADC if not set)
+    hyve config set-token gcp-credentials --token "$(cat path/to/credentials.json)"
+    ```
+
+    Or use Application Default Credentials:
+
+    ```bash
+    gcloud auth application-default login
+    ```
+  </Step>
+</Steps>
+
+### Azure Credentials
+
+<Steps>
+  <Step title="Get your credentials">
+    1. Log in to [Azure Portal](https://portal.azure.com/)
+    2. Navigate to Azure Active Directory → App Registrations
+    3. Create an app registration with AKS permissions
+    4. Note your Subscription ID and Resource Group
+  </Step>
+
+  <Step title="Store the credentials">
+    ```bash
+    # Set Azure subscription ID
+    hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
+
+    # Set Azure resource group
+    hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
+    ```
+
+    Azure uses DefaultAzureCredential for authentication:
+
+    ```bash
+    az login
+    ```
+  </Step>
+</Steps>
+
 ### Environment Variable Alternative
 
 You can also use environment variables instead of storing tokens:
 
 ```bash
-# Set Civo token via environment
+# Civo
 export CIVO_TOKEN=your-civo-token
 
-# Run commands without storing token
+# AWS
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_REGION=us-east-1
+
+# GCP
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+export GCP_PROJECT_ID=your-project-id
+
+# Azure
+export AZURE_SUBSCRIPTION_ID=your-subscription-id
+export AZURE_RESOURCE_GROUP=your-resource-group
+
+# Run commands without storing tokens
 hyve cluster list
 ```
 

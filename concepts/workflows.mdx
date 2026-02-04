@@ -229,6 +229,51 @@ hyve workflow run deploy-app
 hyve workflow run deploy-app --cluster production
 ```
 
+### Lifecycle Workflows
+
+Workflows can be triggered automatically during cluster lifecycle events:
+
+#### In Templates
+
+```yaml
+# Template definition
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+spec:
+  # ... cluster config
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+    onDestroy:
+      - backup-data
+```
+
+#### In Cluster Definitions
+
+```yaml
+# Cluster definition
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  # ... cluster config
+  workflows:
+    onCreated:
+      - setup-monitoring
+    onDestroy:
+      - backup-data
+```
+
+| Event | When It Runs | Typical Use Cases |
+|-------|--------------|-------------------|
+| `onCreated` | After cluster is ready during reconcile | Setup monitoring, deploy apps, configure services |
+| `onDestroy` | Before cluster deletion during reconcile | Backup data, export logs, cleanup external resources |
+
 ### Execution Flow
 
 <Steps>

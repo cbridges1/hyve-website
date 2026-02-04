@@ -1,6 +1,6 @@
 ---
 title: "Hyve - GitOps Kubernetes Management"
-description: "Declarative cluster management for Civo Cloud with Git-native workflows"
+description: "Declarative multi-cloud cluster management with Git-native workflows"
 ---
 
 <p align="center">
@@ -9,7 +9,7 @@ description: "Declarative cluster management for Civo Cloud with Git-native work
 
 ## What is Hyve?
 
-Hyve is a **GitOps-first** Kubernetes cluster management CLI for Civo Cloud. Manage your entire infrastructure through Git repositories with automated workflows, secure credential management, and reusable templates.
+Hyve is a **GitOps-first** Kubernetes cluster management CLI supporting **Civo, AWS (EKS), GCP (GKE), and Azure (AKS)**. Manage your entire infrastructure through Git repositories with automated workflows, secure credential management, and reusable templates.
 
 <CardGroup cols={3}>
   <Card title="Git-Native" icon="git" color="#f97316">
@@ -171,11 +171,12 @@ Get up and running in under 5 minutes:
     Define cluster templates for consistent deployments:
 
     ```bash
-    # Create template
+    # Create template with lifecycle workflows
     hyve template create prod-template \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --workflows setup-monitoring,deploy-app
+      --on-created setup-monitoring,deploy-app \
+      --on-destroy backup-data
 
     # Execute template
     hyve template execute prod-template prod-cluster-01
@@ -188,15 +189,17 @@ Get up and running in under 5 minutes:
 ```mermaid
 graph LR
     A[Hyve CLI] --> B[Git Repository]
-    A --> C[Civo Cloud]
+    A --> C[Cloud Providers]
     B --> D[Cluster Definitions]
     B --> E[Workflows]
     B --> F[Templates]
-    C --> G[Kubernetes Clusters]
-    A --> H[~/.hyve/]
-    H --> I[Encrypted Credentials]
-    H --> J[Kubeconfigs]
-    H --> K[Repository State]
+    C --> G[Civo]
+    C --> H[AWS EKS]
+    C --> I[GCP GKE]
+    C --> J[Azure AKS]
+    A --> K[~/.hyve/]
+    K --> L[Encrypted Credentials]
+    K --> M[Kubeconfigs]
 ```
 
 Hyve follows a declarative approach:

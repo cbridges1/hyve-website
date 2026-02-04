@@ -300,11 +300,12 @@ kubectl get pods
 ### Create from Template
 
 ```bash
-# 1. Create template
+# 1. Create template with lifecycle workflows
 hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --workflows setup-monitoring,deploy-app
+  --on-created setup-monitoring,deploy-app \
+  --on-destroy backup-data
 
 # 2. Execute template
 hyve template execute prod-template prod-cluster-01
