@@ -162,6 +162,7 @@ Separate repositories for each environment:
 
     # Production cluster
     hyve cluster add prod-app \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
     ```
@@ -177,6 +178,7 @@ Separate repositories for each environment:
 
     # Staging cluster
     hyve cluster add staging-app \
+      --provider civo \
       --region PHX1 \
       --nodes g4s.kube.medium,g4s.kube.medium
     ```
@@ -192,6 +194,7 @@ Separate repositories for each environment:
 
     # Development cluster
     hyve cluster add dev-app \
+      --provider civo \
       --region LON1 \
       --nodes g4s.kube.small
     ```
@@ -222,7 +225,7 @@ Multiple team members work on the same repository:
   <Step title="Make changes">
     ```bash
     # Add cluster definition
-    hyve cluster add monitoring --region NYC1
+    hyve cluster add monitoring --provider civo --region NYC1
     ```
   </Step>
 
@@ -314,7 +317,7 @@ hyve git sync production
 
 ```bash
 # Hyve commands automatically commit changes
-hyve cluster add new-cluster --region PHX1
+hyve cluster add new-cluster --provider civo --region PHX1
 # Creates clusters/new-cluster.yaml and commits
 
 # Push to remote
@@ -379,7 +382,7 @@ cd ~/.hyve/repositories/production
 git checkout -b experiment-new-region
 
 # Make experimental changes
-hyve cluster add test-cluster --region FRA1
+hyve cluster add test-cluster --provider civo --region FRA1
 
 # Test reconciliation
 hyve reconcile --dry-run

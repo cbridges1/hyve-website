@@ -27,7 +27,7 @@ Templates in Hyve are reusable cluster configurations that combine cluster defin
 
 ## Template Structure
 
-Templates are YAML files that define cluster specifications and optional workflows:
+Templates are YAML files that define cluster specifications and optional lifecycle workflows:
 
 ```yaml
 apiVersion: v1
@@ -44,8 +44,12 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring
-    - deploy-base-apps
+    onCreated:
+      - setup-monitoring
+      - deploy-base-apps
+    onDestroy:
+      - backup-data
+      - cleanup-resources
 ```
 
 ### Metadata
@@ -64,8 +68,12 @@ spec:
   Cluster configuration (region, provider, nodes)
 </ParamField>
 
-<ParamField path="spec.workflows" type="array">
+<ParamField path="spec.workflows.onCreated" type="array">
   List of workflow names to execute after cluster creation
+</ParamField>
+
+<ParamField path="spec.workflows.onDestroy" type="array">
+  List of workflow names to execute before cluster destruction
 </ParamField>
 
 ## Creating Templates
@@ -78,11 +86,12 @@ hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
-# Create template with workflows
+# Create template with lifecycle workflows
 hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --workflows setup-monitoring,deploy-apps
+  --on-created setup-monitoring,deploy-apps \
+  --on-destroy backup-data,cleanup
 ```
 
 ### Manual YAML Creation
@@ -109,8 +118,11 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring
-    - deploy-base-apps
+    onCreated:
+      - setup-monitoring
+      - deploy-base-apps
+    onDestroy:
+      - backup-data
 EOF
 
 # Commit to Git
@@ -129,8 +141,8 @@ hyve template execute prod-template my-prod-cluster
 # This will:
 # 1. Create cluster 'my-prod-cluster' using template specs
 # 2. Wait for cluster to be ready
-# 3. Run 'setup-monitoring' workflow
-# 4. Run 'deploy-base-apps' workflow
+# 3. Run 'onCreated' workflows (setup-monitoring, deploy-base-apps)
+# Note: 'onDestroy' workflows run when the cluster is deleted
 ```
 
 ### Execution Flow
@@ -163,13 +175,13 @@ hyve template execute prod-template my-prod-cluster
     ```
   </Step>
 
-  <Step title="Execute Workflows">
-    Run each workflow in sequence
+  <Step title="Execute onCreated Workflows">
+    Run each onCreated workflow in sequence
 
     ```
-    [INFO] Running workflow 'setup-monitoring'
+    [INFO] Running onCreated workflow 'setup-monitoring'
     [INFO] Workflow 'setup-monitoring' completed
-    [INFO] Running workflow 'deploy-base-apps'
+    [INFO] Running onCreated workflow 'deploy-base-apps'
     [INFO] Workflow 'deploy-base-apps' completed
     ```
   </Step>
@@ -205,10 +217,14 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring
-    - setup-logging
-    - deploy-ingress-controller
-    - setup-cert-manager
+    onCreated:
+      - setup-monitoring
+      - setup-logging
+      - deploy-ingress-controller
+      - setup-cert-manager
+    onDestroy:
+      - backup-persistent-data
+      - notify-team
 ```
 
 ### Staging Template
@@ -229,8 +245,9 @@ spec:
       - g4s.kube.medium
       - g4s.kube.medium
   workflows:
-    - setup-monitoring
-    - deploy-test-apps
+    onCreated:
+      - setup-monitoring
+      - deploy-test-apps
 ```
 
 ### Development Template
@@ -250,7 +267,8 @@ spec:
     nodes:
       - g4s.kube.small
   workflows:
-    - setup-dev-tools
+    onCreated:
+      - setup-dev-tools
 ```
 
 ### Specialized Template
@@ -272,17 +290,20 @@ spec:
       - g4s.kube.xlarge
       - g4s.kube.xlarge
   workflows:
-    - install-cuda-drivers
-    - setup-jupyter
-    - deploy-ml-platform
+    onCreated:
+      - install-cuda-drivers
+      - setup-jupyter
+      - deploy-ml-platform
+    onDestroy:
+      - export-model-artifacts
 ```
 
 ## Workflow Integration
 
-Templates can automatically run workflows after cluster creation:
+Templates support lifecycle workflows that run at different stages:
 
 ```yaml
-# Template with workflows
+# Template with lifecycle workflows
 spec:
   cluster:
     region: NYC1
@@ -290,10 +311,21 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring      # Run first
-    - deploy-apps          # Run second
-    - configure-ingress    # Run third
+    onCreated:              # Run after cluster is ready
+      - setup-monitoring
+      - deploy-apps
+      - configure-ingress
+    onDestroy:              # Run before cluster deletion
+      - backup-data
+      - cleanup-dns
 ```
+
+### Lifecycle Events
+
+| Event | When It Runs | Use Cases |
+|-------|--------------|-----------|
+| `onCreated` | After cluster is ready | Setup monitoring, deploy apps, configure ingress |
+| `onDestroy` | Before cluster deletion | Backup data, cleanup DNS, notify teams |
 
 ### Workflow Requirements
 
@@ -388,10 +420,14 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - install-security-policies
-    - setup-monitoring
-    - configure-networking
-    - deploy-compliance-tools
+    onCreated:
+      - install-security-policies
+      - setup-monitoring
+      - configure-networking
+      - deploy-compliance-tools
+    onDestroy:
+      - audit-log-export
+      - compliance-notification
 ```
 
 ### Multi-Region Deployment
@@ -460,14 +496,18 @@ hyve template execute prod-template prod-new-cluster
   </Accordion>
 
   <Accordion title="3. Include Essential Workflows">
-    Add workflows for consistent configuration:
+    Add lifecycle workflows for consistent configuration:
 
     ```yaml
     workflows:
-      - setup-monitoring        # Always monitor
-      - configure-security      # Security baseline
-      - setup-backup           # Disaster recovery
-      - deploy-core-services   # Essential services
+      onCreated:
+        - setup-monitoring        # Always monitor
+        - configure-security      # Security baseline
+        - setup-backup           # Disaster recovery
+        - deploy-core-services   # Essential services
+      onDestroy:
+        - export-logs            # Preserve audit trail
+        - backup-final-state     # Final backup
     ```
   </Accordion>
 
@@ -518,7 +558,8 @@ spec:
     nodes:
       - g4s.kube.medium
   workflows:
-    - setup-monitoring
+    onCreated:
+      - setup-monitoring
 
 # Production variant (copy and modify)
 # templates/prod-cluster.yaml
@@ -535,14 +576,17 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring
-    - setup-logging
-    - deploy-ingress
+    onCreated:
+      - setup-monitoring
+      - setup-logging
+      - deploy-ingress
+    onDestroy:
+      - backup-data
 ```
 
 ## Complete Example
 
-### Production Template with Workflows
+### Production Template with Lifecycle Workflows
 
 ```yaml
 # templates/production-complete.yaml
@@ -566,11 +610,16 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    - setup-monitoring
-    - setup-logging
-    - install-security-policies
-    - deploy-ingress-controller
-    - setup-cert-manager
+    onCreated:
+      - setup-monitoring
+      - setup-logging
+      - install-security-policies
+      - deploy-ingress-controller
+      - setup-cert-manager
+    onDestroy:
+      - backup-persistent-volumes
+      - export-audit-logs
+      - notify-operations-team
 ```
 
 ### Workflows for Template
@@ -621,12 +670,24 @@ hyve template execute production-complete prod-app-01
 # Output:
 # [INFO] Creating cluster 'prod-app-01' from template 'production-complete'
 # [INFO] Cluster created successfully
-# [INFO] Running workflow 'setup-monitoring'
+# [INFO] Running onCreated workflow 'setup-monitoring'
 # [INFO] Workflow 'setup-monitoring' completed
-# [INFO] Running workflow 'setup-logging'
+# [INFO] Running onCreated workflow 'setup-logging'
 # [INFO] Workflow 'setup-logging' completed
 # ...
 # [INFO] Template execution completed successfully
+
+# When cluster is deleted later:
+hyve cluster delete prod-app-01
+
+# Output:
+# [INFO] Running onDestroy workflow 'backup-persistent-volumes'
+# [INFO] Workflow 'backup-persistent-volumes' completed
+# [INFO] Running onDestroy workflow 'export-audit-logs'
+# [INFO] Workflow 'export-audit-logs' completed
+# [INFO] Running onDestroy workflow 'notify-operations-team'
+# [INFO] Workflow 'notify-operations-team' completed
+# [INFO] Cluster 'prod-app-01' deleted successfully
 ```
 
 ## Related

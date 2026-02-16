@@ -20,8 +20,8 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
     Automatic reconciliation to cloud
   </Card>
 
-  <Card title="Provider Agnostic" icon="cloud" color="#0ea5e9">
-    Currently supports Civo, designed for extensibility
+  <Card title="Multi-Cloud" icon="cloud" color="#0ea5e9">
+    Supports Civo, AWS (EKS), GCP (GKE), and Azure (AKS)
   </Card>
 </CardGroup>
 
@@ -41,6 +41,12 @@ spec:
     - g4s.kube.large
     - g4s.kube.large
     - g4s.kube.large
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+    onDestroy:
+      - backup-data
 ```
 
 ### Metadata Fields
@@ -56,11 +62,23 @@ spec:
 ### Spec Fields
 
 <ParamField path="spec.provider" type="string" default="civo">
-  Cloud provider (currently only `civo` supported)
+  Cloud provider: `civo`, `aws`, `gcp`, or `azure`
 </ParamField>
 
 <ParamField path="spec.nodes" type="array" required>
-  List of node sizes (e.g., `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`)
+  List of node sizes. Examples by provider:
+  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
+  - **AWS**: `t3.medium`, `t3.large`, `m5.xlarge`
+  - **GCP**: `e2-medium`, `e2-standard-4`, `n1-standard-8`
+  - **Azure**: `Standard_DS2_v2`, `Standard_DS3_v2`, `Standard_DS4_v2`
+</ParamField>
+
+<ParamField path="spec.workflows.onCreated" type="array">
+  List of workflow names to execute after cluster creation during reconcile
+</ParamField>
+
+<ParamField path="spec.workflows.onDestroy" type="array">
+  List of workflow names to execute before cluster deletion during reconcile
 </ParamField>
 
 ## Creating Clusters
@@ -70,11 +88,13 @@ spec:
 ```bash
 # Create cluster with single node
 hyve cluster add my-cluster \
+  --provider civo \
   --region PHX1 \
   --nodes g4s.kube.medium
 
 # Create cluster with multiple nodes
 hyve cluster add production \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 ```
@@ -124,7 +144,7 @@ hyve reconcile
     Create YAML definition in Git repository
 
     ```bash
-    hyve cluster add staging --region PHX1 --nodes g4s.kube.medium
+    hyve cluster add staging --provider civo --region PHX1 --nodes g4s.kube.medium
     ```
   </Step>
 
@@ -298,14 +318,43 @@ hyve reconcile
 
 ## Node Sizes
 
-Common Civo node sizes:
+<Tabs>
+  <Tab title="Civo">
+    | Size | vCPUs | RAM | Storage |
+    |------|-------|-----|---------|
+    | `g4s.kube.small` | 1 | 2GB | 30GB |
+    | `g4s.kube.medium` | 2 | 4GB | 50GB |
+    | `g4s.kube.large` | 4 | 8GB | 100GB |
+    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+  </Tab>
 
-| Size | vCPUs | RAM | Storage |
-|------|-------|-----|---------|
-| `g4s.kube.small` | 1 | 2GB | 30GB |
-| `g4s.kube.medium` | 2 | 4GB | 50GB |
-| `g4s.kube.large` | 4 | 8GB | 100GB |
-| `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+  <Tab title="AWS (EKS)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `t3.medium` | 2 | 4GB |
+    | `t3.large` | 2 | 8GB |
+    | `m5.large` | 2 | 8GB |
+    | `m5.xlarge` | 4 | 16GB |
+  </Tab>
+
+  <Tab title="GCP (GKE)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `e2-medium` | 2 | 4GB |
+    | `e2-standard-4` | 4 | 16GB |
+    | `n1-standard-4` | 4 | 15GB |
+    | `n1-standard-8` | 8 | 30GB |
+  </Tab>
+
+  <Tab title="Azure (AKS)">
+    | Size | vCPUs | RAM |
+    |------|-------|-----|
+    | `Standard_DS2_v2` | 2 | 7GB |
+    | `Standard_DS3_v2` | 4 | 14GB |
+    | `Standard_DS4_v2` | 8 | 28GB |
+    | `Standard_DS5_v2` | 16 | 56GB |
+  </Tab>
+</Tabs>
 
 <Tip>
   Choose node sizes based on your workload requirements. Start small and scale up as needed.
@@ -313,18 +362,82 @@ Common Civo node sizes:
 
 ## Regions
 
-Available Civo regions:
+<Tabs>
+  <Tab title="Civo">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | Phoenix, USA | Arizona | `PHX1` |
+    | New York, USA | New York | `NYC1` |
+    | London, UK | United Kingdom | `LON1` |
+    | Frankfurt, Germany | Germany | `FRA1` |
+  </Tab>
 
-| Region | Location | Code |
-|--------|----------|------|
-| Phoenix, USA | Arizona | `PHX1` |
-| New York, USA | New York | `NYC1` |
-| London, UK | United Kingdom | `LON1` |
-| Frankfurt, Germany | Germany | `FRA1` |
+  <Tab title="AWS">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US East | N. Virginia | `us-east-1` |
+    | US West | Oregon | `us-west-2` |
+    | EU | Ireland | `eu-west-1` |
+    | EU | Frankfurt | `eu-central-1` |
+  </Tab>
+
+  <Tab title="GCP">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US Central | Iowa | `us-central1` |
+    | US East | S. Carolina | `us-east1` |
+    | EU | Belgium | `europe-west1` |
+    | EU | London | `europe-west2` |
+  </Tab>
+
+  <Tab title="Azure">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | US East | Virginia | `eastus` |
+    | US West | California | `westus2` |
+    | EU | Netherlands | `westeurope` |
+    | EU | UK South | `uksouth` |
+  </Tab>
+</Tabs>
 
 <Note>
-  Region availability may vary. Check [Civo documentation](https://www.civo.com/docs) for current regions.
+  Region availability may vary. Check your cloud provider's documentation for current regions.
 </Note>
+
+## Lifecycle Workflows
+
+Clusters can define workflows that run automatically during reconciliation:
+
+### onCreated Workflows
+
+Run after a cluster is created and becomes ready:
+
+```yaml
+spec:
+  workflows:
+    onCreated:
+      - setup-monitoring      # Install Prometheus/Grafana
+      - configure-networking  # Set up network policies
+      - deploy-app           # Deploy application
+```
+
+### onDestroy Workflows
+
+Run before a cluster is deleted:
+
+```yaml
+spec:
+  workflows:
+    onDestroy:
+      - backup-data          # Final backup
+      - export-logs          # Export audit logs
+      - cleanup-dns          # Remove DNS records
+      - notify-team          # Send notifications
+```
+
+<Tip>
+  Use `onDestroy` workflows to ensure data is backed up and resources are cleaned up before cluster deletion.
+</Tip>
 
 ## Reconciliation
 
@@ -447,7 +560,7 @@ spec:
 
 Medium-sized cluster mirroring production setup.
 
-### Production Cluster
+### Production Cluster (Civo)
 
 ```yaml
 # clusters/production.yaml
@@ -462,9 +575,67 @@ spec:
     - g4s.kube.large
     - g4s.kube.large
     - g4s.kube.large
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+    onDestroy:
+      - backup-data
+      - notify-team
 ```
 
-High-availability cluster with multiple large nodes.
+High-availability cluster with multiple large nodes and lifecycle workflows.
+
+### AWS EKS Cluster
+
+```yaml
+# clusters/aws-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: aws-production
+  region: us-east-1
+spec:
+  provider: aws
+  nodes:
+    - m5.large
+    - m5.large
+    - m5.large
+```
+
+### GCP GKE Cluster
+
+```yaml
+# clusters/gcp-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: gcp-production
+  region: us-central1
+spec:
+  provider: gcp
+  nodes:
+    - e2-standard-4
+    - e2-standard-4
+    - e2-standard-4
+```
+
+### Azure AKS Cluster
+
+```yaml
+# clusters/azure-production.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: azure-production
+  region: eastus
+spec:
+  provider: azure
+  nodes:
+    - Standard_DS3_v2
+    - Standard_DS3_v2
+    - Standard_DS3_v2
+```
 
 ## Best Practices
 
@@ -534,7 +705,7 @@ High-availability cluster with multiple large nodes.
     hyve git use development
 
     # Test changes
-    hyve cluster add test --region PHX1 --nodes g4s.kube.small
+    hyve cluster add test --provider civo --region PHX1 --nodes g4s.kube.small
     hyve reconcile
 
     # If successful, apply to production

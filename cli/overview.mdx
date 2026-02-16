@@ -48,7 +48,7 @@ hyve <command> <subcommand> [arguments] [flags]
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
 # Command with arguments
-hyve cluster add my-cluster --region PHX1
+hyve cluster add my-cluster --provider civo --region PHX1
 
 # Command with flags
 hyve workflow run deploy-app --cluster production
@@ -95,7 +95,7 @@ Manage Kubernetes cluster definitions:
 
 ```bash
 # Add cluster
-hyve cluster add <name> --region <region> --nodes <nodes>
+hyve cluster add <name> --provider <provider> --region <region> --nodes <nodes>
 
 # List clusters
 hyve cluster list
@@ -234,7 +234,7 @@ hyve cluster add --help
 hyve --version
 
 # Verbose output
-hyve cluster add my-cluster --region PHX1 --verbose
+hyve cluster add my-cluster --provider civo --region PHX1 --verbose
 
 # Quiet mode
 hyve reconcile --quiet
@@ -255,7 +255,7 @@ hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
 # 4. Create cluster
-hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.medium
+hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
 
 # 5. Sync kubeconfig
 hyve kubeconfig sync
@@ -270,17 +270,17 @@ kubectl get nodes
 ```bash
 # Production
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
-hyve cluster add prod-app --region NYC1 --nodes g4s.kube.large,g4s.kube.large
+hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large,g4s.kube.large
 
 # Staging
 hyve git add staging --repo-url https://github.com/company/hyve-staging.git
 hyve git use staging
-hyve cluster add staging-app --region PHX1 --nodes g4s.kube.medium
+hyve cluster add staging-app --provider civo --region PHX1 --nodes g4s.kube.medium
 
 # Development
 hyve git add development --repo-url https://github.com/company/hyve-dev.git
 hyve git use development
-hyve cluster add dev-app --region LON1 --nodes g4s.kube.small
+hyve cluster add dev-app --provider civo --region LON1 --nodes g4s.kube.small
 ```
 
 ### Deploy with Workflow
@@ -300,11 +300,12 @@ kubectl get pods
 ### Create from Template
 
 ```bash
-# 1. Create template
+# 1. Create template with lifecycle workflows
 hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --workflows setup-monitoring,deploy-app
+  --on-created setup-monitoring,deploy-app \
+  --on-destroy backup-data
 
 # 2. Execute template
 hyve template execute prod-template prod-cluster-01
@@ -336,7 +337,7 @@ Clusters in repository 'production':
 Detailed logging:
 
 ```bash
-hyve cluster add my-cluster --region PHX1 --verbose
+hyve cluster add my-cluster --provider civo --region PHX1 --verbose
 ```
 
 Output:
@@ -380,7 +381,7 @@ Hyve uses standard exit codes:
 
 ```bash
 # Check exit code
-hyve cluster add my-cluster --region PHX1
+hyve cluster add my-cluster --provider civo --region PHX1
 echo $?  # 0 = success
 
 # Handle errors in scripts
@@ -482,7 +483,7 @@ hyve git u<Tab>      # Completes to 'use'
   <Accordion title="1. Use Verbose Mode for Debugging">
     ```bash
     # When something doesn't work
-    hyve cluster add my-cluster --region PHX1 --verbose
+    hyve cluster add my-cluster --provider civo --region PHX1 --verbose
     ```
   </Accordion>
 
@@ -509,7 +510,7 @@ hyve git u<Tab>      # Completes to 'use'
     export CIVO_TOKEN=${{ secrets.CIVO_TOKEN }}
     export HYVE_GIT_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
-    hyve cluster add ci-cluster --region PHX1
+    hyve cluster add ci-cluster --provider civo --region PHX1
     ```
   </Accordion>
 

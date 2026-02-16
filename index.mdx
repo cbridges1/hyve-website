@@ -95,7 +95,7 @@ hyve git add production --repo-url https://github.com/company/hyve-prod.git
 hyve config set-token civo
 
 # 3. Create a cluster
-hyve cluster add production --region PHX1 --nodes g4s.kube.large
+hyve cluster add production --provider civo --region PHX1 --nodes g4s.kube.large
 
 # 4. Execute a workflow
 hyve workflow run deploy-app --cluster production
@@ -149,7 +149,7 @@ hyve template execute prod-template prod-cluster-01
     Define and deploy your first Kubernetes cluster
 
     ```bash
-    hyve cluster add my-cluster --region PHX1
+    hyve cluster add my-cluster --provider civo --region PHX1
     ```
   </Step>
 </Steps>
