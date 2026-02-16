@@ -88,11 +88,13 @@ spec:
 ```bash
 # Create cluster with single node
 hyve cluster add my-cluster \
+  --provider civo \
   --region PHX1 \
   --nodes g4s.kube.medium
 
 # Create cluster with multiple nodes
 hyve cluster add production \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 ```
@@ -142,7 +144,7 @@ hyve reconcile
     Create YAML definition in Git repository
 
     ```bash
-    hyve cluster add staging --region PHX1 --nodes g4s.kube.medium
+    hyve cluster add staging --provider civo --region PHX1 --nodes g4s.kube.medium
     ```
   </Step>
 
@@ -703,7 +705,7 @@ spec:
     hyve git use development
 
     # Test changes
-    hyve cluster add test --region PHX1 --nodes g4s.kube.small
+    hyve cluster add test --provider civo --region PHX1 --nodes g4s.kube.small
     hyve reconcile
 
     # If successful, apply to production

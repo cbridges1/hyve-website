@@ -55,6 +55,7 @@ Get up and running in under 5 minutes:
   <Step title="Create Your First Cluster">
     ```bash
     ./hyve cluster add my-cluster \
+      --provider civo \
       --region PHX1 \
       --nodes g4s.kube.medium
     ```
@@ -134,12 +135,12 @@ Get up and running in under 5 minutes:
     ```bash
     # Production environment
     hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    hyve cluster add prod-api --region NYC1 --nodes g4s.kube.large
+    hyve cluster add prod-api --provider civo --region NYC1 --nodes g4s.kube.large
 
     # Development environment
     hyve git add development --repo-url https://github.com/company/hyve-dev.git
     hyve git use development
-    hyve cluster add dev-api --region PHX1 --nodes g4s.kube.small
+    hyve cluster add dev-api --provider civo --region PHX1 --nodes g4s.kube.small
     ```
   </Tab>
 

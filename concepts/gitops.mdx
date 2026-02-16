@@ -84,7 +84,7 @@ All infrastructure definitions are stored in Git repositories, providing:
     git checkout -b add-monitoring-cluster
 
     # Add cluster definition
-    hyve cluster add monitoring --region NYC1
+    hyve cluster add monitoring --provider civo --region NYC1
 
     # Create pull request for review
     git push origin add-monitoring-cluster
@@ -109,7 +109,7 @@ Changes in Git automatically reconcile to the infrastructure:
 
 ```bash
 # Make change in Git
-hyve cluster add new-cluster --region PHX1
+hyve cluster add new-cluster --provider civo --region PHX1
 
 # Commit the change
 git add clusters/new-cluster.yaml
@@ -175,7 +175,7 @@ civo kubernetes delete staging
 
 ```bash
 # 1. Define desired state in Git
-hyve cluster add production --region PHX1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+hyve cluster add production --provider civo --region PHX1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
 # 2. Review the generated YAML
 cat ~/.hyve/repositories/production/clusters/production.yaml
@@ -309,7 +309,7 @@ spec:
     git checkout -b scale-production
 
     # Make changes
-    hyve cluster add production --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    hyve cluster add production --provider civo --region NYC1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
     # Commit and push
     git commit -am "Scale production cluster to 3 nodes"
@@ -348,12 +348,12 @@ spec:
     hyve git use development
 
     # Test changes
-    hyve cluster add test-cluster --region PHX1
+    hyve cluster add test-cluster --provider civo --region PHX1
     hyve reconcile
 
     # Verify it works, then apply to production
     hyve git use production
-    hyve cluster add production-cluster --region NYC1
+    hyve cluster add production-cluster --provider civo --region NYC1
     ```
   </Accordion>
 </AccordionGroup>

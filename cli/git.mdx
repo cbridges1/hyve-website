@@ -614,7 +614,7 @@ hyve git use staging     # Switch to staging
 hyve git branch create feature/add-monitoring --switch
 
 # Make changes to cluster configs
-hyve cluster add monitoring-cluster --region PHX1
+hyve cluster add monitoring-cluster --provider civo --region PHX1
 
 # Commit and push changes
 hyve git push "Add monitoring cluster configuration"

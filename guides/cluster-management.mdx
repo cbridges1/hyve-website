@@ -17,7 +17,7 @@ Create a new cluster definition and provision it to your cloud provider:
   <Tab title="Basic">
     ```bash
     # Create a basic cluster
-    hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.small
+    hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.small
     ```
   </Tab>
 
@@ -25,6 +25,7 @@ Create a new cluster definition and provision it to your cloud provider:
     ```bash
     # Production cluster with multiple nodes
     hyve cluster add prod-app \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
       --cluster-type k3s
@@ -34,13 +35,13 @@ Create a new cluster definition and provision it to your cloud provider:
   <Tab title="Multi-Region">
     ```bash
     # US East cluster
-    hyve cluster add us-east-api --region NYC1 --nodes g4s.kube.medium
+    hyve cluster add us-east-api --provider civo --region NYC1 --nodes g4s.kube.medium
 
     # EU cluster
-    hyve cluster add eu-api --region FRA1 --nodes g4s.kube.medium
+    hyve cluster add eu-api --provider civo --region FRA1 --nodes g4s.kube.medium
 
     # Asia-Pacific cluster
-    hyve cluster add apac-api --region LON1 --nodes g4s.kube.medium
+    hyve cluster add apac-api --provider civo --region LON1 --nodes g4s.kube.medium
     ```
   </Tab>
 </Tabs>
@@ -84,9 +85,9 @@ spec:
 **Example:**
 ```bash
 # Deploy to different regions
-hyve cluster add us-west-cluster --region PHX1 --nodes g4s.kube.medium
-hyve cluster add us-east-cluster --region NYC1 --nodes g4s.kube.medium
-hyve cluster add eu-cluster --region FRA1 --nodes g4s.kube.medium
+hyve cluster add us-west-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
+hyve cluster add us-east-cluster --provider civo --region NYC1 --nodes g4s.kube.medium
+hyve cluster add eu-cluster --provider civo --region FRA1 --nodes g4s.kube.medium
 ```
 
 ## Node Sizes
@@ -110,6 +111,7 @@ Available node sizes for Civo clusters:
     ```bash
     # Single small node for dev/test
     hyve cluster add dev-cluster \
+      --provider civo \
       --region PHX1 \
       --nodes g4s.kube.small
     ```
@@ -119,6 +121,7 @@ Available node sizes for Civo clusters:
     ```bash
     # Two medium nodes for staging
     hyve cluster add staging-cluster \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.medium,g4s.kube.medium
     ```
@@ -128,6 +131,7 @@ Available node sizes for Civo clusters:
     ```bash
     # Three large nodes for production HA
     hyve cluster add prod-cluster \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
     ```
@@ -137,6 +141,7 @@ Available node sizes for Civo clusters:
     ```bash
     # Mixed sizes for different workload types
     hyve cluster add mixed-cluster \
+      --provider civo \
       --region PHX1 \
       --nodes g4s.kube.large,g4s.kube.medium,g4s.kube.medium
     ```
@@ -325,6 +330,7 @@ Lightweight Kubernetes distribution:
 
 ```bash
 hyve cluster add k3s-cluster \
+  --provider civo \
   --region PHX1 \
   --nodes g4s.kube.medium \
   --cluster-type k3s
@@ -342,6 +348,7 @@ Immutable Kubernetes OS:
 
 ```bash
 hyve cluster add talos-cluster \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large \
   --cluster-type talos
@@ -381,6 +388,7 @@ spec:
   <Step title="Development Environment">
     ```bash
     hyve cluster add dev-app \
+      --provider civo \
       --region PHX1 \
       --nodes g4s.kube.small
     ```
@@ -389,6 +397,7 @@ spec:
   <Step title="Staging Environment">
     ```bash
     hyve cluster add staging-app \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.medium,g4s.kube.medium
     ```
@@ -397,6 +406,7 @@ spec:
   <Step title="Production Environment">
     ```bash
     hyve cluster add prod-app \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
     ```
@@ -410,16 +420,19 @@ Deploy across regions for high availability:
 ```bash
 # Primary region
 hyve cluster add prod-us-east \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
 # Secondary region (failover)
 hyve cluster add prod-us-west \
+  --provider civo \
   --region PHX1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
 # Europe region
 hyve cluster add prod-eu \
+  --provider civo \
   --region FRA1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 ```
@@ -430,12 +443,12 @@ hyve cluster add prod-eu \
   <Accordion title="1. Use Descriptive Cluster Names">
     ```bash
     # Good - clear environment and purpose
-    hyve cluster add prod-api-us-east --region NYC1 --nodes g4s.kube.large
-    hyve cluster add staging-web-app --region PHX1 --nodes g4s.kube.medium
+    hyve cluster add prod-api-us-east --provider civo --region NYC1 --nodes g4s.kube.large
+    hyve cluster add staging-web-app --provider civo --region PHX1 --nodes g4s.kube.medium
 
     # Avoid - unclear naming
-    hyve cluster add cluster1 --region NYC1 --nodes g4s.kube.small
-    hyve cluster add test --region PHX1 --nodes g4s.kube.small
+    hyve cluster add cluster1 --provider civo --region NYC1 --nodes g4s.kube.small
+    hyve cluster add test --provider civo --region PHX1 --nodes g4s.kube.small
     ```
   </Accordion>
 
@@ -443,25 +456,26 @@ hyve cluster add prod-eu \
     ```bash
     # Always use multiple nodes for production
     hyve cluster add prod-cluster \
+      --provider civo \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
     # Consider multi-region for critical workloads
-    hyve cluster add prod-primary --region NYC1 --nodes g4s.kube.large,g4s.kube.large
-    hyve cluster add prod-failover --region FRA1 --nodes g4s.kube.large,g4s.kube.large
+    hyve cluster add prod-primary --provider civo --region NYC1 --nodes g4s.kube.large,g4s.kube.large
+    hyve cluster add prod-failover --provider civo --region FRA1 --nodes g4s.kube.large,g4s.kube.large
     ```
   </Accordion>
 
   <Accordion title="3. Right-Size Your Clusters">
     ```bash
     # Development - small and cost-effective
-    hyve cluster add dev --region PHX1 --nodes g4s.kube.small
+    hyve cluster add dev --provider civo --region PHX1 --nodes g4s.kube.small
 
     # Staging - similar to production
-    hyve cluster add staging --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
+    hyve cluster add staging --provider civo --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
 
     # Production - appropriate for load
-    hyve cluster add prod --region NYC1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    hyve cluster add prod --provider civo --region NYC1 --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
     ```
   </Accordion>
 
@@ -500,7 +514,7 @@ hyve cluster add prod-eu \
     hyve config list-tokens
 
     # 2. Check region is valid
-    hyve cluster add test-cluster --region PHX1 --nodes g4s.kube.small
+    hyve cluster add test-cluster --provider civo --region PHX1 --nodes g4s.kube.small
 
     # 3. Verify node size is available
     # Use only valid node sizes: xsmall, small, medium, large, xlarge
@@ -592,6 +606,7 @@ Deploy new version alongside existing:
 ```bash
 # Create green cluster with new version
 hyve cluster add prod-green \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
 
@@ -613,6 +628,7 @@ Move workloads between regions:
   <Step title="Create new cluster">
     ```bash
     hyve cluster add prod-new-region \
+      --provider civo \
       --region FRA1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
     ```

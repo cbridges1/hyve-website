@@ -27,8 +27,12 @@ hyve cluster add [cluster-name] [flags]
   Cloud provider region where the cluster will be created
 </ParamField>
 
-<ParamField path="--provider" type="string" default="civo">
-  Cloud provider (e.g., civo, aws, gcp, azure)
+<ParamField path="--provider" type="string" required>
+  Cloud provider. Must be one of the supported providers:
+  - `civo` - Civo Cloud (K3s/Talos clusters)
+  - `aws` - Amazon Web Services (EKS)
+  - `gcp` - Google Cloud Platform (GKE)
+  - `azure` - Microsoft Azure (AKS)
 </ParamField>
 
 <ParamField path="--nodes" type="string[]" default='["g4s.kube.small"]'>
@@ -39,18 +43,141 @@ hyve cluster add [cluster-name] [flags]
   Type of Kubernetes cluster (k3s, talos)
 </ParamField>
 
-**Example:**
+<ParamField path="--gcp-project" type="string">
+  GCP project alias (required for GCP provider). Configure aliases with `hyve config gcp add-project`.
+</ParamField>
 
-```bash
-# Create a simple cluster
-hyve cluster add my-cluster --region PHX1 --nodes g4s.kube.medium
+<ParamField path="--civo-account" type="string" default="default">
+  Civo account to use (for multi-account setups).
+</ParamField>
 
-# Create a production cluster with multiple nodes
-hyve cluster add production \
-  --region NYC1 \
-  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --cluster-type k3s
-```
+<ParamField path="--aws-account" type="string">
+  AWS account alias (optional for AWS provider). Configure aliases with `hyve config aws account-add`.
+</ParamField>
+
+<ParamField path="--vpc-name" type="string">
+  AWS VPC name alias (required for AWS provider). Configure aliases with `hyve config aws vpc-add` or create with `hyve config aws vpc-create`.
+</ParamField>
+
+<ParamField path="--eks-role-name" type="string">
+  AWS EKS IAM role name alias (required for AWS provider). Configure aliases with `hyve config aws eks-role-add` or create with `hyve config aws eks-role-create`.
+</ParamField>
+
+**Examples by Provider:**
+
+<Tabs>
+  <Tab title="Civo">
+    ```bash
+    # Simple Civo cluster
+    hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
+
+    # Production Civo cluster with multiple nodes
+    hyve cluster add production \
+      --provider civo \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+      --cluster-type k3s
+
+    # Civo Talos cluster
+    hyve cluster add talos-cluster \
+      --provider civo \
+      --region FRA1 \
+      --nodes g4s.kube.large \
+      --cluster-type talos
+    ```
+  </Tab>
+
+  <Tab title="AWS">
+    ```bash
+    # First, configure AWS resources
+    hyve config aws vpc-add --name dev-vpc --id vpc-12345678
+    hyve config aws eks-role-add --name eks-cluster-role --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+
+    # Simple AWS EKS cluster (--vpc-name and --eks-role-name are required)
+    hyve cluster add aws-dev \
+      --provider aws \
+      --region us-east-1 \
+      --vpc-name dev-vpc \
+      --eks-role-name eks-cluster-role \
+      --nodes t3.medium
+
+    # Production AWS EKS cluster
+    hyve cluster add aws-prod \
+      --provider aws \
+      --region us-west-2 \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-cluster-role \
+      --nodes m5.large,m5.large,m5.large
+
+    # High-performance AWS cluster with account alias
+    hyve cluster add aws-compute \
+      --provider aws \
+      --region eu-west-1 \
+      --aws-account production \
+      --vpc-name eu-vpc \
+      --eks-role-name eks-cluster-role \
+      --nodes m5.xlarge,m5.xlarge,m5.xlarge,m5.xlarge
+    ```
+  </Tab>
+
+  <Tab title="GCP">
+    ```bash
+    # First, configure GCP project aliases
+    hyve config gcp add-project --name dev --id my-dev-project-123
+    hyve config gcp add-project --name prod --id my-prod-project-456
+
+    # Simple GCP GKE cluster (--gcp-project is required)
+    hyve cluster add gcp-dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
+
+    # Production GCP GKE cluster
+    hyve cluster add gcp-prod \
+      --provider gcp \
+      --gcp-project prod \
+      --region us-east1 \
+      --nodes e2-standard-4,e2-standard-4,e2-standard-4
+
+    # High-memory GCP cluster
+    hyve cluster add gcp-memory \
+      --provider gcp \
+      --gcp-project dev \
+      --region europe-west1 \
+      --nodes n1-highmem-4,n1-highmem-4
+    ```
+  </Tab>
+
+  <Tab title="Azure">
+    ```bash
+    # Simple Azure AKS cluster
+    hyve cluster add azure-dev --provider azure --region eastus --nodes Standard_DS2_v2
+
+    # Production Azure AKS cluster
+    hyve cluster add azure-prod \
+      --provider azure \
+      --region westus2 \
+      --nodes Standard_DS3_v2,Standard_DS3_v2,Standard_DS3_v2
+
+    # High-performance Azure cluster
+    hyve cluster add azure-compute \
+      --provider azure \
+      --region westeurope \
+      --nodes Standard_DS4_v2,Standard_DS4_v2,Standard_DS4_v2
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  The `--provider` flag only accepts valid providers: `civo`, `aws`, `gcp`, or `azure`. Using an invalid provider will result in an error.
+</Warning>
+
+<Info>
+  **GCP Clusters**: The `--gcp-project` flag is required for GCP clusters. Configure project aliases first with `hyve config gcp add-project --name <alias> --id <project-id>`.
+</Info>
+
+<Info>
+  **AWS Clusters**: The `--vpc-name` and `--eks-role-name` flags are required for AWS EKS clusters. Configure these first:
+  - VPC: `hyve config aws vpc-add --name <alias> --id <vpc-id>` or `hyve config aws vpc-create --name <alias> --region <region>`
+  - EKS Role: `hyve config aws eks-role-add --name <alias> --role-arn <arn>` or `hyve config aws eks-role-create --name <alias> --role-name <name>`
+</Info>
 
 **Output:**
 
@@ -110,7 +237,7 @@ hyve cluster modify [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--provider" type="string">
-  Update the cloud provider
+  Update the cloud provider. Must be one of: `civo`, `aws`, `gcp`, `azure`
 </ParamField>
 
 <ParamField path="--nodes" type="string[]">
@@ -330,6 +457,61 @@ spec:
     loadBalancer: true
 ```
 
+### GCP Cluster Structure
+
+GCP clusters include additional fields for project configuration:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-gke-cluster
+  region: us-central1
+spec:
+  provider: gcp
+  gcpProject: dev           # Project alias (configured via hyve config gcp add-project)
+  gcpProjectId: my-project  # Resolved project ID (auto-populated)
+  nodes:
+    - e2-standard-4
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+### AWS Cluster Structure
+
+AWS EKS clusters include additional fields for VPC and IAM role configuration:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-eks-cluster
+  region: us-east-1
+spec:
+  provider: aws
+  awsAccount: production           # Account alias (optional, configured via hyve config aws account-add)
+  awsAccountId: "123456789012"     # Resolved account ID (auto-populated)
+  awsVpcName: dev-vpc              # VPC alias (required, configured via hyve config aws vpc-add)
+  awsVpcId: vpc-12345678           # Resolved VPC ID (auto-populated)
+  awsEksRole: eks-cluster-role     # EKS role alias (required, configured via hyve config aws eks-role-add)
+  awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # Resolved role ARN (auto-populated)
+  nodes:
+    - m5.large
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+<Note>
+  When creating an AWS EKS cluster, Hyve automatically:
+  - Discovers subnets from the specified VPC
+  - Creates a security group for the cluster with appropriate rules
+  - Uses the specified IAM role for the EKS control plane
+</Note>
+
 ### Field Reference
 
 <ParamField path="apiVersion" type="string" required>
@@ -349,7 +531,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.provider" type="string" required>
-  Cloud provider name (civo, aws, gcp, azure)
+  Cloud provider name. Must be one of: `civo`, `aws`, `gcp`, `azure`
 </ParamField>
 
 <ParamField path="spec.nodes" type="string[]" required>
@@ -367,6 +549,173 @@ spec:
 <ParamField path="spec.ingress.loadBalancer" type="boolean" default="true">
   Enable load balancer for ingress controller
 </ParamField>
+
+<ParamField path="spec.gcpProject" type="string">
+  GCP project alias (for GCP provider only). Set via `--gcp-project` flag.
+</ParamField>
+
+<ParamField path="spec.gcpProjectId" type="string">
+  GCP project ID (auto-populated from alias). Do not set manually.
+</ParamField>
+
+<ParamField path="spec.awsAccount" type="string">
+  AWS account alias (for AWS provider only). Set via `--aws-account` flag.
+</ParamField>
+
+<ParamField path="spec.awsAccountId" type="string">
+  AWS account ID (auto-populated from alias). Do not set manually.
+</ParamField>
+
+<ParamField path="spec.awsVpcName" type="string">
+  AWS VPC alias (required for AWS provider). Set via `--vpc-name` flag.
+</ParamField>
+
+<ParamField path="spec.awsVpcId" type="string">
+  AWS VPC ID (auto-populated from alias). Do not set manually.
+</ParamField>
+
+<ParamField path="spec.awsEksRole" type="string">
+  AWS EKS IAM role alias (required for AWS provider). Set via `--eks-role-name` flag.
+</ParamField>
+
+<ParamField path="spec.awsEksRoleArn" type="string">
+  AWS EKS IAM role ARN (auto-populated from alias). Do not set manually.
+</ParamField>
+
+---
+
+## Supported Providers
+
+Hyve supports the following cloud providers for Kubernetes cluster management. The `--provider` flag must be one of these valid values:
+
+<CardGroup cols={2}>
+  <Card title="Civo" icon="cloud" color="#3b82f6">
+    Civo Cloud - Fast K3s and Talos clusters
+
+    **Provider ID:** `civo`
+  </Card>
+
+  <Card title="AWS" icon="aws" color="#f97316">
+    Amazon Web Services - Elastic Kubernetes Service (EKS)
+
+    **Provider ID:** `aws`
+  </Card>
+
+  <Card title="GCP" icon="google" color="#22c55e">
+    Google Cloud Platform - Google Kubernetes Engine (GKE)
+
+    **Provider ID:** `gcp`
+  </Card>
+
+  <Card title="Azure" icon="microsoft" color="#0ea5e9">
+    Microsoft Azure - Azure Kubernetes Service (AKS)
+
+    **Provider ID:** `azure`
+  </Card>
+</CardGroup>
+
+### Provider Comparison
+
+| Provider | Service | Cluster Types | Setup Time |
+|----------|---------|---------------|------------|
+| `civo` | Civo Kubernetes | K3s, Talos | ~2-3 minutes |
+| `aws` | Amazon EKS | Managed Kubernetes | ~10-15 minutes |
+| `gcp` | Google GKE | Managed Kubernetes | ~5-10 minutes |
+| `azure` | Azure AKS | Managed Kubernetes | ~5-10 minutes |
+
+### Provider-Specific Examples
+
+<AccordionGroup>
+  <Accordion title="Civo Examples">
+    ```bash
+    # Development cluster
+    hyve cluster add dev --provider civo --region PHX1 --nodes g4s.kube.small
+
+    # Production cluster with HA
+    hyve cluster add prod --provider civo --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+
+    # Talos-based cluster
+    hyve cluster add secure --provider civo --region FRA1 \
+      --nodes g4s.kube.medium --cluster-type talos
+    ```
+  </Accordion>
+
+  <Accordion title="AWS Examples">
+    ```bash
+    # First, configure AWS VPC and EKS role aliases
+    hyve config aws vpc-add --name dev-vpc --id vpc-12345678
+    hyve config aws vpc-add --name prod-vpc --id vpc-87654321
+    hyve config aws eks-role-add --name eks-role --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+
+    # Development cluster (--vpc-name and --eks-role-name are required)
+    hyve cluster add dev \
+      --provider aws \
+      --region us-east-1 \
+      --vpc-name dev-vpc \
+      --eks-role-name eks-role \
+      --nodes t3.medium
+
+    # Production cluster with HA
+    hyve cluster add prod \
+      --provider aws \
+      --region us-west-2 \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-role \
+      --nodes m5.large,m5.large,m5.large
+
+    # High-compute cluster with account alias
+    hyve cluster add compute \
+      --provider aws \
+      --region eu-west-1 \
+      --aws-account production \
+      --vpc-name eu-vpc \
+      --eks-role-name eks-role \
+      --nodes c5.2xlarge,c5.2xlarge
+    ```
+  </Accordion>
+
+  <Accordion title="GCP Examples">
+    ```bash
+    # First, configure GCP project aliases
+    hyve config gcp add-project --name dev --id my-dev-project
+    hyve config gcp add-project --name prod --id my-prod-project
+
+    # Development cluster (--gcp-project is required)
+    hyve cluster add dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
+
+    # Production cluster with HA
+    hyve cluster add prod --provider gcp --gcp-project prod --region us-east1 \
+      --nodes e2-standard-4,e2-standard-4,e2-standard-4
+
+    # High-memory cluster
+    hyve cluster add memory --provider gcp --gcp-project dev --region europe-west1 \
+      --nodes n1-highmem-8,n1-highmem-8
+    ```
+  </Accordion>
+
+  <Accordion title="Azure Examples">
+    ```bash
+    # Development cluster
+    hyve cluster add dev --provider azure --region eastus --nodes Standard_DS2_v2
+
+    # Production cluster with HA
+    hyve cluster add prod --provider azure --region westus2 \
+      --nodes Standard_DS3_v2,Standard_DS3_v2,Standard_DS3_v2
+
+    # High-compute cluster
+    hyve cluster add compute --provider azure --region westeurope \
+      --nodes Standard_F8s_v2,Standard_F8s_v2
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  Using an invalid provider value will result in an error:
+  ```
+  Invalid provider 'invalid'. Valid providers are: civo, aws, gcp, azure
+  ```
+</Warning>
 
 ---
 
@@ -392,6 +741,99 @@ Available regions for Civo clusters:
 - `NYC1` - New York, USA
 - `FRA1` - Frankfurt, Germany
 - `LON1` - London, UK
+
+---
+
+## AWS Node Sizes (EKS)
+
+When using AWS as the provider, common node sizes include:
+
+| Size | vCPUs | RAM | Use Case |
+|------|-------|-----|----------|
+| `t3.medium` | 2 | 4 GB | Development, Testing |
+| `t3.large` | 2 | 8 GB | Small workloads |
+| `m5.large` | 2 | 8 GB | General purpose |
+| `m5.xlarge` | 4 | 16 GB | Production workloads |
+| `m5.2xlarge` | 8 | 32 GB | High-performance |
+| `c5.xlarge` | 4 | 8 GB | Compute-optimized |
+| `r5.large` | 2 | 16 GB | Memory-optimized |
+
+---
+
+## AWS Regions (EKS)
+
+Available regions for AWS EKS clusters:
+
+- `us-east-1` - N. Virginia, USA
+- `us-east-2` - Ohio, USA
+- `us-west-1` - N. California, USA
+- `us-west-2` - Oregon, USA
+- `eu-west-1` - Ireland
+- `eu-west-2` - London, UK
+- `eu-central-1` - Frankfurt, Germany
+- `ap-southeast-1` - Singapore
+- `ap-northeast-1` - Tokyo, Japan
+
+---
+
+## GCP Node Sizes (GKE)
+
+When using GCP as the provider, common node sizes include:
+
+| Size | vCPUs | RAM | Use Case |
+|------|-------|-----|----------|
+| `e2-medium` | 2 | 4 GB | Development, Testing |
+| `e2-standard-2` | 2 | 8 GB | Small workloads |
+| `e2-standard-4` | 4 | 16 GB | General purpose |
+| `e2-standard-8` | 8 | 32 GB | Production workloads |
+| `n1-standard-4` | 4 | 15 GB | Standard compute |
+| `n1-highmem-4` | 4 | 26 GB | Memory-optimized |
+| `n1-highcpu-8` | 8 | 7.2 GB | Compute-optimized |
+
+---
+
+## GCP Regions (GKE)
+
+Available regions for GCP GKE clusters:
+
+- `us-central1` - Iowa, USA
+- `us-east1` - South Carolina, USA
+- `us-west1` - Oregon, USA
+- `europe-west1` - Belgium
+- `europe-west2` - London, UK
+- `europe-west3` - Frankfurt, Germany
+- `asia-east1` - Taiwan
+- `asia-southeast1` - Singapore
+
+---
+
+## Azure Node Sizes (AKS)
+
+When using Azure as the provider, common node sizes include:
+
+| Size | vCPUs | RAM | Use Case |
+|------|-------|-----|----------|
+| `Standard_DS2_v2` | 2 | 7 GB | Development, Testing |
+| `Standard_DS3_v2` | 4 | 14 GB | Small workloads |
+| `Standard_DS4_v2` | 8 | 28 GB | General purpose |
+| `Standard_DS5_v2` | 16 | 56 GB | Production workloads |
+| `Standard_F4s_v2` | 4 | 8 GB | Compute-optimized |
+| `Standard_E4s_v3` | 4 | 32 GB | Memory-optimized |
+
+---
+
+## Azure Regions (AKS)
+
+Available regions for Azure AKS clusters:
+
+- `eastus` - East US (Virginia)
+- `eastus2` - East US 2 (Virginia)
+- `westus` - West US (California)
+- `westus2` - West US 2 (Washington)
+- `westeurope` - West Europe (Netherlands)
+- `northeurope` - North Europe (Ireland)
+- `uksouth` - UK South (London)
+- `southeastasia` - Southeast Asia (Singapore)
 
 ---
 
@@ -421,8 +863,9 @@ After creating or modifying cluster configurations, Hyve automatically triggers 
 ### Create a Production Cluster
 
 ```bash
-# Create cluster with 3 large nodes
+# Create cluster with 3 large nodes (--provider is required)
 hyve cluster add production \
+  --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
   --cluster-type k3s
@@ -445,10 +888,10 @@ hyve cluster modify my-cluster \
 ### Multi-Region Deployment
 
 ```bash
-# Create clusters in different regions
-hyve cluster add us-east --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
-hyve cluster add us-west --region PHX1 --nodes g4s.kube.medium,g4s.kube.medium
-hyve cluster add eu-central --region FRA1 --nodes g4s.kube.medium,g4s.kube.medium
+# Create clusters in different regions (--provider is required)
+hyve cluster add us-east --provider civo --region NYC1 --nodes g4s.kube.medium,g4s.kube.medium
+hyve cluster add us-west --provider civo --region PHX1 --nodes g4s.kube.medium,g4s.kube.medium
+hyve cluster add eu-central --provider civo --region FRA1 --nodes g4s.kube.medium,g4s.kube.medium
 
 # All clusters managed in the same Git repository
 ```

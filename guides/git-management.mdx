@@ -252,15 +252,15 @@ echo 'export HYVE_GIT_TOKEN=your_token' >> ~/.bashrc
     ```bash
     # Development clusters
     hyve git use development
-    hyve cluster add dev-app --region PHX1 --nodes g4s.kube.small
+    hyve cluster add dev-app --provider civo --region PHX1 --nodes g4s.kube.small
 
     # Staging clusters
     hyve git use staging
-    hyve cluster add staging-app --region NYC1 --nodes g4s.kube.medium
+    hyve cluster add staging-app --provider civo --region NYC1 --nodes g4s.kube.medium
 
     # Production clusters
     hyve git use production
-    hyve cluster add prod-app --region NYC1 --nodes g4s.kube.large
+    hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large
     ```
   </Step>
 
@@ -283,15 +283,15 @@ hyve git add infrastructure --repo-url https://github.com/company/infra.git
 
 # Development branch
 hyve git branch create develop --switch
-hyve cluster add dev-cluster --region PHX1 --nodes g4s.kube.small
+hyve cluster add dev-cluster --provider civo --region PHX1 --nodes g4s.kube.small
 
 # Staging branch
 hyve git branch create staging --switch
-hyve cluster add staging-cluster --region NYC1 --nodes g4s.kube.medium
+hyve cluster add staging-cluster --provider civo --region NYC1 --nodes g4s.kube.medium
 
 # Production in main
 hyve git branch switch main
-hyve cluster add prod-cluster --region NYC1 --nodes g4s.kube.large
+hyve cluster add prod-cluster --provider civo --region NYC1 --nodes g4s.kube.large
 ```
 
 ## Repository Structure
@@ -353,7 +353,7 @@ repository/
     hyve git branch create feature/test-new-cluster --switch
 
     # Make changes
-    hyve cluster add test-cluster --region PHX1 --nodes g4s.kube.small
+    hyve cluster add test-cluster --provider civo --region PHX1 --nodes g4s.kube.small
 
     # Test and verify
     hyve reconcile
@@ -491,14 +491,14 @@ hyve reconcile                          # Apply changes
 hyve git add us-infrastructure \
   --repo-url https://github.com/company/hyve-us.git
 
-hyve cluster add us-cluster --region NYC1 --nodes g4s.kube.large
+hyve cluster add us-cluster --provider civo --region NYC1 --nodes g4s.kube.large
 
 # EU Region
 hyve git add eu-infrastructure \
   --repo-url https://github.com/company/hyve-eu.git
 
 hyve git use eu-infrastructure
-hyve cluster add eu-cluster --region FRA1 --nodes g4s.kube.large
+hyve cluster add eu-cluster --provider civo --region FRA1 --nodes g4s.kube.large
 ```
 
 ### Promotion Workflow

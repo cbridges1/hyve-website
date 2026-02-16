@@ -5,7 +5,10 @@ description: "Configure API tokens, Git credentials, and environment variables"
 
 ## Overview
 
-Hyve requires configuration for API tokens, Git credentials, and optional environment variables. All sensitive data is encrypted using AES-GCM and stored in `~/.hyve/credentials.db`.
+Hyve requires configuration for cloud provider authentication, Git credentials, and provider-specific settings. The authentication model varies by provider:
+
+- **Civo**: API tokens stored encrypted in Hyve (AES-GCM)
+- **AWS, GCP, Azure**: Native CLI authentication (no credentials stored in Hyve)
 
 ## Storage Location
 
@@ -13,15 +16,21 @@ All configuration data is stored in the `~/.hyve/` directory:
 
 ```
 ~/.hyve/
-├── credentials.db       # Encrypted API tokens and credentials
-├── kubeconfigs.db      # Encrypted cluster kubeconfigs
-├── repositories.db     # Repository configurations (SQLite)
+├── config.yaml         # Global configuration (git backend preference)
+├── credentials.db      # Encrypted Civo tokens and Git credentials (AES-GCM)
+├── kubeconfigs.db     # Encrypted cluster kubeconfigs
+├── repositories.db    # Repository configurations (SQLite)
 ├── temp/              # Temporary kubeconfig files
 └── repositories/      # Cloned repository storage
+    └── <repo-name>/
+        └── provider-configs/  # Provider-specific configuration
+            ├── gcp.yaml       # GCP projects (name/ID aliases)
+            ├── aws.yaml       # AWS accounts, EKS roles, VPCs
+            └── azure.yaml     # Azure subscription IDs
 ```
 
 <Note>
-  Credentials are encrypted using AES-GCM. The encryption key is stored separately and can be backed up for portability.
+  Civo credentials are encrypted using AES-GCM. AWS, GCP, and Azure use their native CLI authentication instead of storing credentials in Hyve.
 </Note>
 
 ## Git Backend Selection
@@ -75,9 +84,46 @@ The git backend is determined by this priority order:
 2. **Environment variable** - `GIT_BACKEND=builtin` (temporary override)
 3. **Default** - `system` (uses system git)
 
-## API Token Configuration
+## Cloud Provider Authentication
 
-Hyve supports multiple cloud providers. Configure credentials for each provider you plan to use.
+Hyve uses different authentication methods depending on the cloud provider.
+
+<CardGroup cols={2}>
+  <Card title="Civo" icon="key" color="#3b82f6">
+    API token stored encrypted in Hyve
+
+    **Setup:** `hyve config set-token civo`
+  </Card>
+
+  <Card title="AWS" icon="aws" color="#f97316">
+    Native AWS CLI authentication
+
+    **Setup:** `aws configure`
+  </Card>
+
+  <Card title="GCP" icon="google" color="#22c55e">
+    Application Default Credentials
+
+    **Setup:** `gcloud auth application-default login`
+  </Card>
+
+  <Card title="Azure" icon="microsoft" color="#8b5cf6">
+    Azure CLI authentication
+
+    **Setup:** `az login`
+  </Card>
+</CardGroup>
+
+### Why Native CLI Authentication?
+
+For AWS, GCP, and Azure, Hyve uses native cloud CLI authentication instead of storing credentials. This provides:
+
+- **Security**: Credentials managed by official cloud CLIs with their security features
+- **Consistency**: Same credentials used by other tools (Terraform, kubectl, etc.)
+- **SSO Support**: Works with corporate SSO, MFA, and identity federation
+- **No Duplication**: No need to manage credentials in multiple places
+
+Civo is the exception because it doesn't have a widely-used CLI, so Hyve stores Civo API tokens securely using AES-GCM encryption.
 
 ### Civo API Token
 
@@ -100,118 +146,228 @@ Hyve supports multiple cloud providers. Configure credentials for each provider 
     ```bash
     hyve config set-token civo --token YOUR_CIVO_TOKEN
     ```
+
+    For multiple Civo accounts:
+
+    ```bash
+    hyve config set-token civo --account production
+    hyve config set-token civo --account development
+    ```
   </Step>
 
   <Step title="Verify the token">
     ```bash
     # View stored token
     hyve config get-token civo
+
+    # View token for specific account
+    hyve config get-token civo --account production
+
+    # List all Civo accounts
+    hyve config list-tokens
     ```
   </Step>
 </Steps>
 
 ### AWS Credentials
 
+AWS uses native CLI authentication. Hyve does not store AWS credentials.
+
 <Steps>
-  <Step title="Get your credentials">
-    1. Log in to [AWS Console](https://console.aws.amazon.com/)
-    2. Navigate to IAM → Users → Your User → Security Credentials
-    3. Create an Access Key with EKS permissions
+  <Step title="Configure AWS CLI">
+    ```bash
+    # Configure default profile
+    aws configure
+
+    # Or configure named profile
+    aws configure --profile production
+    ```
   </Step>
 
-  <Step title="Store the credentials">
+  <Step title="Alternative: Environment Variables">
     ```bash
-    # Set AWS access key
-    hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
+    export AWS_ACCESS_KEY_ID=your-access-key
+    export AWS_SECRET_ACCESS_KEY=your-secret-key
+    export AWS_REGION=us-east-1
+    ```
+  </Step>
 
-    # Set AWS secret key
-    hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
+  <Step title="Verify authentication">
+    ```bash
+    aws sts get-caller-identity
     ```
   </Step>
 </Steps>
 
 ### GCP Credentials
 
+GCP uses Application Default Credentials. Hyve does not store GCP credentials.
+
 <Steps>
-  <Step title="Get your credentials">
-    1. Log in to [Google Cloud Console](https://console.cloud.google.com/)
-    2. Navigate to IAM & Admin → Service Accounts
-    3. Create a service account with GKE permissions
-    4. Download the JSON key file
+  <Step title="Authenticate with gcloud">
+    ```bash
+    # For user authentication
+    gcloud auth application-default login
+
+    # For service account (CI/CD)
+    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+    ```
   </Step>
 
-  <Step title="Store the credentials">
-    ```bash
-    # Set GCP project ID
-    hyve config set-token gcp-project --token YOUR_PROJECT_ID
-
-    # Set GCP credentials (optional - uses ADC if not set)
-    hyve config set-token gcp-credentials --token "$(cat path/to/credentials.json)"
-    ```
-
-    Or use Application Default Credentials:
+  <Step title="Configure GCP projects in Hyve">
+    GCP projects are configured with aliases in your repository:
 
     ```bash
-    gcloud auth application-default login
+    # Add project with alias
+    hyve config gcp add-project --name dev --id my-dev-project-123
+    hyve config gcp add-project --name prod --id my-prod-project-456
+
+    # Use alias when creating clusters
+    hyve cluster add my-cluster --provider gcp --gcp-project dev --region us-central1
     ```
   </Step>
 </Steps>
 
 ### Azure Credentials
 
+Azure uses Azure CLI authentication. Hyve does not store Azure credentials.
+
 <Steps>
-  <Step title="Get your credentials">
-    1. Log in to [Azure Portal](https://portal.azure.com/)
-    2. Navigate to Azure Active Directory → App Registrations
-    3. Create an app registration with AKS permissions
-    4. Note your Subscription ID and Resource Group
-  </Step>
-
-  <Step title="Store the credentials">
-    ```bash
-    # Set Azure subscription ID
-    hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
-
-    # Set Azure resource group
-    hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
-    ```
-
-    Azure uses DefaultAzureCredential for authentication:
-
+  <Step title="Authenticate with Azure CLI">
     ```bash
     az login
+    ```
+  </Step>
+
+  <Step title="Set subscription (if multiple)">
+    ```bash
+    az account set --subscription "Your Subscription Name"
     ```
   </Step>
 </Steps>
 
 ### Environment Variable Alternative
 
-You can also use environment variables instead of storing tokens:
+You can use environment variables for Civo tokens instead of storing them:
 
 ```bash
-# Civo
+# Civo (alternative to hyve config set-token)
 export CIVO_TOKEN=your-civo-token
-
-# AWS
-export AWS_ACCESS_KEY_ID=your-access-key
-export AWS_SECRET_ACCESS_KEY=your-secret-key
-export AWS_REGION=us-east-1
-
-# GCP
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-export GCP_PROJECT_ID=your-project-id
-
-# Azure
-export AZURE_SUBSCRIPTION_ID=your-subscription-id
-export AZURE_RESOURCE_GROUP=your-resource-group
 
 # Run commands without storing tokens
 hyve cluster list
 ```
 
 <Warning>
-  Environment variables are not encrypted and may be visible in process listings. Use the encrypted storage for production.
+  Environment variables are not encrypted and may be visible in process listings. Use the encrypted storage (`hyve config set-token civo`) for production.
 </Warning>
+
+## Provider Configuration
+
+Provider-specific configurations (like GCP project IDs and AWS account IDs) are stored in your Git repository under `provider-configs/`. This allows team sharing and version control.
+
+### GCP Configuration
+
+```bash
+# Add GCP projects with aliases
+hyve config gcp add-project --name dev --id my-dev-project-123
+hyve config gcp add-project --name prod --id my-prod-project-456
+
+# List configured projects
+hyve config gcp list-projects
+
+# Get project ID by alias
+hyve config gcp get-project dev
+
+# Remove a project
+hyve config gcp remove-project dev
+
+# Use alias when creating clusters
+hyve cluster add my-cluster --provider gcp --gcp-project dev --region us-central1
+```
+
+### AWS Configuration
+
+```bash
+# Account management (with aliases)
+hyve config aws account-add --name prod --id 123456789012
+hyve config aws account-list
+hyve config aws account-get prod
+hyve config aws account-remove prod
+
+# EKS IAM Role management (configuration only)
+hyve config aws eks-role-add --name default-role --role-arn arn:aws:iam::123456789012:role/my-eks-role
+hyve config aws eks-role-list
+hyve config aws eks-role-get default-role
+hyve config aws eks-role-remove default-role
+
+# VPC management (configuration only)
+hyve config aws vpc-add --name default-vpc --id vpc-0123456789abcdef0
+hyve config aws vpc-list
+hyve config aws vpc-get default-vpc
+hyve config aws vpc-remove default-vpc
+```
+
+### AWS Resource Creation
+
+Hyve can create actual AWS resources (IAM roles and VPCs) and store their aliases:
+
+```bash
+# Create EKS IAM role in AWS
+hyve config aws eks-role-create --name default-role --role-name my-eks-cluster-role --region us-east-1
+
+# Delete EKS IAM role from AWS
+hyve config aws eks-role-delete default-role --region us-east-1
+
+# Delete from config only (keep AWS resource)
+hyve config aws eks-role-delete default-role --config-only
+
+# Create VPC in AWS
+hyve config aws vpc-create --name dev-vpc --region us-east-1 --cidr 10.0.0.0/16
+
+# Create VPC with subnets
+hyve config aws vpc-create --name dev-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
+
+# Delete VPC from AWS
+hyve config aws vpc-delete dev-vpc --region us-east-1
+```
+
+### Azure Configuration
+
+```bash
+# Add subscription IDs
+hyve config azure add-subscription-ids sub-id-1,sub-id-2
+hyve config azure list-subscription-ids
+hyve config azure remove-subscription-ids sub-id-1
+```
+
+### Provider Config Files
+
+Provider configurations are stored in YAML files in your repository:
+
+**provider-configs/gcp.yaml:**
+```yaml
+projects:
+  - name: dev
+    project_id: my-dev-project-123
+  - name: prod
+    project_id: my-prod-project-456
+```
+
+**provider-configs/aws.yaml:**
+```yaml
+accounts:
+  - name: prod
+    account_id: "123456789012"
+  - name: dev
+    account_id: "987654321098"
+eks_roles:
+  - name: default-role
+    role_arn: arn:aws:iam::123456789012:role/my-eks-role
+vpcs:
+  - name: default-vpc
+    vpc_id: vpc-0123456789abcdef0
+```
 
 ## Git Credentials
 
@@ -297,42 +453,52 @@ Hyve will automatically load `.env` files when running workflows.
   </Tab>
 </Tabs>
 
-## Managing Tokens
+## Managing Civo Accounts
 
-### List All Tokens
+Hyve supports multiple Civo accounts. Each account has its own encrypted API token.
+
+### List All Accounts
 
 ```bash
-# List all stored tokens
+# List all stored Civo accounts
 hyve config list-tokens
 ```
 
 Output:
 ```
-Stored tokens:
-  - civo
-  - docker
-  - github
+🔑 Stored Civo accounts (2):
+  ✓ default
+  ✓ production
 ```
 
 ### View Specific Token
 
 ```bash
-# View token value
+# View token for default account
 hyve config get-token civo
+
+# View token for specific account
+hyve config get-token civo --account production
 ```
 
 ### Update Token
 
 ```bash
-# Update existing token
-hyve config set-token docker --token NEW_TOKEN
+# Update token for default account
+hyve config set-token civo --token NEW_TOKEN
+
+# Update token for specific account
+hyve config set-token civo --account production --token NEW_TOKEN
 ```
 
 ### Remove Token
 
 ```bash
-# Remove stored token
-hyve config remove-token docker
+# Remove token for default account
+hyve config clear-token civo
+
+# Remove token for specific account
+hyve config clear-token civo --account production
 ```
 
 ## Configuration Priority
@@ -432,9 +598,20 @@ Hyve uses the following priority order for configuration values:
 ### Complete Initial Setup
 
 ```bash
-# 1. Configure Civo API token
+# 1. Configure cloud provider authentication
+
+# For Civo (stored encrypted in Hyve)
 hyve config set-token civo
 # Enter token when prompted
+
+# For AWS (uses native CLI)
+aws configure
+
+# For GCP (uses Application Default Credentials)
+gcloud auth application-default login
+
+# For Azure (uses Azure CLI)
+az login
 
 # 2. Configure Git credentials
 hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
@@ -442,22 +619,35 @@ hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
 # 3. Add repository
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
-# 4. Configure additional tokens for workflows
-hyve config set-token docker
-hyve config set-token github
+# 4. Configure provider settings (stored in repository)
+hyve config gcp add-project --name dev --id my-gcp-project-id
+hyve config aws account-add --name prod --id 123456789012
 ```
 
-### Multi-Environment Setup
+### Multi-Account Civo Setup
 
 ```bash
-# Production
-hyve git add production --repo-url https://github.com/company/hyve-prod.git
-hyve config set-token civo --token PROD_TOKEN
+# Production Civo account
+hyve config set-token civo --account production
 
-# Development
-hyve git add development --repo-url https://github.com/company/hyve-dev.git
-hyve git use development
-hyve config set-token civo --token DEV_TOKEN
+# Development Civo account
+hyve config set-token civo --account development
+
+# Use specific account when creating clusters
+hyve cluster add prod-cluster --provider civo --civo-account production --region PHX1
+```
+
+### AWS with Resource Creation
+
+```bash
+# Create EKS IAM role
+hyve config aws eks-role-create --name default-role --role-name hyve-eks-role --region us-east-1
+
+# Create VPC with subnets
+hyve config aws vpc-create --name eks-vpc --region us-east-1 --cidr 10.0.0.0/16 --subnets 10.0.1.0/24,10.0.2.0/24
+
+# Use in cluster creation (future)
+hyve cluster add my-eks-cluster --provider aws --eks-role default-role --vpc eks-vpc --region us-east-1
 ```
 
 ### Using .env Files
