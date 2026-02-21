@@ -16,7 +16,6 @@ All configuration data is stored in the `~/.hyve/` directory:
 
 ```
 ~/.hyve/
-├── config.yaml         # Global configuration (git backend preference)
 ├── credentials.db      # Encrypted Civo tokens and Git credentials (AES-GCM)
 ├── kubeconfigs.db     # Encrypted cluster kubeconfigs
 ├── repositories.db    # Repository configurations (SQLite)
@@ -33,56 +32,33 @@ All configuration data is stored in the `~/.hyve/` directory:
   Civo credentials are encrypted using AES-GCM. AWS, GCP, and Azure use their native CLI authentication instead of storing credentials in Hyve.
 </Note>
 
-## Git Backend Selection
+## Repository Configuration
 
-Hyve supports two Git backends for repository operations. The preference is persisted in the database and can be changed at any time.
+Each Hyve state repository can contain an optional `hyve.yaml` file at its root that controls repository-level behaviour such as the reconciliation mode.
 
-<CardGroup cols={2}>
-  <Card title="System Git (Default)" icon="terminal" color="#10b981">
-    Uses your system's installed git command
+### hyve.yaml
 
-    **Advantages:**
-    - No additional setup required
-    - Works with existing git configuration
-    - Better authentication compatibility
-    - Familiar behavior
-
-    **Requirement:** Git must be in PATH
-  </Card>
-
-  <Card title="Built-in Git" icon="package" color="#f97316">
-    Uses embedded go-git library
-
-    **Advantages:**
-    - Works without system git
-    - Portable across environments
-  </Card>
-</CardGroup>
-
-### Setting Git Backend
-
-```bash
-# Set to built-in git (persisted in database)
-hyve config set-git-backend builtin
-
-# Set to system git (default)
-hyve config set-git-backend system
-
-# Check current backend
-hyve config get-git-backend
+```yaml
+# hyve.yaml — placed in the root of your Hyve state repository
+reconcile:
+  mode: local          # "local" (default) or "cicd"
+  strictDelete: false  # set to true to delete unmanaged cloud clusters
 ```
 
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reconcile.mode` | string | `local` | `local` — Hyve provisions clusters directly from the machine running `hyve reconcile`. `cicd` — Hyve validates and pushes desired state to Git; a CI/CD pipeline calls `hyve reconcile --path .` to provision. |
+| `reconcile.strictDelete` | bool | `false` | When `true`, any cloud cluster with no matching YAML definition in your `clusters/` directory is deleted during reconciliation. When `false`, only clusters whose names begin with a managed prefix (`hyve-`, `civo-deploy-`) are eligible for cleanup. |
+
 <Info>
-  **Recommended:** Keep the default system git backend for easier onboarding and better compatibility. The built-in backend is available for specialized environments where git cannot be installed.
+  If `hyve.yaml` is absent or a field is not set, Hyve uses the defaults shown above.
 </Info>
 
-### Configuration Priority
+<Warning>
+  Enable `strictDelete` only after ensuring your state repository contains definitions for every cluster you want to keep. Any cloud cluster without a matching YAML file will be permanently deleted.
+</Warning>
 
-The git backend is determined by this priority order:
-
-1. **Config file** (`~/.hyve/config.yaml`) - Set via `hyve config set-git-backend`
-2. **Environment variable** - `GIT_BACKEND=builtin` (temporary override)
-3. **Default** - `system` (uses system git)
+See the [CI/CD Workflow Guide](/guides/cicd) for a complete walkthrough of CI/CD mode with GitHub Actions.
 
 ## Cloud Provider Authentication
 
@@ -248,18 +224,29 @@ Azure uses Azure CLI authentication. Hyve does not store Azure credentials.
 
 ### Environment Variable Alternative
 
-You can use environment variables for Civo tokens instead of storing them:
+You can supply credentials via environment variables instead of using the CLI auth tools. This is the primary method for CI/CD pipelines.
 
 ```bash
 # Civo (alternative to hyve config set-token)
 export CIVO_TOKEN=your-civo-token
 
-# Run commands without storing tokens
-hyve cluster list
+# AWS (alternative to aws configure)
+export AWS_ACCESS_KEY_ID=your-key-id
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+
+# GCP (alternative to gcloud auth application-default login)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# Azure (alternative to az login)
+export AZURE_TENANT_ID=your-tenant-id
+export AZURE_CLIENT_ID=your-client-id
+export AZURE_CLIENT_SECRET=your-client-secret
 ```
 
+For CI/CD pipelines managing **multiple cloud accounts**, Hyve also supports named account environment variables following the pattern `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}`. See the [CI/CD guide](/guides/cicd#named-account-secrets) for details.
+
 <Warning>
-  Environment variables are not encrypted and may be visible in process listings. Use the encrypted storage (`hyve config set-token civo`) for production.
+  Environment variables are not encrypted. For local development, use the CLI auth tools (`hyve config set-token civo`, `aws configure`, etc.). For CI/CD, store credentials as pipeline secrets (e.g., GitHub Actions secrets).
 </Warning>
 
 ## Provider Configuration

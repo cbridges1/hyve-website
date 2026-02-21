@@ -24,6 +24,7 @@
         "pages": [
           "guides/git-management",
           "guides/cluster-management",
+          "guides/cicd",
           "guides/workflow-management",
           "guides/template-management",
           "guides/kubeconfig-management",

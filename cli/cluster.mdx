@@ -282,7 +282,7 @@ Exporting cluster information...
 
 ### hyve cluster delete
 
-Delete a cluster from both the cloud provider and configuration.
+Delete a cluster by removing its YAML definition and reconciling.
 
 ```bash
 hyve cluster delete [cluster-name] [flags]
@@ -292,54 +292,46 @@ hyve cluster delete [cluster-name] [flags]
   Name of the cluster to delete
 </ParamField>
 
-<ParamField path="--config-only" type="boolean" default="false">
-  Only remove configuration file, skip cloud provider deletion
+<ParamField path="--force" type="boolean" default="false">
+  Delete the cluster from the cloud provider immediately before removing the configuration file. Bypasses CI/CD — use this when you want to destroy the cluster right now rather than letting the pipeline handle it.
 </ParamField>
 
 <ParamField path="--force-cloud" type="boolean" default="false">
-  Delete from cloud even if no configuration file exists
+  Used together with `--force`: delete from cloud even if no configuration file exists.
 </ParamField>
 
-**Example:**
+**Examples:**
 
 ```bash
-# Delete cluster completely
+# Default: remove YAML, commit, reconcile (CI/CD pipeline handles cloud deletion)
 hyve cluster delete my-cluster
 
-# Only remove configuration
-hyve cluster delete my-cluster --config-only
+# Force: delete from cloud immediately, then remove configuration
+hyve cluster delete my-cluster --force
 
-# Force delete from cloud
-hyve cluster delete orphaned-cluster --force-cloud
+# Force delete from cloud when no config file exists
+hyve cluster delete orphaned-cluster --force --force-cloud
 ```
 
-**Output:**
+**Default process:**
 
-```
-Using Git repository 'production': https://github.com/company/hyve-prod.git
-Git repository synchronized
-🗑️ Deleting cluster 'my-cluster' from cloud provider...
-🔍 Explicitly searching for cluster 'my-cluster' in region PHX1...
-🗑️ Found cluster 'my-cluster' with ID abc123, explicitly deleting...
-🔌 Attempting to remove any ingress controllers...
-✅ Successfully deleted cluster 'my-cluster' from cloud provider
-Deleted cluster definition file: /Users/username/.hyve/repositories/production/clusters/my-cluster.yaml
-Changes committed and pushed to Git repository
-Cluster my-cluster has been removed from configuration
-🔄 Reconciling cluster state with cloud provider...
-✅ Reconciliation completed successfully
-```
+1. Removes the cluster configuration YAML file
+2. Commits and pushes the change to the state repository
+3. Runs reconciliation
 
-**Process:**
+   - In **CI/CD mode** with `strictDelete: true`: the push triggers the pipeline, which deletes the cloud cluster
+   - In **local mode** with `strictDelete: true`: the local reconcile deletes the cloud cluster immediately
+
+**Force process (`--force`):**
 
 1. Explicitly searches for and deletes the cluster from the cloud provider
 2. Removes any ingress controllers
-3. Deletes the cluster configuration YAML file
+3. Removes the cluster configuration YAML file
 4. Commits changes to Git
 5. Runs reconciliation to clean up any remaining resources
 
 <Info>
-  Use `--config-only` when you want to remove the configuration but keep the cloud resources (useful for importing clusters later).
+  The default (non-force) delete is the recommended approach in CI/CD workflows. Enable `strictDelete: true` in `hyve.yaml` so that removing a cluster YAML automatically triggers deletion in the pipeline. See the [CI/CD guide](/guides/cicd) for details.
 </Info>
 
 ---
@@ -839,15 +831,61 @@ Available regions for Azure AKS clusters:
 
 ## Reconciliation
 
-After creating or modifying cluster configurations, Hyve automatically triggers reconciliation to synchronize the desired state (Git) with the actual state (cloud provider).
+After creating or modifying cluster configurations, run `hyve reconcile` to synchronize the desired state (Git) with the actual state (cloud provider).
+
+### Reconciliation Modes
+
+The reconciliation mode is controlled by a `hyve.yaml` file at the root of your state repository:
+
+```yaml
+# hyve.yaml
+reconcile:
+  mode: local          # "local" (default) or "cicd"
+  strictDelete: false  # set to true to delete unmanaged cloud clusters
+```
+
+| Mode | Behaviour |
+|------|-----------|
+| `local` | Hyve provisions clusters directly from the machine running the command. Default when `hyve.yaml` is absent. |
+| `cicd` | Hyve validates and commits the desired state to Git, then exits. A CI/CD pipeline handles the actual provisioning by calling `hyve reconcile --path .`. |
+
+#### Strict Delete
+
+When `strictDelete: true`, Hyve deletes any cloud cluster that has no matching YAML definition in your state repository. By default (`false`), only clusters whose names begin with a managed prefix (`hyve-`, `civo-deploy-`) are eligible for deletion.
+
+<Warning>
+  Enable `strictDelete` only after confirming your state repository contains definitions for every cluster you want to keep.
+</Warning>
+
+### Running Reconciliation
+
+```bash
+# Local mode — provisions clusters from this machine
+hyve reconcile
+
+# CI/CD pipeline mode — use the checked-out repo path directly
+# This bypasses the hyve.yaml cicd check and always reconciles locally
+hyve reconcile --path .
+
+# Provide a relative path to a specific checkout
+hyve reconcile --path /path/to/repo
+```
+
+#### `--path` Flag
+
+| Flag | Description |
+|------|-------------|
+| `--path / -p` | Path to an already-checked-out local repository. Skips cloning and the `hyve.yaml` mode check; always runs full local reconciliation. Designed for use inside CI/CD pipelines. |
 
 ### Reconciliation Process
 
-1. **Load Definitions**: Read all cluster YAML files from Git repository
-2. **Check Cloud State**: Query cloud provider for existing clusters
-3. **Determine Actions**: Compare desired vs actual state
-4. **Execute Changes**: Create, update, or delete clusters as needed
-5. **Configure Ingress**: Set up ingress controllers if enabled
+1. **Load Definitions**: Read all cluster YAML files from the Git repository
+2. **Validate**: Ensure all cluster definitions are valid
+3. **Check Cloud State**: Query the cloud provider for existing clusters
+4. **Determine Actions**: Compare desired vs actual state
+5. **Execute Changes**: Create, update, or delete clusters as needed
+6. **Configure Ingress**: Set up ingress controllers if enabled
+7. **Commit & Push**: Write reconciliation results back to the state repository
 
 ### Actions
 
@@ -855,6 +893,10 @@ After creating or modifying cluster configurations, Hyve automatically triggers 
 - **Update**: Cluster exists in both but configuration differs
 - **Delete**: Cluster exists in cloud but not in Git
 - **None**: States match, no action needed
+
+<Note>
+  See the [CI/CD Workflow Guide](/guides/cicd) for a complete example using GitHub Actions.
+</Note>
 
 ---
 
@@ -933,4 +975,4 @@ These files are version-controlled in your Git repository.
 - [hyve kubeconfig](/cli/kubeconfig) - Manage kubeconfigs for clusters
 - [hyve workflow](/cli/workflow) - Run workflows on clusters
 - [hyve template](/cli/template) - Create clusters from templates
-- [hyve reconcile](/cli/reconcile) - Manually trigger reconciliation
+- [hyve reconcile](/guides/cicd) - CI/CD workflow guide

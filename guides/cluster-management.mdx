@@ -277,33 +277,34 @@ hyve cluster list
 
 ### Standard Delete
 
-Delete both cloud resources and configuration:
+Remove the cluster YAML and reconcile — the pipeline (or local reconcile) handles cloud deletion:
 
 ```bash
 hyve cluster delete my-cluster
 ```
 
 **This command:**
-1. Searches for the cluster in the cloud provider
-2. Removes ingress controllers if present
-3. Deletes the cluster from the cloud
-4. Removes the local YAML configuration
-5. Runs reconciliation to clean up
+1. Removes the cluster configuration YAML file
+2. Commits and pushes the change to the state repository
+3. Runs reconciliation
+
+In CI/CD mode with `strictDelete: true`, the push triggers the pipeline which deletes the cloud cluster. In local mode with `strictDelete: true`, the local reconcile deletes the cloud cluster immediately.
 
 ### Delete Options
 
 <Tabs>
-  <Tab title="Config Only">
+  <Tab title="Force (immediate cloud delete)">
     ```bash
-    # Delete configuration but keep cloud resources
-    hyve cluster delete my-cluster --config-only
+    # Delete from cloud immediately, bypassing CI/CD
+    hyve cluster delete my-cluster --force
     ```
+    Searches for the cluster, removes ingress controllers, deletes from cloud, then removes the YAML and reconciles.
   </Tab>
 
-  <Tab title="Force Cloud Delete">
+  <Tab title="Force Cloud Delete (no config)">
     ```bash
-    # Delete from cloud even without config file
-    hyve cluster delete my-cluster --force-cloud
+    # Delete from cloud even without a config file
+    hyve cluster delete my-cluster --force --force-cloud
     ```
   </Tab>
 
@@ -534,9 +535,6 @@ hyve cluster add prod-eu \
 
     # Search specific region
     hyve cluster force-delete my-cluster --region NYC1
-
-    # Delete config only (keep cloud resources)
-    hyve cluster delete my-cluster --config-only
 
     # Manually delete via Civo dashboard as last resort
     ```

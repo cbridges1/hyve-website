@@ -106,8 +106,11 @@ hyve cluster get <name>
 # Remove cluster
 hyve cluster remove <name>
 
-# Reconcile clusters
-hyve reconcile [--cluster <name>]
+# Reconcile clusters (local mode)
+hyve reconcile
+
+# Reconcile using a local repository checkout (CI/CD pipelines)
+hyve reconcile --path .
 ```
 
 <Note>
@@ -504,14 +507,15 @@ hyve git u<Tab>      # Completes to 'use'
     ```
   </Accordion>
 
-  <Accordion title="3. Use Environment Variables in CI/CD">
-    ```bash
-    # In CI/CD environment
-    export CIVO_TOKEN=${{ secrets.CIVO_TOKEN }}
-    export HYVE_GIT_TOKEN=${{ secrets.GITHUB_TOKEN }}
+  <Accordion title="3. Use CI/CD Mode for Team Environments">
+    Configure your state repository's `hyve.yaml` with `reconcile.mode: cicd` so engineers push desired state without needing cloud credentials locally. Your CI/CD pipeline runs the actual provisioning:
 
-    hyve cluster add ci-cluster --provider civo --region PHX1
+    ```bash
+    # In GitHub Actions (pipeline step)
+    hyve reconcile --path .
     ```
+
+    See the [CI/CD Workflow Guide](/guides/cicd) for a complete GitHub Actions example.
   </Accordion>
 
   <Accordion title="4. Validate Before Executing">
