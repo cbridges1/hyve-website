@@ -9,7 +9,9 @@ description: "GitOps Kubernetes Cluster Management CLI"
 
 ## What is Hyve?
 
-Hyve is a **GitOps-first** Kubernetes cluster management CLI tool designed for Civo Cloud. It manages infrastructure state through Git repositories with SQLite-backed multi-repository support, automated workflows, and secure credential management.
+Hyve is a **GitOps-first** Kubernetes cluster management CLI that treats your state repository as the source of truth. Define clusters as YAML, commit the change, and Hyve reconciles the desired state against your cloud provider — locally or through a CI/CD pipeline.
+
+It supports **Civo, AWS (EKS), GCP (GKE), and Azure (AKS)** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
 
 <Card
   title="Quick Start"
