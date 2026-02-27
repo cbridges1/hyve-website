@@ -449,6 +449,79 @@ Set these secrets in your repository's **Settings → Secrets and variables → 
   </Accordion>
 </AccordionGroup>
 
+## Scheduled Teardown
+
+You can use a scheduled GitHub Actions workflow to automatically delete all clusters on a cron schedule — useful for ephemeral environments, cost-saving overnight teardowns, or end-of-sprint cleanup.
+
+The workflow empties the `clusters/` directory and runs `hyve reconcile --path .` directly. With `strictDelete: true` set in `hyve.yaml`, Hyve will delete every cluster that exists in your cloud provider but has no corresponding YAML definition.
+
+<Warning>
+  This workflow **permanently deletes all clusters** managed by the state repository. Ensure `strictDelete: true` is set in `hyve.yaml` and that you intend to destroy all running clusters before scheduling this workflow.
+</Warning>
+
+**`hyve.yaml` (state repository root):**
+
+```yaml
+reconcile:
+  mode: cicd
+  strictDelete: true
+```
+
+**`.github/workflows/scheduled-teardown.yml`:**
+
+```yaml
+name: Scheduled Cluster Teardown
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # Every day at midnight UTC
+  workflow_dispatch:        # Allow manual triggering
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout state repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Hyve
+        run: |
+          curl -sSL https://github.com/your-org/hyve/releases/latest/download/hyve-linux-amd64 \
+            -o /usr/local/bin/hyve
+          chmod +x /usr/local/bin/hyve
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name "hyve-bot"
+          git config --global user.email "hyve-bot@users.noreply.github.com"
+
+      - name: Remove all cluster definitions
+        run: |
+          find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
+          echo "All cluster definitions removed"
+
+      - name: Reconcile (tears down all clusters via strictDelete)
+        env:
+          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
+          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          hyve reconcile --path .
+```
+
+When this pipeline runs, Hyve will:
+
+1. Find zero cluster definitions in `clusters/`
+2. Discover all existing clusters in your cloud provider
+3. Delete every cluster because none have a corresponding YAML definition (`strictDelete: true`)
+4. Commit the empty `clusters/` state back to the repository
+
+To limit teardown to a specific provider or environment, keep only the clusters you want to preserve in `clusters/` and let `strictDelete` remove the rest.
+
 ## Troubleshooting
 
 <AccordionGroup>
