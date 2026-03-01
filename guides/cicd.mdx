@@ -109,61 +109,7 @@ spec:
 
 ## GitHub Actions Workflows
 
-### Option 1: Single Repository (App + State)
-
-Use this pattern when your application code and Hyve state live in the same repository.
-
-```
-my-app/
-├── .github/
-│   └── workflows/
-│       └── hyve-reconcile.yml
-├── hyve.yaml                  # reconcile.mode: cicd
-├── clusters/
-│   └── production.yaml
-└── src/                       # Application code
-```
-
-**`.github/workflows/hyve-reconcile.yml`:**
-
-```yaml
-name: Hyve Reconcile
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'clusters/**'
-      - 'hyve.yaml'
-
-jobs:
-  reconcile:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Hyve
-        run: |
-          curl -sSL https://github.com/your-org/hyve/releases/latest/download/hyve-linux-amd64 \
-            -o /usr/local/bin/hyve
-          chmod +x /usr/local/bin/hyve
-
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
-      - name: Reconcile clusters
-        env:
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          hyve reconcile --path .
-```
-
-### Option 2: Separate State Repository
+### Separate State Repository
 
 Use this pattern when your Hyve state is kept in a dedicated repository, separate from your application repositories.
 
@@ -173,9 +119,14 @@ hyve-state/                    # Dedicated state repository
 │   └── workflows/
 │       └── reconcile.yml
 ├── hyve.yaml                  # reconcile.mode: cicd
-└── clusters/
-    ├── production.yaml
-    └── staging.yaml
+├── clusters/
+│   ├── production.yaml
+│   └── staging.yaml
+└── provider-configs/
+    ├── aws.yaml
+    ├── gcp.yaml
+    ├── azure.yaml
+    └── civo.yaml
 ```
 
 **`.github/workflows/reconcile.yml`:**
@@ -216,49 +167,68 @@ jobs:
 
       - name: Reconcile clusters
         env:
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
+          # Civo — per-org token (MY_ORG maps to civoOrganization: my-org in cluster spec)
+          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}                        # fallback
+
+          # AWS — per-account credentials (PROD_US maps to awsAccount: prod-us)
+          PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
+          PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
+
+          # GCP — service account JSON (MY_PROJECT maps to gcpProject: my-project)
+          MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
+
+          # Azure — service principal (PROD_SUB maps to azureSubscription: prod-sub)
+          PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
+          PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
+          PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
+          PROD_SUB_AZURE_RESOURCE_GROUP: ${{ secrets.PROD_SUB_AZURE_RESOURCE_GROUP }}
+
           HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
 
-### Option 3: Multi-Cloud with Multiple Providers
+Named account env vars follow the pattern `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}` where `{ACCOUNT_NAME}` is the alias from your cluster definition (`awsAccount`, `gcpProject`, `azureSubscription`, or `civoOrganization`), with hyphens replaced by underscores and everything uppercased. See [Named Account Secrets](#named-account-secrets) for the full reference.
 
-This workflow handles multiple cloud providers in the same reconcile run.
+### Scheduled Teardown
+
+Use a scheduled workflow to automatically delete all clusters on a cron schedule — useful for ephemeral environments, cost-saving overnight teardowns, or end-of-sprint cleanup.
+
+<Warning>
+  This workflow **permanently deletes all clusters** managed by the state repository. Ensure `strictDelete: true` is set in `hyve.yaml` and that you intend to destroy all running clusters before scheduling this workflow.
+</Warning>
+
+Requires `strictDelete: true` in `hyve.yaml`:
 
 ```yaml
-name: Hyve Reconcile (Multi-Cloud)
+# hyve.yaml
+reconcile:
+  mode: cicd
+  strictDelete: true
+```
+
+**`.github/workflows/scheduled-teardown.yml`:**
+
+```yaml
+name: Scheduled Cluster Teardown
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'clusters/**'
+  schedule:
+    - cron: '0 0 * * *'   # Every day at midnight UTC
+  workflow_dispatch:        # Allow manual triggering
 
 jobs:
-  reconcile:
+  teardown:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write   # Required for GCP Workload Identity / AWS OIDC
 
     steps:
-      - name: Checkout repository
+      - name: Checkout state repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/hyve-reconciler
-          aws-region: us-east-1
-
-      - name: Configure GCP credentials
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/123/locations/global/workloadIdentityPools/hyve/providers/github
-          service_account: hyve-reconciler@my-project.iam.gserviceaccount.com
 
       - name: Install Hyve
         run: |
@@ -271,13 +241,26 @@ jobs:
           git config --global user.name "hyve-bot"
           git config --global user.email "hyve-bot@users.noreply.github.com"
 
-      - name: Reconcile clusters
+      - name: Remove all cluster definitions
+        run: find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
+
+      - name: Reconcile (tears down all clusters via strictDelete)
         env:
+          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
           CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
+          PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
+          PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
+          MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
+          PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
+          PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
+          PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
+          PROD_SUB_AZURE_RESOURCE_GROUP: ${{ secrets.PROD_SUB_AZURE_RESOURCE_GROUP }}
           HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
+
+Hyve finds zero cluster definitions in `clusters/`, discovers all existing clusters in your cloud provider, and deletes every cluster because none have a corresponding YAML definition (`strictDelete: true`). To limit teardown to specific providers or environments, keep the cluster definitions you want to preserve in `clusters/` and let `strictDelete` remove the rest.
 
 ## End-to-End Workflow
 
@@ -367,48 +350,6 @@ For each credential, Hyve checks in this order:
   If no named env vars are set, the provider falls back to the standard credential chain, so existing local workflows are unaffected.
 </Info>
 
-### Multi-Account Example
-
-**Provider config (committed to state repository):**
-
-```yaml
-# provider-configs/aws.yaml
-accounts:
-  - name: prod-us
-    account_id: "111122223333"
-  - name: prod-eu
-    account_id: "444455556666"
-```
-
-**Cluster definitions:**
-
-```yaml
-# clusters/prod-us.yaml
-spec:
-  provider: aws
-  awsAccount: prod-us   # → PROD_US_AWS_ACCESS_KEY_ID, etc.
-  region: us-east-1
-```
-
-```yaml
-# clusters/prod-eu.yaml
-spec:
-  provider: aws
-  awsAccount: prod-eu   # → PROD_EU_AWS_ACCESS_KEY_ID, etc.
-  region: eu-west-1
-```
-
-**GitHub Actions secrets (credentials only — no account IDs needed):**
-
-```
-PROD_US_AWS_ACCESS_KEY_ID     = AKIA...
-PROD_US_AWS_SECRET_ACCESS_KEY = ...
-PROD_EU_AWS_ACCESS_KEY_ID     = AKIA...
-PROD_EU_AWS_SECRET_ACCESS_KEY = ...
-```
-
-Hyve resolves the correct credentials for each cluster automatically during `hyve reconcile --path .`.
-
 ## Required GitHub Secrets
 
 Set these secrets in your repository's **Settings → Secrets and variables → Actions**:
@@ -448,79 +389,6 @@ Set these secrets in your repository's **Settings → Secrets and variables → 
     Use pull requests for cluster changes. Engineers open a PR modifying `clusters/*.yaml`; reviewers approve; the merge to `main` triggers the pipeline. This gives you a review gate before anything is provisioned.
   </Accordion>
 </AccordionGroup>
-
-## Scheduled Teardown
-
-You can use a scheduled GitHub Actions workflow to automatically delete all clusters on a cron schedule — useful for ephemeral environments, cost-saving overnight teardowns, or end-of-sprint cleanup.
-
-The workflow empties the `clusters/` directory and runs `hyve reconcile --path .` directly. With `strictDelete: true` set in `hyve.yaml`, Hyve will delete every cluster that exists in your cloud provider but has no corresponding YAML definition.
-
-<Warning>
-  This workflow **permanently deletes all clusters** managed by the state repository. Ensure `strictDelete: true` is set in `hyve.yaml` and that you intend to destroy all running clusters before scheduling this workflow.
-</Warning>
-
-**`hyve.yaml` (state repository root):**
-
-```yaml
-reconcile:
-  mode: cicd
-  strictDelete: true
-```
-
-**`.github/workflows/scheduled-teardown.yml`:**
-
-```yaml
-name: Scheduled Cluster Teardown
-
-on:
-  schedule:
-    - cron: '0 0 * * *'   # Every day at midnight UTC
-  workflow_dispatch:        # Allow manual triggering
-
-jobs:
-  teardown:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout state repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Hyve
-        run: |
-          curl -sSL https://github.com/your-org/hyve/releases/latest/download/hyve-linux-amd64 \
-            -o /usr/local/bin/hyve
-          chmod +x /usr/local/bin/hyve
-
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
-      - name: Remove all cluster definitions
-        run: |
-          find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
-          echo "All cluster definitions removed"
-
-      - name: Reconcile (tears down all clusters via strictDelete)
-        env:
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          hyve reconcile --path .
-```
-
-When this pipeline runs, Hyve will:
-
-1. Find zero cluster definitions in `clusters/`
-2. Discover all existing clusters in your cloud provider
-3. Delete every cluster because none have a corresponding YAML definition (`strictDelete: true`)
-4. Commit the empty `clusters/` state back to the repository
-
-To limit teardown to a specific provider or environment, keep only the clusters you want to preserve in `clusters/` and let `strictDelete` remove the rest.
 
 ## Troubleshooting
 
