@@ -203,9 +203,8 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── repositories.db      # Repository configurations
-├── credentials.db       # Encrypted credentials
-├── kubeconfigs.db      # Encrypted cluster kubeconfigs
+├── hyve.db             # Unified encrypted database (credentials, repos, kubeconfigs)
+├── context.yaml        # Active provider account context
 ├── temp/               # Temporary kubeconfig files
 └── repositories/       # Cloned repository storage
     ├── production/
@@ -218,6 +217,24 @@ After installation, Hyve creates:
 <Note>
   All credentials and kubeconfigs are encrypted using AES-GCM
 </Note>
+
+### Overriding the data directory
+
+The default `~/.hyve` location can be overridden with the `--home` flag or the `HYVE_HOME` environment variable. This is useful for testing multiple isolated instances:
+
+```bash
+# Use a custom directory for a single command
+hyve --home /tmp/hyve-staging reconcile
+
+# Set it persistently for a shell session
+export HYVE_HOME=~/hyve-staging
+hyve git add staging --repo-url https://github.com/company/staging-state.git
+
+# Or point to an existing directory
+HYVE_HOME=/opt/hyve hyve cluster list
+```
+
+The flag and environment variable are equivalent; the `--home` flag takes precedence over `HYVE_HOME`.
 
 ## Platform-Specific Notes
 
