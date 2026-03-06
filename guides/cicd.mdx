@@ -167,29 +167,30 @@ jobs:
 
       - name: Reconcile clusters
         env:
-          # Civo — per-org token (MY_ORG maps to civoOrganization: my-org in cluster spec)
-          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}                        # fallback
+          # Secret names match the ${...} references in your provider-configs/*.yaml files.
+          # You choose the names — Hyve reads whatever variable each YAML field points to.
 
-          # AWS — per-account credentials (PROD_US maps to awsAccount: prod-us)
+          # Civo (provider-configs/civo.yaml → organizations[*].token)
+          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+
+          # AWS (provider-configs/aws.yaml → accounts[*].access_key_id / secret_access_key)
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
 
-          # GCP — service account JSON (MY_PROJECT maps to gcpProject: my-project)
+          # GCP (provider-configs/gcp.yaml → projects[*].credentials_json)
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
 
-          # Azure — service principal (PROD_SUB maps to azureSubscription: prod-sub)
+          # Azure (provider-configs/azure.yaml → subscriptions[*].tenant_id / client_id / client_secret)
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
-          PROD_SUB_AZURE_RESOURCE_GROUP: ${{ secrets.PROD_SUB_AZURE_RESOURCE_GROUP }}
 
           HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
 
-Named account env vars follow the pattern `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}` where `{ACCOUNT_NAME}` is the alias from your cluster definition (`awsAccount`, `gcpProject`, `azureSubscription`, or `civoOrganization`), with hyphens replaced by underscores and everything uppercased. See [Named Account Secrets](#named-account-secrets) for the full reference.
+Credentials are resolved from the `${ENV_VAR}` references in your provider config files — the secret names are whatever you choose when writing those files. See [Provider Config Secret Mapping](#provider-config-secret-mapping) for the full reference.
 
 ### Scheduled Teardown
 
@@ -246,15 +247,15 @@ jobs:
 
       - name: Reconcile (tears down all clusters via strictDelete)
         env:
+          # Same secrets as your regular reconcile workflow —
+          # names match the ${...} references in provider-configs/*.yaml
           MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
-          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
-          PROD_SUB_AZURE_RESOURCE_GROUP: ${{ secrets.PROD_SUB_AZURE_RESOURCE_GROUP }}
           HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
@@ -290,78 +291,110 @@ hyve reconcile
 # Cluster reconciliation completed
 ```
 
-## Named Account Secrets
+## Provider Config Secret Mapping
 
-Hyve supports per-account environment variables so a single pipeline can reconcile clusters across multiple cloud accounts, GCP projects, or Azure subscriptions. The naming pattern is:
+Hyve resolves CI/CD credentials from your `provider-configs/*.yaml` files. Each credential field accepts either a **literal value** or an **environment variable reference** (`${VAR_NAME}`). At reconcile time, Hyve expands any `${...}` references using the process environment, so a single pipeline can serve multiple cloud accounts by simply making the right variables available.
 
-```
-{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}
-```
-
-The account name comes from the alias set in your cluster definition (e.g. `awsAccount: main-account`). Hyphens become underscores and everything is uppercased.
-
-<Info>
-  **GCP project IDs and Azure subscription IDs are never required as secrets.** Hyve resolves them automatically from the `provider-configs/gcp.yaml` and `provider-configs/azure.yaml` files in your state repository using the name alias. You only need to supply credentials (keys, tokens, service principal details).
-</Info>
-
-### AWS
-
-| Cluster spec field | `awsAccount: main-account` |
-|--------------------|---------------------------|
-| Access key ID | `MAIN_ACCOUNT_AWS_ACCESS_KEY_ID` |
-| Secret access key | `MAIN_ACCOUNT_AWS_SECRET_ACCESS_KEY` |
-| Session token (optional) | `MAIN_ACCOUNT_AWS_SESSION_TOKEN` |
-
-### GCP
-
-| Cluster spec field | `gcpProject: my-project` |
-|--------------------|--------------------------|
-| Service account JSON (inline) | `MY_PROJECT_GCP_CREDENTIALS_JSON` |
-
-The GCP project ID is resolved from `provider-configs/gcp.yaml` using the `gcpProject` alias — no project ID secret needed.
-
-### Azure
-
-| Cluster spec field | `azureSubscription: prod-sub` |
-|--------------------|-----------------------------|
-| Tenant ID | `PROD_SUB_AZURE_TENANT_ID` |
-| Client ID | `PROD_SUB_AZURE_CLIENT_ID` |
-| Client secret | `PROD_SUB_AZURE_CLIENT_SECRET` |
-| Resource group | `PROD_SUB_AZURE_RESOURCE_GROUP` |
-
-The Azure subscription ID is resolved from `provider-configs/azure.yaml` using the `azureSubscription` alias — no subscription ID secret needed.
+You choose the secret names — Hyve has no naming requirements. The only rule is that the name inside `${...}` in your YAML must match the env var (or secret) you expose in the pipeline.
 
 ### Civo
 
-| Cluster spec field | `civoOrganization: my-org` |
-|--------------------|---------------------------|
-| API token | `MY_ORG_CIVO_TOKEN` |
+```yaml
+# provider-configs/civo.yaml
+organizations:
+  - name: my-org
+    org_id: your-org-id
+    token: ${MY_ORG_CIVO_TOKEN}   # name this whatever you like
+```
 
-### Priority Order
+```yaml
+# workflow env:
+MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+```
 
-For each credential, Hyve checks in this order:
+### AWS
 
-1. **Provider YAML config** — GCP project ID and Azure subscription ID are always resolved from `provider-configs/*.yaml` by name alias
-2. **Named account env var** — `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}` (checked before generic env vars)
-3. **Standard env var** — `AWS_ACCESS_KEY_ID`, `CIVO_TOKEN`, `AZURE_SUBSCRIPTION_ID`, etc.
-4. **Provider SDK default chain** — AWS credential chain (`~/.aws/credentials`, IAM roles), `az login`, GCP ADC
+```yaml
+# provider-configs/aws.yaml
+accounts:
+  - name: prod-us
+    account_id: "123456789012"
+    access_key_id: ${PROD_US_AWS_ACCESS_KEY_ID}
+    secret_access_key: ${PROD_US_AWS_SECRET_ACCESS_KEY}
+    session_token: ${PROD_US_AWS_SESSION_TOKEN}   # optional
+```
+
+```yaml
+# workflow env:
+PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
+PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
+```
+
+When `access_key_id` and `secret_access_key` are empty (or resolve to empty strings), Hyve falls back to the AWS SDK default credential chain (`~/.aws/credentials`, IAM instance roles, etc.).
+
+### GCP
+
+```yaml
+# provider-configs/gcp.yaml
+projects:
+  - name: my-project
+    project_id: my-gcp-project-id
+    credentials_json: ${MY_PROJECT_GCP_CREDENTIALS_JSON}
+```
+
+```yaml
+# workflow env:
+MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
+```
+
+The value should be the full contents of a GCP service account JSON key file. When empty, Hyve uses Application Default Credentials (`gcloud auth application-default login`).
+
+### Azure
+
+```yaml
+# provider-configs/azure.yaml
+subscriptions:
+  - name: prod-sub
+    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    tenant_id: ${PROD_SUB_AZURE_TENANT_ID}
+    client_id: ${PROD_SUB_AZURE_CLIENT_ID}
+    client_secret: ${PROD_SUB_AZURE_CLIENT_SECRET}
+    resource_groups:
+      - name: prod-rg
+        location: eastus
+```
+
+```yaml
+# workflow env:
+PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
+PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
+PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
+```
+
+When credentials are empty, Hyve uses the Azure SDK default chain (`az login`, managed identity, etc.).
+
+### Credential Resolution Order
+
+For each provider account, Hyve resolves credentials in this order:
+
+1. **Provider config YAML** — `${ENV_VAR}` references are expanded; literal values are used directly
+2. **Provider SDK default chain** — AWS credential chain, `gcloud` ADC, `az login` (used when YAML fields are empty)
 
 <Info>
-  If no named env vars are set, the provider falls back to the standard credential chain, so existing local workflows are unaffected.
+  GCP project IDs and Azure subscription IDs are always resolved from the YAML `project_id` / `subscription_id` fields — they are never secrets.
 </Info>
 
 ## Required GitHub Secrets
 
-Set these secrets in your repository's **Settings → Secrets and variables → Actions**:
+Set these in your repository's **Settings → Secrets and variables → Actions**. The names must match whatever you put in the `${...}` references in your provider config YAML files.
 
 | Secret | Description |
 |--------|-------------|
-| `CIVO_TOKEN` | Fallback Civo API token (used when no named account token is found) |
 | `GITHUB_TOKEN` | Automatically provided by GitHub Actions; needs `contents: write` permission |
-| Named account secrets | Per-account credentials following the pattern above |
+| Credential secrets | Named however you like in `provider-configs/*.yaml` |
 
 <Warning>
-  Never commit API tokens or cloud credentials to your repository. Use GitHub Actions secrets or OIDC-based authentication for cloud providers.
+  Never commit literal API tokens or cloud credentials to your repository. Use `${ENV_VAR}` references in your YAML and store the values as GitHub Actions secrets or use OIDC-based authentication.
 </Warning>
 
 ## Security Considerations
@@ -393,12 +426,19 @@ Set these secrets in your repository's **Settings → Secrets and variables → 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Pipeline fails: CIVO_TOKEN not found">
-    Ensure the `CIVO_TOKEN` secret is set in your repository secrets and that the workflow references it correctly:
+  <Accordion title="Pipeline fails: Civo API token not found">
+    Check that `provider-configs/civo.yaml` has a `token` field pointing to an env var reference, and that the corresponding secret is available in the workflow:
 
     ```yaml
-    env:
-      CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}
+    # provider-configs/civo.yaml
+    organizations:
+      - name: my-org
+        token: ${MY_ORG_CIVO_TOKEN}
+    ```
+
+    ```yaml
+    # workflow env:
+    MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
     ```
   </Accordion>
 
