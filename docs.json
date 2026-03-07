@@ -48,13 +48,8 @@
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/your-org/hyve",
+          "href": "https://github.com/cbridges1/hyve",
           "icon": "github"
-        },
-        {
-          "anchor": "Community",
-          "href": "https://discord.gg/your-discord",
-          "icon": "discord"
         }
       ]
     }
@@ -67,13 +62,13 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:support@hyve.dev"
+        "href": "https://github.com/cbridges1/hyve/issues"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Get Started",
-      "href": "/home"
+      "href": "/quickstart"
     }
   },
   "contextual": {
@@ -87,7 +82,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/your-org/hyve"
+      "github": "https://github.com/cbridges1/hyve"
     }
   }
 }

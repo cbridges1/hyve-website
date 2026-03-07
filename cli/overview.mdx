@@ -36,6 +36,23 @@ hyve cluster --help
 hyve cluster add --help
 ```
 
+## Global Flags
+
+These flags are accepted by every command:
+
+| Flag | Description |
+|------|-------------|
+| `--home <dir>` | Override the Hyve data directory (default: `~/.hyve`). Also configurable via the `HYVE_HOME` environment variable. |
+
+```bash
+# Use a custom data directory for this invocation
+hyve --home /tmp/hyve-test reconcile
+
+# Or set it persistently via environment variable
+export HYVE_HOME=/tmp/hyve-test
+hyve reconcile
+```
+
 ---
 
 ## Commands
@@ -135,14 +152,14 @@ eval $(hyve kubeconfig use <cluster> --eval)
 
 | Variable | Purpose |
 |----------|---------|
-| `CIVO_TOKEN` | Civo API token (fallback when no stored token) |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON |
-| `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Azure service principal |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (SDK default chain fallback) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (ADC fallback) |
+| `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Azure service principal (SDK fallback) |
+| `AZURE_SUBSCRIPTION_ID` / `AZURE_RESOURCE_GROUP` | Azure subscription/resource group (fallback) |
 | `HYVE_GIT_TOKEN` | Git authentication token |
-| `HYVE_HOME` | Hyve data directory (default: `~/.hyve`) |
+| `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
 
-For CI/CD pipelines managing multiple accounts, Hyve also supports named account env vars (`{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}`). See the [CI/CD guide](/guides/cicd#named-account-secrets).
+For CI/CD pipelines, credentials are configured directly in `provider-configs/*.yaml` using `${ENV_VAR}` references — you choose the variable names. See the [CI/CD guide](/guides/cicd#provider-config-secret-mapping).
 
 ---
 
