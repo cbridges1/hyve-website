@@ -160,11 +160,6 @@ jobs:
             -o /usr/local/bin/hyve
           chmod +x /usr/local/bin/hyve
 
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
       - name: Reconcile clusters
         env:
           # Secret names match the ${...} references in your provider-configs/*.yaml files.
@@ -184,8 +179,6 @@ jobs:
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
-
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
@@ -237,11 +230,6 @@ jobs:
             -o /usr/local/bin/hyve
           chmod +x /usr/local/bin/hyve
 
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
       - name: Remove all cluster definitions
         run: find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
 
@@ -256,7 +244,6 @@ jobs:
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
@@ -405,8 +392,8 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
     ```yaml
     permissions:
-      id-token: write
-      contents: read
+    id-token: write
+    contents: read
     ```
   </Accordion>
 
@@ -432,8 +419,8 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
     ```yaml
     # provider-configs/civo.yaml
     organizations:
-      - name: my-org
-        token: ${MY_ORG_CIVO_TOKEN}
+    - name: my-org
+    token: ${MY_ORG_CIVO_TOKEN}
     ```
 
     ```yaml
@@ -447,7 +434,7 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
     ```yaml
     permissions:
-      contents: write
+    contents: write
     ```
 
     Or use a `token` with write access in the `checkout` step.
