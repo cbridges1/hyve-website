@@ -482,9 +482,9 @@ These fields apply when `spec.provider` is `aws`. They reference alias names def
   AWS alias fields cannot be set via `hyve template create` flags — add them manually to the template YAML after creation. Aliases are resolved from `provider-configs/aws.yaml` when `hyve template execute` runs.
 </Info>
 
-<Warning>
-  **EKS instance type minimum:** `nano` and `micro` instance types (e.g. `t3.micro`, `t2.micro`) are rejected for EKS node groups. These instances support only 4 pods maximum (2 ENIs × 2 IPs), which is not enough to run EKS system daemonsets (`aws-node`, `kube-proxy`) alongside workloads. Use **`t3.small`** (11 pods) at minimum, or **`t3.medium`** (17 pods) as the recommended baseline.
-</Warning>
+<Info>
+  **EKS instance type:** avoid `nano` and `micro` instance types (e.g. `t3.micro`, `t2.micro`) for EKS node groups. These instances support only 4 pods maximum (2 ENIs × 2 IPs), which is not enough to run EKS system daemonsets (`aws-node`, `kube-proxy`) alongside workloads. Use **`t3.small`** (11 pods) at minimum, or **`t3.medium`** (17 pods) as the recommended baseline.
+</Info>
 
 ---
 

@@ -197,9 +197,9 @@ Node groups let you define named pools of nodes with independent instance types,
 | `spot` | Use spot/preemptible instances | AWS, GCP |
 | `mode` | Pool mode: `System` or `User` | Azure only |
 
-<Warning>
-  **AWS EKS: nano and micro instance types are not supported.** Instances ending in `.nano` or `.micro` (e.g. `t3.micro`, `t2.micro`, `t3.nano`) expose only 2 ENIs × 2 IPs = **4 pods maximum per node**. EKS system daemonsets (`aws-node`, `kube-proxy`) alone consume 3–4 of those pod slots, leaving no capacity for workloads. Hyve will return an error if a nano or micro type is specified for an EKS node group. Use **`t3.small`** (11 pods max) at minimum, or **`t3.medium`** (17 pods max) as the recommended baseline.
-</Warning>
+<Info>
+  **AWS EKS: avoid nano and micro instance types.** Instances ending in `.nano` or `.micro` (e.g. `t3.micro`, `t2.micro`, `t3.nano`) expose only 2 ENIs × 2 IPs = **4 pods maximum per node**. EKS system daemonsets (`aws-node`, `kube-proxy`) alone consume 3–4 of those pod slots, leaving no capacity for workloads. Use **`t3.small`** (11 pods max) at minimum, or **`t3.medium`** (17 pods max) as the recommended baseline.
+</Info>
 
 ### CLI Usage
 
