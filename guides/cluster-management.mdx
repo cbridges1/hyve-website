@@ -73,80 +73,47 @@ spec:
 
 ## Available Regions
 
-### Civo Cloud Regions
+Refer to your cloud provider's documentation for the current list of supported regions:
 
-| Region Code | Location | Description |
-|------------|----------|-------------|
-| `PHX1` | Phoenix, AZ | US West (Default) |
-| `NYC1` | New York, NY | US East |
-| `FRA1` | Frankfurt | Europe Central |
-| `LON1` | London | Europe West |
+<CardGroup cols={2}>
+  <Card title="Civo Regions" icon="globe" href="https://www.civo.com/docs/overview/regions">
+    Available Civo regions and locations
+  </Card>
 
-**Example:**
-```bash
-# Deploy to different regions
-hyve cluster add us-west-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
-hyve cluster add us-east-cluster --provider civo --region NYC1 --nodes g4s.kube.medium
-hyve cluster add eu-cluster --provider civo --region FRA1 --nodes g4s.kube.medium
-```
+  <Card title="AWS Regions" icon="globe" href="https://aws.amazon.com/about-aws/global-infrastructure/regions_az/">
+    AWS regions and availability zones
+  </Card>
+
+  <Card title="GCP Regions" icon="globe" href="https://cloud.google.com/compute/docs/regions-zones">
+    GCP regions and zones
+  </Card>
+
+  <Card title="Azure Regions" icon="globe" href="https://azure.microsoft.com/en-us/explore/global-infrastructure/geographies/">
+    Azure geographies and regions
+  </Card>
+</CardGroup>
 
 ## Node Sizes
 
-### Civo Node Types
+Refer to your cloud provider's documentation for available instance and node sizes:
 
-Available node sizes for Civo clusters:
+<CardGroup cols={2}>
+  <Card title="Civo Node Sizes" icon="server" href="https://www.civo.com/docs/kubernetes/k3s-sizes">
+    Civo Kubernetes node sizes and specs
+  </Card>
 
-| Size | vCPU | RAM | Use Case |
-|------|------|-----|----------|
-| `g4s.kube.xsmall` | 1 | 1 GB | Development, Testing |
-| `g4s.kube.small` | 1 | 2 GB | Small workloads |
-| `g4s.kube.medium` | 2 | 4 GB | Standard workloads |
-| `g4s.kube.large` | 4 | 8 GB | Production workloads |
-| `g4s.kube.xlarge` | 6 | 16 GB | High-performance workloads |
+  <Card title="AWS Instance Types" icon="server" href="https://aws.amazon.com/ec2/instance-types/">
+    AWS EC2 instance types for EKS node groups
+  </Card>
 
-### Sizing Examples
+  <Card title="GCP Machine Types" icon="server" href="https://cloud.google.com/compute/docs/machine-resource">
+    GCP Compute Engine machine types for GKE
+  </Card>
 
-<AccordionGroup>
-  <Accordion title="Development Environment">
-    ```bash
-    # Single small node for dev/test
-    hyve cluster add dev-cluster \
-      --provider civo \
-      --region PHX1 \
-      --nodes g4s.kube.small
-    ```
-  </Accordion>
-
-  <Accordion title="Staging Environment">
-    ```bash
-    # Two medium nodes for staging
-    hyve cluster add staging-cluster \
-      --provider civo \
-      --region NYC1 \
-      --nodes g4s.kube.medium,g4s.kube.medium
-    ```
-  </Accordion>
-
-  <Accordion title="Production Environment">
-    ```bash
-    # Three large nodes for production HA
-    hyve cluster add prod-cluster \
-      --provider civo \
-      --region NYC1 \
-      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
-    ```
-  </Accordion>
-
-  <Accordion title="Mixed Node Sizes">
-    ```bash
-    # Mixed sizes for different workload types
-    hyve cluster add mixed-cluster \
-      --provider civo \
-      --region PHX1 \
-      --nodes g4s.kube.large,g4s.kube.medium,g4s.kube.medium
-    ```
-  </Accordion>
-</AccordionGroup>
+  <Card title="Azure VM Sizes" icon="server" href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes">
+    Azure virtual machine sizes for AKS
+  </Card>
+</CardGroup>
 
 ## Scaling Clusters
 
@@ -583,13 +550,9 @@ hyve cluster add prod-eu \
   <Accordion title="Region Errors">
     **Problem:** Invalid region specified
 
-    **Solution:**
+    **Solution:** Check your provider's documentation for valid region codes (see [Available Regions](#available-regions)), then update the cluster:
     ```bash
-    # Use valid Civo regions only
-    # PHX1, NYC1, FRA1, LON1
-
-    # Update cluster region
-    hyve cluster modify my-cluster --region NYC1
+    hyve cluster modify my-cluster --region <valid-region>
     hyve reconcile
     ```
   </Accordion>
