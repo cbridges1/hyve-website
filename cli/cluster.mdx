@@ -54,6 +54,10 @@ hyve cluster add [cluster-name] [flags]
   | `disk` | No | OS disk size in GB |
   | `spot` | No | Use spot/preemptible instances (`true`/`false`) |
   | `mode` | No | Azure only: `System` (default) or `User` |
+
+  <Warning>
+    **AWS EKS only:** `nano` and `micro` instance types are rejected. These expose only 4 pods per node — insufficient for EKS system daemonsets plus workloads. Minimum: `t3.small`. Recommended: `t3.medium`.
+  </Warning>
 </ParamField>
 
 <ParamField path="--cluster-type" type="string" default="k3s">

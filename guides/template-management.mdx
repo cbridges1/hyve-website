@@ -555,6 +555,10 @@ spec:
   AWS alias names (`awsAccount`, `awsVpcName`, `awsEksRole`, `awsNodeRole`) are resolved to actual IDs and ARNs from `provider-configs/aws.yaml` when `hyve template execute` runs. See the [AWS provider config](/configuration) for how to define these aliases.
 </Info>
 
+<Warning>
+  **EKS instance type minimum:** `nano` and `micro` instance types (e.g. `t3.micro`, `t2.micro`) are rejected for EKS node groups. These instances expose only 4 pods maximum (2 ENIs × 2 IPs), which is insufficient for EKS system daemonsets (`aws-node`, `kube-proxy`) alongside workloads. Use **`t3.small`** (11 pods) at minimum, or **`t3.medium`** (17 pods) as the recommended baseline.
+</Warning>
+
 **Usage:**
 ```bash
 hyve template execute aws-eks-template eks-prod-01
