@@ -21,7 +21,7 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
   </Card>
 
   <Card title="Multi-Cloud" icon="cloud" color="#0ea5e9">
-    Supports Civo, AWS (EKS), GCP (GKE), and Azure (AKS)
+    Supports AWS (EKS), GCP (GKE), Azure (AKS), and Civo
   </Card>
 </CardGroup>
 
@@ -67,10 +67,10 @@ spec:
 
 <ParamField path="spec.nodes" type="array" required>
   List of node sizes. Examples by provider:
-  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
   - **AWS**: `t3.medium`, `t3.large`, `m5.xlarge`
   - **GCP**: `e2-medium`, `e2-standard-4`, `n1-standard-8`
   - **Azure**: `Standard_DS2_v2`, `Standard_DS3_v2`, `Standard_DS4_v2`
+  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
 </ParamField>
 
 <ParamField path="spec.workflows.onCreated" type="array">
@@ -319,15 +319,6 @@ hyve reconcile
 ## Node Sizes
 
 <Tabs>
-  <Tab title="Civo">
-    | Size | vCPUs | RAM | Storage |
-    |------|-------|-----|---------|
-    | `g4s.kube.small` | 1 | 2GB | 30GB |
-    | `g4s.kube.medium` | 2 | 4GB | 50GB |
-    | `g4s.kube.large` | 4 | 8GB | 100GB |
-    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
-  </Tab>
-
   <Tab title="AWS (EKS)">
     | Size | vCPUs | RAM |
     |------|-------|-----|
@@ -354,6 +345,15 @@ hyve reconcile
     | `Standard_DS4_v2` | 8 | 28GB |
     | `Standard_DS5_v2` | 16 | 56GB |
   </Tab>
+
+  <Tab title="Civo">
+    | Size | vCPUs | RAM | Storage |
+    |------|-------|-----|---------|
+    | `g4s.kube.small` | 1 | 2GB | 30GB |
+    | `g4s.kube.medium` | 2 | 4GB | 50GB |
+    | `g4s.kube.large` | 4 | 8GB | 100GB |
+    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+  </Tab>
 </Tabs>
 
 <Tip>
@@ -363,15 +363,6 @@ hyve reconcile
 ## Regions
 
 <Tabs>
-  <Tab title="Civo">
-    | Region | Location | Code |
-    |--------|----------|------|
-    | Phoenix, USA | Arizona | `PHX1` |
-    | New York, USA | New York | `NYC1` |
-    | London, UK | United Kingdom | `LON1` |
-    | Frankfurt, Germany | Germany | `FRA1` |
-  </Tab>
-
   <Tab title="AWS">
     | Region | Location | Code |
     |--------|----------|------|
@@ -397,6 +388,15 @@ hyve reconcile
     | US West | California | `westus2` |
     | EU | Netherlands | `westeurope` |
     | EU | UK South | `uksouth` |
+  </Tab>
+
+  <Tab title="Civo">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | Phoenix, USA | Arizona | `PHX1` |
+    | New York, USA | New York | `NYC1` |
+    | London, UK | United Kingdom | `LON1` |
+    | Frankfurt, Germany | Germany | `FRA1` |
   </Tab>
 </Tabs>
 

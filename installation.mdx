@@ -17,10 +17,10 @@ description: "Install and set up Hyve on your system"
 
 <Note>
   **Cloud Provider Account:** You'll need at least one cloud provider account:
-  - [Civo](https://dashboard.civo.com/)
   - [AWS](https://aws.amazon.com/) with EKS permissions
   - [Google Cloud](https://console.cloud.google.com/) with GKE permissions
   - [Azure](https://portal.azure.com/) with AKS permissions
+  - [Civo](https://dashboard.civo.com/)
 </Note>
 
 <Note>
@@ -29,30 +29,23 @@ description: "Install and set up Hyve on your system"
   If you prefer, you can optionally switch to the built-in go-git library using `hyve config set-git-backend builtin`.
 </Note>
 
-## Install from Source
+## Install
 
 <Steps>
-  <Step title="Clone the repository">
+  <Step title="Install with Go">
     ```bash
-    git clone <repository-url>
-    cd hyve
+    go install github.com/your-org/hyve@latest
     ```
+
+    This installs the `hyve` binary to your `$GOPATH/bin` directory (usually `~/go/bin`).
   </Step>
 
-  <Step title="Build the binary">
+  <Step title="Ensure Go bin is in PATH">
     ```bash
-    go build -o hyve .
+    export PATH=$PATH:$(go env GOPATH)/bin
     ```
 
-    This creates the `hyve` binary in the current directory.
-  </Step>
-
-  <Step title="Move to PATH (optional)">
-    ```bash
-    sudo mv hyve /usr/local/bin/
-    # Or add to your PATH
-    export PATH=$PATH:$(pwd)
-    ```
+    Add this line to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make it permanent.
   </Step>
 
   <Step title="Verify installation">
@@ -116,18 +109,6 @@ Hyve supports two Git backends:
 Configure credentials for your preferred cloud provider:
 
 <Tabs>
-  <Tab title="Civo">
-    ```bash
-    hyve config set-token civo
-    # Enter token when prompted
-    ```
-
-    Or via environment:
-    ```bash
-    export CIVO_TOKEN=your_civo_api_token
-    ```
-  </Tab>
-
   <Tab title="AWS">
     ```bash
     hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
@@ -168,6 +149,18 @@ Configure credentials for your preferred cloud provider:
     ```bash
     export AZURE_SUBSCRIPTION_ID=your_subscription_id
     export AZURE_RESOURCE_GROUP=your_resource_group
+    ```
+  </Tab>
+
+  <Tab title="Civo">
+    ```bash
+    hyve config set-token civo
+    # Enter token when prompted
+    ```
+
+    Or via environment:
+    ```bash
+    export CIVO_TOKEN=your_civo_api_token
     ```
   </Tab>
 </Tabs>

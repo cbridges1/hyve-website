@@ -14,10 +14,10 @@ Before you begin, ensure you have:
 <AccordionGroup>
   <Accordion icon="cloud" title="Cloud Provider Account">
     Hyve supports multiple cloud providers. Set up at least one:
-    - **Civo**: Sign up at [Civo Dashboard](https://dashboard.civo.com/) and get your API token
     - **AWS**: Create an [AWS account](https://aws.amazon.com/) with EKS permissions
     - **GCP**: Create a [Google Cloud account](https://console.cloud.google.com/) with GKE permissions
     - **Azure**: Create an [Azure account](https://portal.azure.com/) with AKS permissions
+    - **Civo**: Sign up at [Civo Dashboard](https://dashboard.civo.com/) and get your API token
   </Accordion>
 
   <Accordion icon="git" title="Git Repository & Git Command">
@@ -34,24 +34,17 @@ Before you begin, ensure you have:
 ## Installation
 
 <Steps>
-  <Step title="Clone the repository">
+  <Step title="Install Hyve">
     ```bash
-    git clone <repository-url>
-    cd hyve
-    ```
-  </Step>
-
-  <Step title="Build Hyve">
-    ```bash
-    go build -o hyve .
+    go install github.com/your-org/hyve@latest
     ```
 
-    <Tip>Add the `hyve` binary to your PATH for easy access</Tip>
+    This installs the `hyve` binary to your `$GOPATH/bin`. Ensure `$(go env GOPATH)/bin` is in your `PATH`.
   </Step>
 
   <Step title="Verify installation">
     ```bash
-    ./hyve --help
+    hyve --help
     ```
   </Step>
 </Steps>
@@ -63,23 +56,16 @@ Before you begin, ensure you have:
     Configure credentials for your preferred cloud provider:
 
     <Tabs>
-      <Tab title="Civo">
-        ```bash
-        ./hyve config set-token civo
-        # Enter your API token when prompted
-        ```
-      </Tab>
-
       <Tab title="AWS">
         ```bash
-        ./hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
-        ./hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
+        hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
+        hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
         ```
       </Tab>
 
       <Tab title="GCP">
         ```bash
-        ./hyve config set-token gcp-project --token YOUR_PROJECT_ID
+        hyve config set-token gcp-project --token YOUR_PROJECT_ID
         # Optional: set credentials JSON, otherwise uses ADC
         gcloud auth application-default login
         ```
@@ -87,9 +73,16 @@ Before you begin, ensure you have:
 
       <Tab title="Azure">
         ```bash
-        ./hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
-        ./hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
+        hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
+        hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
         az login
+        ```
+      </Tab>
+
+      <Tab title="Civo">
+        ```bash
+        hyve config set-token civo
+        # Enter your API token when prompted
         ```
       </Tab>
     </Tabs>
@@ -105,13 +98,13 @@ Before you begin, ensure you have:
     For private repositories, store your Git credentials:
 
     ```bash
-    ./hyve git credentials --username your-username --password your_token
+    hyve git credentials --username your-username --password your_token
     ```
   </Step>
 
   <Step title="Add your first repository">
     ```bash
-    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
     ```
 
     This creates a local clone and sets it as your active repository.
@@ -125,18 +118,9 @@ Before you begin, ensure you have:
     Create a cluster on your preferred cloud provider:
 
     <Tabs>
-      <Tab title="Civo">
-        ```bash
-        ./hyve cluster add my-cluster \
-          --provider civo \
-          --region PHX1 \
-          --nodes g4s.kube.medium,g4s.kube.medium
-        ```
-      </Tab>
-
       <Tab title="AWS">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider aws \
           --region us-east-1 \
           --nodes t3.large,t3.large
@@ -145,7 +129,7 @@ Before you begin, ensure you have:
 
       <Tab title="GCP">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider gcp \
           --region us-central1 \
           --nodes e2-standard-4,e2-standard-4
@@ -154,10 +138,19 @@ Before you begin, ensure you have:
 
       <Tab title="Azure">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider azure \
           --region eastus \
           --nodes Standard_DS3_v2,Standard_DS3_v2
+        ```
+      </Tab>
+
+      <Tab title="Civo">
+        ```bash
+        hyve cluster add my-cluster \
+          --provider civo \
+          --region PHX1 \
+          --nodes g4s.kube.medium,g4s.kube.medium
         ```
       </Tab>
     </Tabs>
@@ -179,13 +172,13 @@ Before you begin, ensure you have:
 
     ```bash
     # Sync all cluster kubeconfigs
-    ./hyve kubeconfig sync
+    hyve kubeconfig sync
 
     # List available clusters
-    ./hyve cluster list
+    hyve cluster list
 
     # Use a cluster
-    eval $(./hyve kubeconfig use my-cluster --eval)
+    eval $(hyve kubeconfig use my-cluster --eval)
     kubectl get nodes
     ```
   </Step>
@@ -217,37 +210,37 @@ Before you begin, ensure you have:
   <Accordion title="Multi-Environment Setup">
     ```bash
     # Production
-    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    ./hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large
 
     # Development
-    ./hyve git add development --repo-url https://github.com/company/hyve-dev.git
-    ./hyve git use development
-    ./hyve cluster add dev-app --provider civo --region PHX1 --nodes g4s.kube.small
+    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    hyve git use development
+    hyve cluster add dev-app --provider civo --region PHX1 --nodes g4s.kube.small
     ```
   </Accordion>
 
   <Accordion title="Create Cluster from Template">
     ```bash
     # Create a template with lifecycle workflows
-    ./hyve template create prod-template \
+    hyve template create prod-template \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
       --on-created setup-monitoring,deploy-app \
       --on-destroy backup-data
 
     # Execute the template
-    ./hyve template execute prod-template prod-cluster-01
+    hyve template execute prod-template prod-cluster-01
     ```
   </Accordion>
 
   <Accordion title="Run a Workflow">
     ```bash
     # Create a workflow
-    ./hyve workflow create --template deployment-pipeline
+    hyve workflow create --template deployment-pipeline
 
     # Run the workflow
-    ./hyve workflow run deployment-pipeline --cluster my-cluster
+    hyve workflow run deployment-pipeline --cluster my-cluster
     ```
   </Accordion>
 </AccordionGroup>
@@ -260,7 +253,7 @@ Before you begin, ensure you have:
 
     ```bash
     # Set global credentials
-    ./hyve git credentials --username your-username --password your_token
+    hyve git credentials --username your-username --password your_token
 
     # Or use environment variable
     export HYVE_GIT_TOKEN=your_personal_access_token
@@ -272,10 +265,10 @@ Before you begin, ensure you have:
 
     ```bash
     # View stored token
-    ./hyve config get-token civo
+    hyve config get-token civo
 
     # Update token
-    ./hyve config set-token civo --token YOUR_NEW_TOKEN
+    hyve config set-token civo --token YOUR_NEW_TOKEN
     ```
   </Accordion>
 
@@ -283,7 +276,7 @@ Before you begin, ensure you have:
     You need to add a Git repository first:
 
     ```bash
-    ./hyve git add my-repo --repo-url https://github.com/user/repo.git
+    hyve git add my-repo --repo-url https://github.com/user/repo.git
     ```
   </Accordion>
 </AccordionGroup>

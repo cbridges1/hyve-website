@@ -9,9 +9,11 @@ description: "GitOps Kubernetes Cluster Management CLI"
 
 ## What is Hyve?
 
-Hyve is a **GitOps-first** Kubernetes cluster management CLI that treats your state repository as the source of truth. Define clusters as YAML, commit the change, and Hyve reconciles the desired state against your cloud provider — locally or through a CI/CD pipeline.
+Hyve solves the **day-one Kubernetes problem**: getting your first cluster shouldn't require manual cloud console work or one-off scripts. Whether you wire up a CI/CD pipeline from the very start or bootstrap locally and hand off later, Hyve gives you a consistent, GitOps-driven workflow from day one.
 
-It supports **Civo, AWS (EKS), GCP (GKE), and Azure (AKS)** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
+Define clusters as YAML, commit the change, and Hyve reconciles the desired state against your cloud provider — directly from the CLI or through a CI/CD pipeline. Both paths are fully supported on day one. Every change is version-controlled, every deployment is repeatable, and your state repository is always the single source of truth.
+
+It supports **AWS (EKS), GCP (GKE), Azure (AKS), and Civo** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
 
 <Card
   title="Quick Start"
@@ -93,22 +95,30 @@ Hyve follows a declarative approach to cluster management:
 # 1. Configure Git repository
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
-# 2. Store API token
-hyve config set-token civo
+# 2. Map GCP credentials in provider-configs/gcp.yaml
+#    credentials_json: ${GCP_CREDENTIALS_JSON}
 
 # 3. Create a cluster
-hyve cluster add production --provider civo --region PHX1 --nodes g4s.kube.large
+hyve cluster add production --provider gcp --gcp-project my-project --region us-central1 --nodes e2-standard-4
 
 # 4. Execute a workflow
 hyve workflow run deploy-app --cluster production
 
-# 5. Create from template
+# 5. Hand off to CI/CD — all future changes reconcile through your pipeline
 hyve template execute prod-template prod-cluster-01
 ```
 
 ## Why Hyve?
 
 <AccordionGroup>
+  <Accordion title="Day-One Ready — CLI or CI/CD">
+    Getting your first cluster up shouldn't require manual console work or one-off scripts. Hyve works from the CLI for teams that want to bootstrap quickly, and works equally well wired into a CI/CD pipeline from the very first commit. Both modes are first-class: choose what fits your team, and switch any time without changing your cluster definitions.
+  </Accordion>
+
+  <Accordion title="Sustainable GitOps Workflow">
+    Engineers commit YAML changes to Git; Hyve reconciles the desired state against the cloud — locally or through your pipeline with `hyve reconcile --path .`. Infrastructure changes follow the same review and audit process as application code: pull requests, approvals, and a full history of every change ever made.
+  </Accordion>
+
   <Accordion title="GitOps Native">
     Built from the ground up with GitOps principles. Every change is tracked in Git, providing full audit trails and easy rollbacks.
   </Accordion>
@@ -130,12 +140,8 @@ hyve template execute prod-template prod-cluster-01
 
 <Steps>
   <Step title="Install Hyve">
-    Build from source or download pre-built binaries
-
     ```bash
-    git clone <repository-url>
-    cd hyve
-    go build -o hyve .
+    go install github.com/your-org/hyve@latest
     ```
   </Step>
 
@@ -151,7 +157,7 @@ hyve template execute prod-template prod-cluster-01
     Define and deploy your first Kubernetes cluster
 
     ```bash
-    hyve cluster add my-cluster --provider civo --region PHX1
+    hyve cluster add my-cluster --provider gcp --gcp-project my-project --region us-central1
     ```
   </Step>
 </Steps>

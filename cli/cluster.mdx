@@ -66,27 +66,6 @@ hyve cluster add [cluster-name] [flags]
 **Examples by Provider:**
 
 <Tabs>
-  <Tab title="Civo">
-    ```bash
-    # Simple Civo cluster
-    hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
-
-    # Production Civo cluster with multiple nodes
-    hyve cluster add production \
-      --provider civo \
-      --region NYC1 \
-      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --cluster-type k3s
-
-    # Civo Talos cluster
-    hyve cluster add talos-cluster \
-      --provider civo \
-      --region FRA1 \
-      --nodes g4s.kube.large \
-      --cluster-type talos
-    ```
-  </Tab>
-
   <Tab title="AWS">
     ```bash
     # First, configure AWS resources
@@ -161,6 +140,27 @@ hyve cluster add [cluster-name] [flags]
       --provider azure \
       --region westeurope \
       --nodes Standard_DS4_v2,Standard_DS4_v2,Standard_DS4_v2
+    ```
+  </Tab>
+
+  <Tab title="Civo">
+    ```bash
+    # Simple Civo cluster
+    hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.medium
+
+    # Production Civo cluster with multiple nodes
+    hyve cluster add production \
+      --provider civo \
+      --region NYC1 \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+      --cluster-type k3s
+
+    # Civo Talos cluster
+    hyve cluster add talos-cluster \
+      --provider civo \
+      --region FRA1 \
+      --nodes g4s.kube.large \
+      --cluster-type talos
     ```
   </Tab>
 </Tabs>
@@ -581,12 +581,6 @@ spec:
 Hyve supports the following cloud providers for Kubernetes cluster management. The `--provider` flag must be one of these valid values:
 
 <CardGroup cols={2}>
-  <Card title="Civo" icon="cloud" color="#3b82f6">
-    Civo Cloud - Fast K3s and Talos clusters
-
-    **Provider ID:** `civo`
-  </Card>
-
   <Card title="AWS" icon="aws" color="#f97316">
     Amazon Web Services - Elastic Kubernetes Service (EKS)
 
@@ -603,6 +597,12 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     Microsoft Azure - Azure Kubernetes Service (AKS)
 
     **Provider ID:** `azure`
+  </Card>
+
+  <Card title="Civo" icon="cloud" color="#3b82f6">
+    Civo Cloud - Fast K3s and Talos clusters
+
+    **Provider ID:** `civo`
   </Card>
 </CardGroup>
 

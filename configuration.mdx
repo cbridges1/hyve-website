@@ -29,7 +29,7 @@ All configuration data is stored in the `~/.hyve/` directory:
 ```
 
 <Note>
-  Civo credentials are encrypted using AES-GCM. AWS, GCP, and Azure use their native CLI authentication instead of storing credentials in Hyve.
+  AWS, GCP, and Azure use their native CLI authentication. Civo credentials are stored encrypted using AES-GCM.
 </Note>
 
 ## Repository Configuration
@@ -65,16 +65,16 @@ See the [CI/CD Workflow Guide](/guides/cicd) for a complete walkthrough of CI/CD
 Hyve uses different authentication methods depending on the cloud provider.
 
 <CardGroup cols={2}>
-  <Card title="Civo" icon="key" color="#3b82f6">
-    API token stored encrypted in Hyve
-
-    **Setup:** `hyve config set-token civo`
-  </Card>
-
   <Card title="AWS" icon="aws" color="#f97316">
     Native AWS CLI authentication
 
     **Setup:** `aws configure`
+  </Card>
+
+  <Card title="Civo" icon="key" color="#3b82f6">
+    API token stored encrypted in Hyve
+
+    **Setup:** `hyve config set-token civo`
   </Card>
 
   <Card title="GCP" icon="google" color="#22c55e">
