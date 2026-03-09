@@ -65,12 +65,30 @@ spec:
   Cloud provider: `civo`, `aws`, `gcp`, or `azure`
 </ParamField>
 
-<ParamField path="spec.nodes" type="array" required>
-  List of node sizes. Examples by provider:
+<ParamField path="spec.nodes" type="array">
+  List of node sizes for simple single-pool clusters. Each entry represents one node. Use `spec.nodeGroups` instead for named multi-pool configurations with autoscaling. One of `nodes` or `nodeGroups` should be specified.
+
+  Examples by provider:
   - **AWS**: `t3.medium`, `t3.large`, `m5.xlarge`
   - **GCP**: `e2-medium`, `e2-standard-4`, `n1-standard-8`
   - **Azure**: `Standard_DS2_v2`, `Standard_DS3_v2`, `Standard_DS4_v2`
   - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
+</ParamField>
+
+<ParamField path="spec.nodeGroups" type="NodeGroup[]">
+  Array of named node group definitions. Preferred over `spec.nodes` for AWS (EKS), GCP (GKE), and Azure (AKS) — providers that natively support multiple named node pools with independent scaling.
+
+  Each `NodeGroup` supports:
+  - `name` (string, required) — Unique pool name
+  - `instanceType` (string, required) — Instance/VM size
+  - `count` (int) — Desired node count
+  - `minCount` (int) — Minimum count for autoscaling
+  - `maxCount` (int) — Maximum count for autoscaling
+  - `diskSize` (int) — OS disk size in GB
+  - `labels` (map) — Kubernetes node labels
+  - `taints` (array) — Kubernetes node taints (`key`, `value`, `effect`)
+  - `mode` (string) — Azure only: `System` or `User`
+  - `spot` (bool) — Use spot/preemptible instances
 </ParamField>
 
 <ParamField path="spec.workflows.onCreated" type="array">
@@ -86,17 +104,22 @@ spec:
 ### Using CLI
 
 ```bash
-# Create cluster with single node
+# Civo — simple nodes list
 hyve cluster add my-cluster \
   --provider civo \
   --region PHX1 \
   --nodes g4s.kube.medium
 
-# Create cluster with multiple nodes
+# AWS EKS — named node groups (recommended for multi-cloud providers)
 hyve cluster add production \
-  --provider civo \
-  --region NYC1 \
-  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+  --provider aws \
+  --region us-east-1 \
+  --account-name main \
+  --vpc-name prod-vpc \
+  --eks-role-name eks-role \
+  --node-role-name node-role \
+  --node-group "name=system,type=t3.medium,count=2" \
+  --node-group "name=workers,type=m5.large,count=4,min=2,max=10"
 ```
 
 This command:
@@ -597,10 +620,23 @@ metadata:
   region: us-east-1
 spec:
   provider: aws
-  nodes:
-    - m5.large
-    - m5.large
-    - m5.large
+  awsAccount: main-account
+  awsVpcName: prod-vpc
+  awsEksRole: eks-cluster-role
+  awsNodeRole: node-role
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.large
+      count: 4
+      minCount: 2
+      maxCount: 10
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ### GCP GKE Cluster
@@ -614,10 +650,17 @@ metadata:
   region: us-central1
 spec:
   provider: gcp
-  nodes:
-    - e2-standard-4
-    - e2-standard-4
-    - e2-standard-4
+  gcpProject: my-project
+  nodeGroups:
+    - name: default-pool
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 2
+      maxCount: 8
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ### Azure AKS Cluster
@@ -631,10 +674,22 @@ metadata:
   region: eastus
 spec:
   provider: azure
-  nodes:
-    - Standard_DS3_v2
-    - Standard_DS3_v2
-    - Standard_DS3_v2
+  azureSubscription: my-subscription
+  nodeGroups:
+    - name: system
+      instanceType: Standard_DS2_v2
+      count: 2
+      mode: System
+    - name: workers
+      instanceType: Standard_DS3_v2
+      count: 3
+      minCount: 1
+      maxCount: 8
+      mode: User
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ## Best Practices

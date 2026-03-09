@@ -14,21 +14,49 @@ Hyve enables declarative Kubernetes cluster management through Git-based YAML de
 Create a new cluster definition and provision it to your cloud provider:
 
 <Tabs>
-  <Tab title="Basic">
+  <Tab title="Basic (Civo)">
     ```bash
-    # Create a basic cluster
+    # Create a basic Civo cluster
     hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.small
     ```
   </Tab>
 
-  <Tab title="Production">
+  <Tab title="Node Groups (AWS)">
     ```bash
-    # Production cluster with multiple nodes
-    hyve cluster add prod-app \
-      --provider civo \
-      --region NYC1 \
-      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --cluster-type k3s
+    # AWS EKS cluster with named node groups
+    hyve cluster add prod-eks \
+      --provider aws \
+      --region us-east-1 \
+      --account-name production \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-cluster-role \
+      --node-role-name node-role \
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=m5.large,count=4,min=2,max=10"
+    ```
+  </Tab>
+
+  <Tab title="Node Groups (GCP)">
+    ```bash
+    # GKE cluster with multiple node pools
+    hyve cluster add prod-gke \
+      --provider gcp \
+      --region us-central1 \
+      --project-name my-project \
+      --node-group "name=default-pool,type=e2-standard-4,count=3" \
+      --node-group "name=gpu-pool,type=n1-standard-8,count=2,min=0,max=5"
+    ```
+  </Tab>
+
+  <Tab title="Node Groups (Azure)">
+    ```bash
+    # AKS cluster with system and user pools
+    hyve cluster add prod-aks \
+      --provider azure \
+      --region eastus \
+      --subscription-name my-sub \
+      --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System" \
+      --node-group "name=workers,type=Standard_DS4_v2,count=3,min=1,max=8,mode=User"
     ```
   </Tab>
 
@@ -52,7 +80,9 @@ Create a new cluster definition and provision it to your cloud provider:
 
 ### Cluster Definition Structure
 
-When you add a cluster, Hyve creates a YAML definition:
+When you add a cluster, Hyve creates a YAML definition. There are two ways to specify nodes:
+
+**Simple nodes list** (Civo, or any provider for a single homogeneous pool):
 
 ```yaml
 apiVersion: v1
@@ -65,6 +95,32 @@ spec:
   nodes:
     - g4s.kube.large
     - g4s.kube.large
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+**Named node groups** (AWS EKS, GCP GKE, Azure AKS — preferred for multi-cloud):
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: us-east-1
+spec:
+  provider: aws
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.xlarge
+      count: 4
+      minCount: 2
+      maxCount: 10
+      spot: true
   clusterType: k3s
   ingress:
     enabled: true
@@ -115,27 +171,153 @@ Refer to your cloud provider's documentation for available instance and node siz
   </Card>
 </CardGroup>
 
+## Node Groups
+
+Node groups let you define named pools of nodes with independent instance types, counts, and scaling policies. They map directly to native constructs on each provider: EKS Managed Node Groups, GKE Node Pools, and AKS Agent Pool Profiles.
+
+### When to Use Node Groups
+
+| Scenario | Approach |
+|----------|----------|
+| Simple Civo cluster | `--nodes` (single pool) |
+| AWS EKS production | `--node-group` (multiple pools recommended) |
+| GCP GKE with heterogeneous workloads | `--node-group` (separate pools per workload) |
+| Azure AKS with system + user separation | `--node-group` (mode=System + mode=User) |
+
+### Node Group Options
+
+| Key | Description | Providers |
+|-----|-------------|-----------|
+| `name` | Node group identifier | All |
+| `type` | Instance type (e.g. `m5.large`, `e2-standard-4`) | All |
+| `count` | Desired node count | All |
+| `min` | Minimum count for autoscaling | AWS, GCP |
+| `max` | Maximum count for autoscaling | AWS, GCP |
+| `disk` | OS disk size in GB | AWS, Azure |
+| `spot` | Use spot/preemptible instances | AWS, GCP |
+| `mode` | Pool mode: `System` or `User` | Azure only |
+
+### CLI Usage
+
+```bash
+# Single node group
+hyve cluster add prod \
+  --provider aws \
+  --region us-east-1 \
+  --account-name main --vpc-name prod-vpc \
+  --eks-role-name eks-role --node-role-name node-role \
+  --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
+
+# Multiple node groups
+hyve cluster add prod \
+  --provider aws \
+  --region us-east-1 \
+  --account-name main --vpc-name prod-vpc \
+  --eks-role-name eks-role --node-role-name node-role \
+  --node-group "name=system,type=t3.medium,count=2" \
+  --node-group "name=workers,type=m5.large,count=4,min=2,max=10" \
+  --node-group "name=gpu,type=p3.xlarge,count=1,min=0,max=4,spot=true"
+
+# Update node groups on an existing cluster
+hyve cluster modify prod \
+  --node-group "name=system,type=t3.medium,count=2" \
+  --node-group "name=workers,type=m5.xlarge,count=6,min=3,max=12"
+```
+
+### YAML Definition
+
+Node groups are stored in `spec.nodeGroups`:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: us-east-1
+spec:
+  provider: aws
+  awsAccount: main-account
+  awsVpcName: prod-vpc
+  awsEksRole: eks-cluster-role
+  awsNodeRole: node-role
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.xlarge
+      count: 4
+      minCount: 2
+      maxCount: 10
+    - name: spot-batch
+      instanceType: m5.large
+      count: 2
+      minCount: 0
+      maxCount: 20
+      spot: true
+      labels:
+        workload: batch
+      taints:
+        - key: batch
+          value: "true"
+          effect: NoSchedule
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
+```
+
+<Note>
+  Civo supports only a single node pool. When `nodeGroups` are specified for a Civo cluster, only the first group is used and a warning is logged if multiple groups are provided.
+</Note>
+
 ## Scaling Clusters
 
 ### Scaling Up
 
 Add more nodes to an existing cluster:
 
-```bash
-# Scale from 2 to 3 nodes
-hyve cluster modify production \
-  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
-```
+<Tabs>
+  <Tab title="Nodes (Civo)">
+    ```bash
+    # Scale from 2 to 3 nodes
+    hyve cluster modify production \
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+    ```
+  </Tab>
+
+  <Tab title="Node Groups (AWS/GCP/Azure)">
+    ```bash
+    # Increase worker count and expand autoscaling range
+    hyve cluster modify production \
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=m5.large,count=6,min=3,max=12"
+    ```
+  </Tab>
+</Tabs>
 
 ### Scaling Down
 
 Reduce the number of nodes:
 
-```bash
-# Scale from 3 to 2 nodes
-hyve cluster modify production \
-  --nodes g4s.kube.large,g4s.kube.large
-```
+<Tabs>
+  <Tab title="Nodes (Civo)">
+    ```bash
+    # Scale from 3 to 2 nodes
+    hyve cluster modify production \
+      --nodes g4s.kube.large,g4s.kube.large
+    ```
+  </Tab>
+
+  <Tab title="Node Groups (AWS/GCP/Azure)">
+    ```bash
+    # Reduce worker count
+    hyve cluster modify production \
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=m5.large,count=2,min=1,max=6"
+    ```
+  </Tab>
+</Tabs>
 
 <Warning>
   Scaling down removes nodes immediately. Ensure workloads are properly distributed before scaling down.
@@ -146,9 +328,13 @@ hyve cluster modify production \
 Change node sizes:
 
 ```bash
-# Upgrade from medium to large nodes
+# Upgrade from medium to large nodes (Civo)
 hyve cluster modify staging-app \
   --nodes g4s.kube.large,g4s.kube.large
+
+# Upgrade worker instance type (AWS/GCP/Azure)
+hyve cluster modify staging-app \
+  --node-group "name=workers,type=m5.2xlarge,count=4,min=2,max=8"
 ```
 
 ## Modifying Clusters
@@ -447,7 +633,22 @@ hyve cluster add prod-eu \
     ```
   </Accordion>
 
-  <Accordion title="4. Use GitOps for Changes">
+  <Accordion title="4. Use Node Groups for AWS, GCP, and Azure">
+    ```bash
+    # Use --node-group instead of --nodes for named cloud providers
+    hyve cluster add prod-eks \
+      --provider aws --region us-east-1 \
+      --account-name main --vpc-name prod-vpc \
+      --eks-role-name eks-role --node-role-name node-role \
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=m5.large,count=4,min=2,max=10"
+
+    # Node groups give you per-pool autoscaling, spot instances, labels, and taints
+    # while --nodes is simpler for Civo single-pool clusters
+    ```
+  </Accordion>
+
+  <Accordion title="5. Use GitOps for Changes">
     ```bash
     # Make changes through Git
     hyve cluster modify prod-cluster --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
@@ -458,7 +659,7 @@ hyve cluster add prod-eu \
     ```
   </Accordion>
 
-  <Accordion title="5. Regular Reconciliation">
+  <Accordion title="6. Regular Reconciliation">
     ```bash
     # Sync cluster state regularly
     hyve reconcile
