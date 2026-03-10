@@ -457,11 +457,11 @@ hyve cluster list
     Stored: 2024-01-14 16:45:10
 
 💡 Commands:
-  eval $(hyve use <cluster-name>)              # Quickly set kubeconfig (recommended)
+  hyve use <cluster-name>                      # Merge and set active context (recommended)
   hyve kubeconfig get <cluster-name>           # Display kubeconfig
   hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
   hyve kubeconfig get <cluster-name> -o <file> # Save to specific file
-  hyve kubeconfig use <cluster-name>           # Set kubeconfig for current terminal session
+  hyve kubeconfig use <cluster-name>           # Merge and set active context
 ```
 
 <Info>
@@ -1012,7 +1012,7 @@ hyve cluster add production \
   --cluster-type k3s
 
 # Wait for cluster to be ready (check with kubectl)
-eval $(hyve use production)
+hyve use production
 kubectl get nodes
 ```
 

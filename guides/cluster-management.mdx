@@ -425,7 +425,7 @@ hyve cluster list
     Stored: 2024-01-14 16:45:10
 
 💡 Commands:
-  eval $(hyve use <cluster-name>)              # Quickly set kubeconfig (recommended)
+  hyve use <cluster-name>                      # Merge and set active context (recommended)
   hyve kubeconfig get <cluster-name>           # Display kubeconfig
   hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
 ```
@@ -815,7 +815,7 @@ Move workloads between regions:
   <Step title="Verify and switch traffic">
     ```bash
     # Test new cluster
-    eval $(hyve use prod-new-region)
+    hyve use prod-new-region
     kubectl get pods
 
     # Update DNS/LB to new cluster
