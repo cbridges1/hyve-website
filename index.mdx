@@ -111,30 +111,40 @@ hyve template execute prod-template prod-cluster-01
 ## Why Hyve?
 
 <AccordionGroup>
-  <Accordion title="Day-One Ready — CLI or CI/CD">
-    Getting your first cluster up shouldn't require manual console work or one-off scripts. Hyve works from the CLI for teams that want to bootstrap quickly, and works equally well wired into a CI/CD pipeline from the very first commit. Both modes are first-class: choose what fits your team, and switch any time without changing your cluster definitions.
+  <Accordion title="Git is the state backend — no S3, no Terraform Cloud">
+    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. There is no separate backend to configure or pay for. The full history of every cluster change is inherent in Git — who changed what, when, and why, reviewed through pull requests like any other code.
   </Accordion>
 
-  <Accordion title="Sustainable GitOps Workflow">
-    Engineers commit YAML changes to Git; Hyve reconciles the desired state against the cloud — locally or through your pipeline with `hyve reconcile --path .`. Infrastructure changes follow the same review and audit process as application code: pull requests, approvals, and a full history of every change ever made.
+  <Accordion title="Continuous reconciliation — no plan files or approval gates">
+    Terraform models infrastructure changes as a plan-and-apply cycle. For ephemeral environments (feature branches, load tests, short-lived demos) this adds friction to every iteration. Hyve treats the cluster definition as continuous desired state: commit to create, remove the file to delete, update a field to reconcile — all with the same `hyve reconcile` command.
   </Accordion>
 
-  <Accordion title="GitOps Native">
-    Built from the ground up with GitOps principles. Every change is tracked in Git, providing full audit trails and easy rollbacks.
+  <Accordion title="Built-in post-deploy hooks — no extra orchestration">
+    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreated` and `onDestroy` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
   </Accordion>
 
-  <Accordion title="Multi-Environment">
-    Manage separate repositories for dev, staging, and production with isolated credentials and configurations.
+  <Accordion title="Consistent multi-cloud without a plugin ecosystem">
+    Adding a cloud provider in Terraform means finding or writing a provider plugin and learning its resource schema. Hyve has first-party support for Civo, AWS EKS, GCP GKE, and Azure AKS behind a single consistent YAML interface. The same structure, the same CLI commands, and the same workflow hooks work across all four providers.
   </Accordion>
 
-  <Accordion title="Workflow Automation">
-    Define complex deployment pipelines with tool and secret requirements validation, variable substitution, and error handling.
+  <Accordion title="Automatic kubeconfig management">
+    Terraform outputs a kubeconfig as a sensitive value you then have to route somewhere useful. Hyve automatically retrieves, AES-GCM encrypts, and stores kubeconfigs per cluster on every reconcile. One command merges any cluster into `~/.kube/config`. When a cluster is removed, Hyve removes the corresponding context automatically.
   </Accordion>
 
-  <Accordion title="Security First">
-    AES-GCM encrypted credential storage, isolated kubeconfigs per repository, and portable encryption keys.
+  <Accordion title="Native cluster templates — no Terragrunt required">
+    For teams provisioning clusters repeatedly to the same pattern, Terraform requires copy-pasted modules or Terragrunt. Hyve has native cluster templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreated` workflows run — all in one step.
   </Accordion>
 </AccordionGroup>
+
+<Card
+  title="Why Hyve vs. Terraform"
+  icon="scale-balanced"
+  href="/why-hyve"
+  horizontal
+  color="#8b5cf6"
+>
+  Full comparison: state management, reconciliation, post-deploy hooks, multi-cloud, and kubeconfig handling.
+</Card>
 
 ## Get Started
 
