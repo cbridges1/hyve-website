@@ -98,18 +98,19 @@ hyve git remove <name>
 ### config
 
 ```bash
-# Civo token management
-hyve config set-token civo [--account <id>]
-hyve config get-token civo [--account <id>]
-hyve config clear-token civo [--account <id>]
+# Civo token management (--org required)
+hyve config set-token civo --org <name> [--token <token>]
+hyve config get-token civo --org <name>
+hyve config clear-token civo --org <name>
 hyve config list-tokens
 
 # Provider config (stored in repository)
-hyve config gcp add-project --name <alias> --id <project-id>
+hyve config gcp add-project --project <alias> --name <alias> --id <project-id>
 hyve config aws account-add --name <alias> --id <account-id>
-hyve config aws eks-role-add --name <alias> --role-arn <arn>
-hyve config aws vpc-add --name <alias> --id <vpc-id>
-hyve config azure add-subscription-ids <id,...>
+hyve config aws eks-role-add --account <name> --name <alias> --role-arn <arn>
+hyve config aws vpc-add --account <name> --name <alias> --id <vpc-id>
+hyve config azure add-subscription-ids --name <alias> --id <subscription-id>
+hyve config azure add-resource-group --subscription <alias> --name <rg> --location <region>
 ```
 
 [Full reference →](/cli/config)
@@ -169,7 +170,7 @@ For CI/CD pipelines, credentials are configured directly in `provider-configs/*.
 
 ```bash
 # 1. Store Civo token (for local dev)
-hyve config set-token civo
+hyve config set-token civo --org my-org
 
 # 2. Configure Git credentials
 hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
@@ -259,7 +260,7 @@ hyve cluster delete my-cluster --force
   <Accordion title="API authentication failed">
     ```bash
     # Civo
-    hyve config set-token civo
+    hyve config set-token civo --org my-org
     # AWS
     aws configure
     # GCP

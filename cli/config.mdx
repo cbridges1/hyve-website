@@ -3,13 +3,13 @@ title: 'hyve config'
 description: 'Reference for configuration and provider credential management commands'
 ---
 
-The `hyve config` command group manages provider-specific configuration (GCP projects, AWS accounts/roles/VPCs, Azure subscriptions) and Civo API tokens. Provider configs are stored as YAML in your state repository under `provider-configs/` and are shared with your team.
+The `hyve config` command group manages provider-specific configuration (GCP projects, AWS accounts/roles/VPCs, Azure subscriptions and resource groups) and Civo API tokens. Provider configs are stored as YAML in your state repository under `provider-configs/` and are shared with your team.
 
 Authentication by provider:
 
 | Provider | Local dev | CI/CD |
 |----------|-----------|-------|
-| **Civo** | `hyve config set-token civo` or `CIVO_TOKEN` | `CIVO_TOKEN` or named account `{ORG}_CIVO_TOKEN` |
+| **Civo** | `hyve config set-token civo --org <name>` or `CIVO_TOKEN` | `CIVO_TOKEN` or named account `{ORG}_CIVO_TOKEN` |
 | **AWS** | `aws configure` | `AWS_*` env vars, OIDC, or named account `{ACCOUNT}_AWS_*` |
 | **GCP** | `gcloud auth application-default login` | `GOOGLE_APPLICATION_CREDENTIALS` or named `{PROJECT}_GCP_CREDENTIALS_JSON` |
 | **Azure** | `az login` | `AZURE_*` env vars or named `{SUB}_AZURE_*` |
@@ -20,34 +20,35 @@ See the [CI/CD guide](/guides/cicd#named-account-secrets) for the full named acc
 
 ## Civo Token Management
 
-Civo is the only provider whose credentials are stored encrypted in Hyve (`~/.hyve/credentials.db`, AES-256-GCM). Multiple accounts are supported via the `--account` flag.
+Civo is the only provider whose credentials are stored encrypted in Hyve (`~/.hyve/credentials.db`, AES-256-GCM). Multiple organizations are supported via the required `--org` flag.
 
 ### hyve config set-token
 
 ```bash
-hyve config set-token civo [--account <id>] [--token <token>]
+hyve config set-token civo --org <name> [--token <token>]
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--account, -a` | `default` | Account alias to store the token under |
-| `--token, -t` | _(prompted)_ | Token value. Omit to be prompted securely (recommended) |
+| Flag | Description |
+|------|-------------|
+| `--org` | **Required.** Organization alias to store the token under |
+| `--token, -t` | Token value. Omit to be prompted securely (recommended) |
 
 ```bash
 # Interactive (recommended — input is hidden)
-hyve config set-token civo
-
-# Named account
-hyve config set-token civo --account production
+hyve config set-token civo --org my-org
 
 # Non-interactive
-hyve config set-token civo --token YOUR_TOKEN
+hyve config set-token civo --org my-org --token YOUR_TOKEN
+
+# Multiple organizations
+hyve config set-token civo --org production
+hyve config set-token civo --org development
 ```
 
 ### hyve config get-token
 
 ```bash
-hyve config get-token civo [--account <id>]
+hyve config get-token civo --org <name>
 ```
 
 Displays the stored token in plaintext. Use with caution.
@@ -55,10 +56,10 @@ Displays the stored token in plaintext. Use with caution.
 ### hyve config clear-token
 
 ```bash
-hyve config clear-token civo [--account <id>]
+hyve config clear-token civo --org <name>
 ```
 
-Removes the stored token for the specified account.
+Removes the stored token for the specified organization.
 
 ### hyve config list-tokens
 
@@ -66,7 +67,7 @@ Removes the stored token for the specified account.
 hyve config list-tokens
 ```
 
-Lists all Civo account aliases with stored tokens.
+Lists all Civo organization aliases with stored tokens.
 
 ---
 
@@ -76,23 +77,23 @@ GCP project aliases map a friendly name to a project ID. They are stored in `pro
 
 ```bash
 # Add a project alias
-hyve config gcp add-project --name <alias> --id <project-id>
+hyve config gcp add-project --project <alias> --name <alias> --id <project-id>
 
 # List configured projects
-hyve config gcp list-projects
+hyve config gcp list-projects --project <alias>
 
 # Get project ID by alias
-hyve config gcp get-project <alias>
+hyve config gcp get-project --project <alias> --name <alias>
 
 # Remove a project alias
-hyve config gcp remove-project <alias>
+hyve config gcp remove-project --project <alias> --name <alias>
 ```
 
 **Example:**
 
 ```bash
-hyve config gcp add-project --name dev --id my-dev-project-123
-hyve config gcp add-project --name prod --id my-prod-project-456
+hyve config gcp add-project --project dev --name dev --id my-dev-project-123
+hyve config gcp add-project --project prod --name prod --id my-prod-project-456
 
 # Use alias when creating clusters
 hyve cluster add gcp-cluster --provider gcp --gcp-project dev --region us-central1
@@ -112,7 +113,7 @@ projects:
 
 ## AWS Configuration
 
-AWS resources (accounts, EKS roles, VPCs) are stored as aliases in `provider-configs/aws.yaml`.
+AWS resources (accounts, EKS roles, VPCs) are stored as aliases in `provider-configs/aws.yaml`. All sub-commands require `--account <name>` to scope operations to a specific account.
 
 ### Account Aliases
 
@@ -129,18 +130,18 @@ Register an existing role or create one in AWS:
 
 ```bash
 # Register existing role
-hyve config aws eks-role-add --name <alias> --role-arn <arn>
+hyve config aws eks-role-add --account <name> --name <alias> --role-arn <arn>
 
 # Create role in AWS and register alias
-hyve config aws eks-role-create --name <alias> --role-name <aws-name> [--region <region>]
+hyve config aws eks-role-create --account <name> --name <alias> --role-name <aws-name> [--region <region>]
 
-# Delete role from AWS (omit --region to config-only)
-hyve config aws eks-role-delete <alias> [--region <region>] [--config-only]
+# Delete role from AWS
+hyve config aws eks-role-delete --account <name> --name <alias> [--region <region>] [--config-only]
 
 # List / get / remove aliases
-hyve config aws eks-role-list
-hyve config aws eks-role-get <alias>
-hyve config aws eks-role-remove <alias>
+hyve config aws eks-role-list   --account <name>
+hyve config aws eks-role-get    --account <name> --name <alias>
+hyve config aws eks-role-remove --account <name> --name <alias>
 ```
 
 `eks-role-create` creates an IAM role with the EKS assume-role policy and attaches `AmazonEKSClusterPolicy`.
@@ -151,18 +152,18 @@ Register an existing VPC or create one in AWS:
 
 ```bash
 # Register existing VPC
-hyve config aws vpc-add --name <alias> --id <vpc-id>
+hyve config aws vpc-add --account <name> --name <alias> --id <vpc-id>
 
 # Create VPC in AWS and register alias
-hyve config aws vpc-create --name <alias> [--region <region>] [--cidr <cidr>] [--subnets <cidrs>]
+hyve config aws vpc-create --account <name> --name <alias> [--region <region>] [--cidr <cidr>] [--subnets <cidrs>]
 
 # Delete VPC from AWS (--config-only to keep the AWS resource)
-hyve config aws vpc-delete <alias> [--region <region>] [--config-only]
+hyve config aws vpc-delete --account <name> --name <alias> [--region <region>] [--config-only]
 
 # List / get / remove aliases
-hyve config aws vpc-list
-hyve config aws vpc-get <alias>
-hyve config aws vpc-remove <alias>
+hyve config aws vpc-list   --account <name>
+hyve config aws vpc-get    --account <name> --name <alias>
+hyve config aws vpc-remove --account <name> --name <alias>
 ```
 
 <Warning>
@@ -173,8 +174,8 @@ hyve config aws vpc-remove <alias>
 
 ```bash
 hyve config aws account-add --name prod --id 123456789012
-hyve config aws eks-role-create --name eks-role --role-name hyve-eks-role --region us-east-1
-hyve config aws vpc-create --name eks-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
+hyve config aws eks-role-create --account prod --name eks-role --role-name hyve-eks-role --region us-east-1
+hyve config aws vpc-create --account prod --name eks-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
 
 hyve cluster add aws-prod \
   --provider aws \
@@ -204,10 +205,46 @@ vpcs:
 
 Azure subscriptions are stored with aliases and resource groups in `provider-configs/azure.yaml`. The subscription ID is resolved automatically from the alias — it does not need to be supplied as an environment variable.
 
+### Subscriptions
+
 ```bash
-hyve config azure add-subscription-ids <id,...>
+# Add a subscription alias
+hyve config azure add-subscription-ids --name <alias> --id <subscription-id>
+
+# List configured subscriptions
 hyve config azure list-subscription-ids
-hyve config azure remove-subscription-ids <id,...>
+
+# Remove a subscription alias
+hyve config azure remove-subscription-ids --name <alias>
+```
+
+**Example:**
+
+```bash
+hyve config azure add-subscription-ids --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+hyve config azure add-subscription-ids --name dev-sub  --id yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
+```
+
+### Resource Groups
+
+Resource groups are registered under a subscription alias. `add-resource-group` creates the resource group in Azure **and** saves the entry to `provider-configs/azure.yaml`.
+
+```bash
+# Create resource group in Azure and register locally
+hyve config azure add-resource-group --subscription <alias> --name <rg-name> --location <region>
+
+# Delete resource group from Azure and remove from local config
+hyve config azure delete-resource-group --subscription <alias> --name <rg-name>
+
+# List resource groups for a subscription
+hyve config azure list-resource-groups --subscription <alias>
+```
+
+**Example:**
+
+```bash
+hyve config azure add-resource-group --subscription prod-sub --name hyve-rg --location eastus
+hyve config azure list-resource-groups --subscription prod-sub
 ```
 
 **`provider-configs/azure.yaml`:**
@@ -231,7 +268,7 @@ Hyve falls back to environment variables when no stored/named credentials are fo
 
 | Variable | Provider | Purpose |
 |----------|----------|---------|
-| `CIVO_TOKEN` | Civo | Default account API token |
+| `CIVO_TOKEN` | Civo | Default organization API token |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS | Default account credentials |
 | `AWS_SESSION_TOKEN` | AWS | Temporary session token |
 | `GOOGLE_APPLICATION_CREDENTIALS` | GCP | Path to service account JSON |
@@ -250,7 +287,7 @@ Hyve falls back to environment variables when no stored/named credentials are fo
 <AccordionGroup>
   <Accordion title="Civo: token not found">
     ```bash
-    hyve config set-token civo
+    hyve config set-token civo --org my-org
     # or
     export CIVO_TOKEN=your_token
     ```

@@ -27,27 +27,121 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
 
 ## Cluster Definition
 
-Clusters are defined using YAML files following a standard structure:
+Clusters are defined using YAML files following a standard structure. The required fields vary by provider:
 
-```yaml
-apiVersion: v1
-kind: Cluster
-metadata:
-  name: production
-  region: PHX1
-spec:
-  provider: civo
-  nodes:
-    - g4s.kube.large
-    - g4s.kube.large
-    - g4s.kube.large
-  workflows:
-    onCreated:
-      - setup-monitoring
-      - deploy-app
-    onDestroy:
-      - backup-data
-```
+<Tabs>
+  <Tab title="Civo">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: PHX1           # PHX1, NYC1, LON1, FRA1
+    spec:
+      provider: civo
+      civoOrganization: my-org   # matches --org name in hyve config set-token
+      nodes:
+        - g4s.kube.large
+        - g4s.kube.large
+        - g4s.kube.large
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+          - deploy-app
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="Azure (AKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: eastus
+    spec:
+      provider: azure
+      azureSubscription: prod-sub    # alias from hyve config azure add-subscription-ids
+      nodeGroups:
+        - name: system               # first pool must be System mode
+          instanceType: Standard_DS2_v2
+          count: 2
+          mode: System
+        - name: workers
+          instanceType: Standard_DS3_v2
+          count: 3
+          minCount: 1
+          maxCount: 8
+          mode: User
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+          - deploy-app
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="AWS (EKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-east-1
+    spec:
+      provider: aws
+      awsAccount: prod             # alias from hyve config aws account-add
+      awsVpcName: prod-vpc         # alias from hyve config aws vpc-add
+      awsEksRole: eks-role         # alias from hyve config aws eks-role-add
+      nodeGroups:
+        - name: system
+          instanceType: t3.medium
+          count: 2
+        - name: workers
+          instanceType: m5.xlarge
+          count: 4
+          minCount: 2
+          maxCount: 10
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="GCP (GKE)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-central1
+    spec:
+      provider: gcp
+      gcpProject: prod             # alias from hyve config gcp add-project
+      nodeGroups:
+        - name: workers
+          instanceType: e2-standard-4
+          count: 3
+          minCount: 2
+          maxCount: 8
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+</Tabs>
 
 ### Metadata Fields
 
@@ -114,7 +208,7 @@ hyve cluster add my-cluster \
 hyve cluster add production \
   --provider aws \
   --region us-east-1 \
-  --account-name main \
+  --aws-account main \
   --vpc-name prod-vpc \
   --eks-role-name eks-role \
   --node-role-name node-role \
