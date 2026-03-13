@@ -36,7 +36,28 @@ hyve cluster add [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--nodes" type="string[]" default='["g4s.kube.small"]'>
-  Node sizes for the cluster (comma-separated). Each entry creates one node.
+  Node sizes for the cluster (comma-separated). Each entry creates one node. For simple single-pool clusters. Use `--node-group` instead for named multi-pool configurations with autoscaling.
+</ParamField>
+
+<ParamField path="--node-group" type="string (repeatable)">
+  Named node group spec. Can be specified multiple times for multiple pools. Mutually exclusive with `--nodes` — when node groups are provided, they take precedence.
+
+  Format: `name=<name>,type=<instanceType>,count=<n>[,min=<n>,max=<n>,disk=<gb>,spot=true,mode=System|User]`
+
+  | Key | Required | Description |
+  |-----|----------|-------------|
+  | `name` | Yes | Node group name |
+  | `type` | Yes | Instance type (e.g. `t3.large`, `e2-standard-4`) |
+  | `count` | No | Desired node count (default: 1) |
+  | `min` | No | Minimum node count for autoscaling |
+  | `max` | No | Maximum node count for autoscaling |
+  | `disk` | No | OS disk size in GB |
+  | `spot` | No | Use spot/preemptible instances (`true`/`false`) |
+  | `mode` | No | Azure only: `System` (default) or `User` |
+
+  <Info>
+    **AWS EKS only:** avoid `nano` and `micro` instance types. These expose only 4 pods per node — insufficient for EKS system daemonsets plus workloads. Minimum: `t3.small`. Recommended: `t3.medium`.
+  </Info>
 </ParamField>
 
 <ParamField path="--cluster-type" type="string" default="k3s">
@@ -47,12 +68,12 @@ hyve cluster add [cluster-name] [flags]
   GCP project alias (required for GCP provider). Configure aliases with `hyve config gcp add-project`.
 </ParamField>
 
-<ParamField path="--civo-account" type="string" default="default">
-  Civo account to use (for multi-account setups).
+<ParamField path="--civo-account" type="string">
+  Civo organization alias to use. Must match the `--org` name used when storing the token with `hyve config set-token civo --org <name>`.
 </ParamField>
 
 <ParamField path="--aws-account" type="string">
-  AWS account alias (optional for AWS provider). Configure aliases with `hyve config aws account-add`.
+  AWS account alias (required for AWS provider). Configure aliases with `hyve config aws account-add`.
 </ParamField>
 
 <ParamField path="--vpc-name" type="string">
@@ -66,6 +87,89 @@ hyve cluster add [cluster-name] [flags]
 **Examples by Provider:**
 
 <Tabs>
+  <Tab title="AWS">
+    ```bash
+    # First, configure AWS resources (--account required)
+    hyve config aws vpc-add --account production --name prod-vpc --id vpc-12345678
+    hyve config aws eks-role-add --account production --name eks-cluster-role \
+      --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+
+    # Single node group (AWS EKS)
+    hyve cluster add aws-prod \
+      --provider aws \
+      --region us-east-1 \
+      --aws-account production \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-cluster-role \
+      --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
+
+    # Multiple node groups (system + workers)
+    hyve cluster add aws-mixed \
+      --provider aws \
+      --region us-east-1 \
+      --aws-account production \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-cluster-role \
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=m5.xlarge,count=4,min=2,max=10,spot=true"
+
+    # Simple AWS EKS cluster using --nodes (backward-compatible)
+    hyve cluster add aws-dev \
+      --provider aws \
+      --region us-east-1 \
+      --aws-account production \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-cluster-role \
+      --nodes t3.medium
+    ```
+  </Tab>
+
+  <Tab title="GCP">
+    ```bash
+    # First, configure GCP project aliases
+    hyve config gcp add-project --project dev --name dev --id my-dev-project-123
+    hyve config gcp add-project --project prod --name prod --id my-prod-project-456
+
+    # Single node group (GCP GKE)
+    hyve cluster add gcp-prod \
+      --provider gcp \
+      --gcp-project prod \
+      --region us-east1 \
+      --node-group "name=workers,type=e2-standard-4,count=3,min=2,max=6"
+
+    # Multiple node groups (system + high-memory workers)
+    hyve cluster add gcp-mixed \
+      --provider gcp \
+      --gcp-project prod \
+      --region us-central1 \
+      --node-group "name=system,type=e2-standard-2,count=2" \
+      --node-group "name=workers,type=n1-highmem-4,count=3,min=1,max=8,spot=true"
+
+    # Simple GCP GKE cluster using --nodes (backward-compatible)
+    hyve cluster add gcp-dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
+    ```
+  </Tab>
+
+  <Tab title="Azure">
+    ```bash
+    # Single node group (Azure AKS)
+    hyve cluster add azure-prod \
+      --provider azure \
+      --region westus2 \
+      --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System"
+
+    # Multiple node groups (system pool + user workload pool)
+    hyve cluster add azure-mixed \
+      --provider azure \
+      --region westeurope \
+      --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System" \
+      --node-group "name=workers,type=Standard_DS4_v2,count=3,min=1,max=8,mode=User,spot=true"
+
+    # Simple Azure AKS cluster using --nodes (backward-compatible)
+    hyve cluster add azure-dev --provider azure --region eastus --nodes Standard_DS2_v2
+    ```
+  </Tab>
+
   <Tab title="Civo">
     ```bash
     # Simple Civo cluster
@@ -84,83 +188,6 @@ hyve cluster add [cluster-name] [flags]
       --region FRA1 \
       --nodes g4s.kube.large \
       --cluster-type talos
-    ```
-  </Tab>
-
-  <Tab title="AWS">
-    ```bash
-    # First, configure AWS resources
-    hyve config aws vpc-add --name dev-vpc --id vpc-12345678
-    hyve config aws eks-role-add --name eks-cluster-role --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
-
-    # Simple AWS EKS cluster (--vpc-name and --eks-role-name are required)
-    hyve cluster add aws-dev \
-      --provider aws \
-      --region us-east-1 \
-      --vpc-name dev-vpc \
-      --eks-role-name eks-cluster-role \
-      --nodes t3.medium
-
-    # Production AWS EKS cluster
-    hyve cluster add aws-prod \
-      --provider aws \
-      --region us-west-2 \
-      --vpc-name prod-vpc \
-      --eks-role-name eks-cluster-role \
-      --nodes m5.large,m5.large,m5.large
-
-    # High-performance AWS cluster with account alias
-    hyve cluster add aws-compute \
-      --provider aws \
-      --region eu-west-1 \
-      --aws-account production \
-      --vpc-name eu-vpc \
-      --eks-role-name eks-cluster-role \
-      --nodes m5.xlarge,m5.xlarge,m5.xlarge,m5.xlarge
-    ```
-  </Tab>
-
-  <Tab title="GCP">
-    ```bash
-    # First, configure GCP project aliases
-    hyve config gcp add-project --name dev --id my-dev-project-123
-    hyve config gcp add-project --name prod --id my-prod-project-456
-
-    # Simple GCP GKE cluster (--gcp-project is required)
-    hyve cluster add gcp-dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
-
-    # Production GCP GKE cluster
-    hyve cluster add gcp-prod \
-      --provider gcp \
-      --gcp-project prod \
-      --region us-east1 \
-      --nodes e2-standard-4,e2-standard-4,e2-standard-4
-
-    # High-memory GCP cluster
-    hyve cluster add gcp-memory \
-      --provider gcp \
-      --gcp-project dev \
-      --region europe-west1 \
-      --nodes n1-highmem-4,n1-highmem-4
-    ```
-  </Tab>
-
-  <Tab title="Azure">
-    ```bash
-    # Simple Azure AKS cluster
-    hyve cluster add azure-dev --provider azure --region eastus --nodes Standard_DS2_v2
-
-    # Production Azure AKS cluster
-    hyve cluster add azure-prod \
-      --provider azure \
-      --region westus2 \
-      --nodes Standard_DS3_v2,Standard_DS3_v2,Standard_DS3_v2
-
-    # High-performance Azure cluster
-    hyve cluster add azure-compute \
-      --provider azure \
-      --region westeurope \
-      --nodes Standard_DS4_v2,Standard_DS4_v2,Standard_DS4_v2
     ```
   </Tab>
 </Tabs>
@@ -206,6 +233,7 @@ metadata:
   region: PHX1
 spec:
   provider: civo
+  civoOrganization: my-org
   nodes:
     - g4s.kube.medium
   clusterType: k3s
@@ -241,7 +269,24 @@ hyve cluster modify [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--nodes" type="string[]">
-  Update node sizes (comma-separated)
+  Update node sizes (comma-separated). For simple single-pool clusters. Use `--node-group` instead for named multi-pool configurations with autoscaling.
+</ParamField>
+
+<ParamField path="--node-group" type="string (repeatable)">
+  Named node group spec. Can be specified multiple times for multiple pools. Mutually exclusive with `--nodes` — when node groups are provided, they take precedence.
+
+  Format: `name=<name>,type=<instanceType>,count=<n>[,min=<n>,max=<n>,disk=<gb>,spot=true,mode=System|User]`
+
+  | Key | Required | Description |
+  |-----|----------|-------------|
+  | `name` | Yes | Node group name |
+  | `type` | Yes | Instance type (e.g. `t3.large`, `e2-standard-4`) |
+  | `count` | No | Desired node count (default: 1) |
+  | `min` | No | Minimum node count for autoscaling |
+  | `max` | No | Maximum node count for autoscaling |
+  | `disk` | No | OS disk size in GB |
+  | `spot` | No | Use spot/preemptible instances (`true`/`false`) |
+  | `mode` | No | Azure only: `System` (default) or `User` |
 </ParamField>
 
 <ParamField path="--cluster-type" type="string">
@@ -413,11 +458,11 @@ hyve cluster list
     Stored: 2024-01-14 16:45:10
 
 💡 Commands:
-  eval $(hyve use <cluster-name>)              # Quickly set kubeconfig (recommended)
+  hyve use <cluster-name>                      # Merge and set active context (recommended)
   hyve kubeconfig get <cluster-name>           # Display kubeconfig
   hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
   hyve kubeconfig get <cluster-name> -o <file> # Save to specific file
-  hyve kubeconfig use <cluster-name>           # Set kubeconfig for current terminal session
+  hyve kubeconfig use <cluster-name>           # Merge and set active context
 ```
 
 <Info>
@@ -428,30 +473,82 @@ hyve cluster list
 
 ## Cluster Definition Format
 
-Clusters are defined in YAML format and stored in the `clusters/` directory of your Git repository.
+Clusters are defined in YAML format and stored in the `clusters/` directory of your Git repository. Provider-specific fields are required for each cloud provider.
 
-### Basic Structure
+Cluster specs support two mutually exclusive ways to define nodes: `spec.nodes` (simple single-pool, primarily for Civo) and `spec.nodeGroups` (named multi-pool with autoscaling, preferred for AWS/GCP/Azure). When `nodeGroups` are present, they take precedence over `nodes`.
+
+### Civo Cluster Structure
 
 ```yaml
 apiVersion: v1
 kind: Cluster
 metadata:
   name: my-cluster
-  region: PHX1
+  region: PHX1               # PHX1 | NYC1 | LON1 | FRA1
 spec:
   provider: civo
+  civoOrganization: my-org   # org alias — must match --org used in hyve config set-token
   nodes:
-    - g4s.kube.small
-    - g4s.kube.small
+    - g4s.kube.medium        # one entry per node
+    - g4s.kube.medium
+  clusterType: k3s            # k3s | talos
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+    onDestroy:
+      - backup-data
+```
+
+<Info>
+  Civo supports only a single node pool. For Civo clusters, use `spec.nodes` rather than `spec.nodeGroups`.
+</Info>
+
+### Azure Cluster Structure
+
+Azure AKS clusters require a `nodeGroups` definition. The first pool must use `mode: System`.
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-aks-cluster
+  region: eastus
+spec:
+  provider: azure
+  azureSubscription: prod-sub      # alias from hyve config azure add-subscription-ids
+  nodeGroups:
+    - name: system                 # first pool must be System mode
+      instanceType: Standard_DS2_v2
+      count: 2
+      mode: System
+    - name: workers
+      instanceType: Standard_DS3_v2
+      count: 3
+      minCount: 1
+      maxCount: 8
+      mode: User
+      spot: true
   clusterType: k3s
   ingress:
     enabled: true
     loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+    onDestroy:
+      - backup-data
 ```
+
+<Info>
+  The `azureSubscription` alias must be registered with `hyve config azure add-subscription-ids --name <alias> --id <subscription-id>` and a resource group must exist in Azure before cluster creation (`hyve config azure add-resource-group --subscription <alias> --name <rg> --location <region>`).
+</Info>
 
 ### GCP Cluster Structure
 
-GCP clusters include additional fields for project configuration:
+GCP GKE clusters require a project alias and `nodeGroups` definition:
 
 ```yaml
 apiVersion: v1
@@ -461,10 +558,14 @@ metadata:
   region: us-central1
 spec:
   provider: gcp
-  gcpProject: dev           # Project alias (configured via hyve config gcp add-project)
-  gcpProjectId: my-project  # Resolved project ID (auto-populated)
-  nodes:
-    - e2-standard-4
+  gcpProject: prod              # alias from hyve config gcp add-project
+  gcpProjectId: my-project-123  # resolved project ID (auto-populated)
+  nodeGroups:
+    - name: workers
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 2
+      maxCount: 8
   clusterType: k3s
   ingress:
     enabled: true
@@ -473,7 +574,7 @@ spec:
 
 ### AWS Cluster Structure
 
-AWS EKS clusters include additional fields for VPC and IAM role configuration:
+AWS EKS clusters require VPC and IAM role aliases and a `nodeGroups` definition:
 
 ```yaml
 apiVersion: v1
@@ -483,14 +584,22 @@ metadata:
   region: us-east-1
 spec:
   provider: aws
-  awsAccount: production           # Account alias (optional, configured via hyve config aws account-add)
-  awsAccountId: "123456789012"     # Resolved account ID (auto-populated)
-  awsVpcName: dev-vpc              # VPC alias (required, configured via hyve config aws vpc-add)
-  awsVpcId: vpc-12345678           # Resolved VPC ID (auto-populated)
-  awsEksRole: eks-cluster-role     # EKS role alias (required, configured via hyve config aws eks-role-add)
-  awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # Resolved role ARN (auto-populated)
-  nodes:
-    - m5.large
+  awsAccount: prod                 # alias from hyve config aws account-add
+  awsAccountId: "123456789012"     # resolved account ID (auto-populated)
+  awsVpcName: prod-vpc             # alias from hyve config aws vpc-add (required)
+  awsVpcId: vpc-12345678           # resolved VPC ID (auto-populated)
+  awsEksRole: eks-cluster-role     # alias from hyve config aws eks-role-add (required)
+  awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # resolved (auto-populated)
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.xlarge
+      count: 4
+      minCount: 2
+      maxCount: 10
+      spot: true
   clusterType: k3s
   ingress:
     enabled: true
@@ -526,8 +635,24 @@ spec:
   Cloud provider name. Must be one of: `civo`, `aws`, `gcp`, `azure`
 </ParamField>
 
-<ParamField path="spec.nodes" type="string[]" required>
-  Array of node sizes. Each entry creates one node in the cluster.
+<ParamField path="spec.nodes" type="string[]">
+  Array of node sizes for simple single-pool clusters. Each entry represents one node. Use `spec.nodeGroups` instead for named multi-pool configurations with autoscaling. One of `nodes` or `nodeGroups` should be specified.
+</ParamField>
+
+<ParamField path="spec.nodeGroups" type="NodeGroup[]">
+  Array of named node group definitions. Preferred over `spec.nodes` for AWS (EKS), GCP (GKE), and Azure (AKS) clusters — providers that natively support multiple named node pools with independent scaling.
+
+  **NodeGroup fields:**
+  - `name` (string, required) — Node group name
+  - `instanceType` (string, required) — Instance/VM size
+  - `count` (int) — Desired node count
+  - `minCount` (int) — Minimum count for autoscaling
+  - `maxCount` (int) — Maximum count for autoscaling
+  - `diskSize` (int) — OS disk size in GB
+  - `labels` (map) — Kubernetes node labels
+  - `taints` (array) — Kubernetes node taints (`key`, `value`, `effect`)
+  - `mode` (string) — Azure only: `System` or `User`
+  - `spot` (bool) — Use spot/preemptible instances
 </ParamField>
 
 <ParamField path="spec.clusterType" type="string" default="k3s">
@@ -581,12 +706,6 @@ spec:
 Hyve supports the following cloud providers for Kubernetes cluster management. The `--provider` flag must be one of these valid values:
 
 <CardGroup cols={2}>
-  <Card title="Civo" icon="cloud" color="#3b82f6">
-    Civo Cloud - Fast K3s and Talos clusters
-
-    **Provider ID:** `civo`
-  </Card>
-
   <Card title="AWS" icon="aws" color="#f97316">
     Amazon Web Services - Elastic Kubernetes Service (EKS)
 
@@ -603,6 +722,12 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     Microsoft Azure - Azure Kubernetes Service (AKS)
 
     **Provider ID:** `azure`
+  </Card>
+
+  <Card title="Civo" icon="cloud" color="#3b82f6">
+    Civo Cloud - Fast K3s and Talos clusters
+
+    **Provider ID:** `civo`
   </Card>
 </CardGroup>
 
@@ -621,83 +746,91 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
   <Accordion title="Civo Examples">
     ```bash
     # Development cluster
-    hyve cluster add dev --provider civo --region PHX1 --nodes g4s.kube.small
+    hyve cluster add dev --provider civo --region PHX1 \
+      --nodes g4s.kube.small --civo-account my-org
 
     # Production cluster with HA
     hyve cluster add prod --provider civo --region NYC1 \
-      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
+      --civo-account my-org
 
     # Talos-based cluster
     hyve cluster add secure --provider civo --region FRA1 \
-      --nodes g4s.kube.medium --cluster-type talos
+      --nodes g4s.kube.medium --cluster-type talos --civo-account my-org
     ```
   </Accordion>
 
   <Accordion title="AWS Examples">
     ```bash
-    # First, configure AWS VPC and EKS role aliases
-    hyve config aws vpc-add --name dev-vpc --id vpc-12345678
-    hyve config aws vpc-add --name prod-vpc --id vpc-87654321
-    hyve config aws eks-role-add --name eks-role --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+    # First, configure AWS VPC and EKS role aliases (--account required)
+    hyve config aws vpc-add --account prod --name prod-vpc --id vpc-87654321
+    hyve config aws vpc-add --account prod --name eu-vpc --id vpc-12345678
+    hyve config aws eks-role-add --account prod --name eks-role \
+      --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
 
-    # Development cluster (--vpc-name and --eks-role-name are required)
-    hyve cluster add dev \
-      --provider aws \
-      --region us-east-1 \
-      --vpc-name dev-vpc \
-      --eks-role-name eks-role \
-      --nodes t3.medium
-
-    # Production cluster with HA
+    # Production cluster with a single named node group (preferred for EKS)
     hyve cluster add prod \
       --provider aws \
       --region us-west-2 \
+      --aws-account prod \
       --vpc-name prod-vpc \
       --eks-role-name eks-role \
-      --nodes m5.large,m5.large,m5.large
+      --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
 
-    # High-compute cluster with account alias
+    # Multi-pool cluster with system and workload node groups
     hyve cluster add compute \
       --provider aws \
       --region eu-west-1 \
-      --aws-account production \
+      --aws-account prod \
       --vpc-name eu-vpc \
       --eks-role-name eks-role \
-      --nodes c5.2xlarge,c5.2xlarge
+      --node-group "name=system,type=t3.medium,count=2" \
+      --node-group "name=workers,type=c5.2xlarge,count=4,min=2,max=10,spot=true"
+
+    # Development cluster using --nodes (backward-compatible)
+    hyve cluster add dev \
+      --provider aws \
+      --region us-east-1 \
+      --aws-account prod \
+      --vpc-name prod-vpc \
+      --eks-role-name eks-role \
+      --nodes t3.medium
     ```
   </Accordion>
 
   <Accordion title="GCP Examples">
     ```bash
     # First, configure GCP project aliases
-    hyve config gcp add-project --name dev --id my-dev-project
-    hyve config gcp add-project --name prod --id my-prod-project
+    hyve config gcp add-project --project dev --name dev --id my-dev-project
+    hyve config gcp add-project --project prod --name prod --id my-prod-project
 
-    # Development cluster (--gcp-project is required)
-    hyve cluster add dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
-
-    # Production cluster with HA
+    # Production cluster with named node group (preferred for GKE)
     hyve cluster add prod --provider gcp --gcp-project prod --region us-east1 \
-      --nodes e2-standard-4,e2-standard-4,e2-standard-4
+      --node-group "name=workers,type=e2-standard-4,count=3,min=2,max=6"
 
-    # High-memory cluster
-    hyve cluster add memory --provider gcp --gcp-project dev --region europe-west1 \
-      --nodes n1-highmem-8,n1-highmem-8
+    # Multi-pool cluster with system and high-memory node pools
+    hyve cluster add memory --provider gcp --gcp-project prod --region europe-west1 \
+      --node-group "name=system,type=e2-standard-2,count=2" \
+      --node-group "name=workers,type=n1-highmem-8,count=2,min=1,max=6,spot=true"
+
+    # Development cluster using --nodes (backward-compatible, --gcp-project is required)
+    hyve cluster add dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
     ```
   </Accordion>
 
   <Accordion title="Azure Examples">
     ```bash
-    # Development cluster
-    hyve cluster add dev --provider azure --region eastus --nodes Standard_DS2_v2
-
-    # Production cluster with HA
+    # Production cluster with named node groups (preferred for AKS)
     hyve cluster add prod --provider azure --region westus2 \
-      --nodes Standard_DS3_v2,Standard_DS3_v2,Standard_DS3_v2
+      --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System"
 
-    # High-compute cluster
+    # Multi-pool cluster with system and user workload pools
     hyve cluster add compute --provider azure --region westeurope \
-      --nodes Standard_F8s_v2,Standard_F8s_v2
+      --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System" \
+      --node-group "name=workers,type=Standard_F8s_v2,count=3,min=1,max=8,mode=User,spot=true"
+
+    # Development cluster using --nodes (backward-compatible)
+    hyve cluster add dev --provider azure --region eastus --nodes Standard_DS2_v2
     ```
   </Accordion>
 </AccordionGroup>
@@ -913,7 +1046,7 @@ hyve cluster add production \
   --cluster-type k3s
 
 # Wait for cluster to be ready (check with kubectl)
-eval $(hyve use production)
+hyve use production
 kubectl get nodes
 ```
 

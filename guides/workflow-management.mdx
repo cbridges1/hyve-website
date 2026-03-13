@@ -937,7 +937,7 @@ spec:
     hyve workflow run my-workflow --logs --output
 
     # Test step command manually
-    eval $(hyve use my-cluster)
+    hyve use my-cluster
     kubectl get nodes  # Test the actual command
 
     # Check cluster connectivity

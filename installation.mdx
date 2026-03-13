@@ -17,10 +17,10 @@ description: "Install and set up Hyve on your system"
 
 <Note>
   **Cloud Provider Account:** You'll need at least one cloud provider account:
-  - [Civo](https://dashboard.civo.com/)
   - [AWS](https://aws.amazon.com/) with EKS permissions
   - [Google Cloud](https://console.cloud.google.com/) with GKE permissions
   - [Azure](https://portal.azure.com/) with AKS permissions
+  - [Civo](https://dashboard.civo.com/)
 </Note>
 
 <Note>
@@ -29,30 +29,23 @@ description: "Install and set up Hyve on your system"
   If you prefer, you can optionally switch to the built-in go-git library using `hyve config set-git-backend builtin`.
 </Note>
 
-## Install from Source
+## Install
 
 <Steps>
-  <Step title="Clone the repository">
+  <Step title="Install with Go">
     ```bash
-    git clone <repository-url>
-    cd hyve
+    go install github.com/your-org/hyve@latest
     ```
+
+    This installs the `hyve` binary to your `$GOPATH/bin` directory (usually `~/go/bin`).
   </Step>
 
-  <Step title="Build the binary">
+  <Step title="Ensure Go bin is in PATH">
     ```bash
-    go build -o hyve .
+    export PATH=$PATH:$(go env GOPATH)/bin
     ```
 
-    This creates the `hyve` binary in the current directory.
-  </Step>
-
-  <Step title="Move to PATH (optional)">
-    ```bash
-    sudo mv hyve /usr/local/bin/
-    # Or add to your PATH
-    export PATH=$PATH:$(pwd)
-    ```
+    Add this line to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make it permanent.
   </Step>
 
   <Step title="Verify installation">
@@ -111,79 +104,72 @@ Hyve supports two Git backends:
 
 ## Configuration
 
-### API Token Setup
+### Provider Authentication
 
-Configure credentials for your preferred cloud provider:
+Hyve uses each provider's native authentication. Only Civo tokens are stored encrypted in Hyve.
 
 <Tabs>
   <Tab title="Civo">
     ```bash
-    hyve config set-token civo
+    # Store token encrypted in ~/.hyve (recommended)
+    hyve config set-token civo --org my-org
     # Enter token when prompted
-    ```
 
-    Or via environment:
-    ```bash
+    # Or via environment variable
     export CIVO_TOKEN=your_civo_api_token
     ```
+
+    Tokens are encrypted with AES-256-GCM and stored in `~/.hyve/credentials.db`.
   </Tab>
 
   <Tab title="AWS">
     ```bash
-    hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
-    hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
-    ```
+    # AWS CLI (recommended for local dev)
+    aws configure
 
-    Or via environment:
-    ```bash
+    # Or via environment variables
     export AWS_ACCESS_KEY_ID=your_access_key
     export AWS_SECRET_ACCESS_KEY=your_secret_key
     export AWS_REGION=us-east-1
     ```
+
+    AWS credentials are **not** stored in Hyve — the AWS SDK credential chain is used directly.
   </Tab>
 
   <Tab title="GCP">
     ```bash
-    hyve config set-token gcp-project --token YOUR_PROJECT_ID
-    # Uses Application Default Credentials
+    # Application Default Credentials (recommended for local dev)
     gcloud auth application-default login
-    ```
 
-    Or via environment:
-    ```bash
-    export GCP_PROJECT_ID=your_project_id
+    # Or via service account
     export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
     ```
+
+    GCP credentials are **not** stored in Hyve — Application Default Credentials are used directly.
   </Tab>
 
   <Tab title="Azure">
     ```bash
-    hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
-    hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
-    # Uses Azure CLI credentials
+    # Azure CLI (recommended for local dev)
     az login
+
+    # Or via service principal
+    export AZURE_TENANT_ID=your_tenant_id
+    export AZURE_CLIENT_ID=your_client_id
+    export AZURE_CLIENT_SECRET=your_client_secret
     ```
 
-    Or via environment:
-    ```bash
-    export AZURE_SUBSCRIPTION_ID=your_subscription_id
-    export AZURE_RESOURCE_GROUP=your_resource_group
-    ```
+    Azure credentials are **not** stored in Hyve — Azure CLI or service principal env vars are used directly.
   </Tab>
 </Tabs>
 
-**Benefits of database storage:**
-- AES-GCM encrypted storage
-- Portable across machines
-- No environment variables needed
+### Credential Resolution Order
 
-### Token Priority
+Hyve resolves credentials in this order for each provider:
 
-Hyve checks for credentials in this order:
-
-1. **Database** (encrypted storage via `hyve config set-token`)
-2. **Environment variables**
-3. **`.env` file**
+1. **Named account env var** — `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}` (for multi-account CI/CD)
+2. **Standard env var** — `CIVO_TOKEN`, `AWS_ACCESS_KEY_ID`, etc.
+3. **Provider SDK default chain** — AWS credential chain, GCP ADC, `az login` session
 
 ### Git Credentials (Optional)
 
@@ -203,8 +189,9 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── hyve.db             # Unified encrypted database (credentials, repos, kubeconfigs)
-├── context.yaml        # Active provider account context
+├── credentials.db      # Civo tokens and Git credentials (AES-256-GCM encrypted)
+├── kubeconfigs.db      # Cluster kubeconfigs (encrypted)
+├── repositories.db     # Repository configurations
 ├── temp/               # Temporary kubeconfig files
 └── repositories/       # Cloned repository storage
     ├── production/

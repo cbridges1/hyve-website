@@ -14,10 +14,10 @@ Before you begin, ensure you have:
 <AccordionGroup>
   <Accordion icon="cloud" title="Cloud Provider Account">
     Hyve supports multiple cloud providers. Set up at least one:
-    - **Civo**: Sign up at [Civo Dashboard](https://dashboard.civo.com/) and get your API token
     - **AWS**: Create an [AWS account](https://aws.amazon.com/) with EKS permissions
     - **GCP**: Create a [Google Cloud account](https://console.cloud.google.com/) with GKE permissions
     - **Azure**: Create an [Azure account](https://portal.azure.com/) with AKS permissions
+    - **Civo**: Sign up at [Civo Dashboard](https://dashboard.civo.com/) and get your API token
   </Accordion>
 
   <Accordion icon="git" title="Git Repository & Git Command">
@@ -34,24 +34,17 @@ Before you begin, ensure you have:
 ## Installation
 
 <Steps>
-  <Step title="Clone the repository">
+  <Step title="Install Hyve">
     ```bash
-    git clone <repository-url>
-    cd hyve
-    ```
-  </Step>
-
-  <Step title="Build Hyve">
-    ```bash
-    go build -o hyve .
+    go install github.com/your-org/hyve@latest
     ```
 
-    <Tip>Add the `hyve` binary to your PATH for easy access</Tip>
+    This installs the `hyve` binary to your `$GOPATH/bin`. Ensure `$(go env GOPATH)/bin` is in your `PATH`.
   </Step>
 
   <Step title="Verify installation">
     ```bash
-    ./hyve --help
+    hyve --help
     ```
   </Step>
 </Steps>
@@ -59,59 +52,117 @@ Before you begin, ensure you have:
 ## Configuration
 
 <Steps>
-  <Step title="Store your cloud provider credentials">
-    Configure credentials for your preferred cloud provider:
+  <Step title="Authenticate with your cloud provider">
+    Hyve uses each provider's native authentication — credentials are not stored in Hyve for AWS, GCP, or Azure.
 
     <Tabs>
       <Tab title="Civo">
         ```bash
-        ./hyve config set-token civo
-        # Enter your API token when prompted
+        # Store token encrypted in ~/.hyve (recommended)
+        hyve config set-token civo --org my-org
+
+        # Or use an environment variable
+        export CIVO_TOKEN=your_civo_api_token
         ```
+
+        Get your API token from the [Civo Dashboard](https://dashboard.civo.com) under Profile → Security → API Keys.
       </Tab>
 
       <Tab title="AWS">
         ```bash
-        ./hyve config set-token aws-access-key --token YOUR_ACCESS_KEY_ID
-        ./hyve config set-token aws-secret-key --token YOUR_SECRET_ACCESS_KEY
+        # Configure AWS CLI (recommended for local dev)
+        aws configure
+
+        # Or set environment variables
+        export AWS_ACCESS_KEY_ID=your-access-key
+        export AWS_SECRET_ACCESS_KEY=your-secret-key
+        export AWS_REGION=us-east-1
+
+        # Verify
+        aws sts get-caller-identity
         ```
       </Tab>
 
       <Tab title="GCP">
         ```bash
-        ./hyve config set-token gcp-project --token YOUR_PROJECT_ID
-        # Optional: set credentials JSON, otherwise uses ADC
+        # Application Default Credentials (recommended for local dev)
         gcloud auth application-default login
+
+        # Or use a service account
+        export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
         ```
       </Tab>
 
       <Tab title="Azure">
         ```bash
-        ./hyve config set-token azure-subscription --token YOUR_SUBSCRIPTION_ID
-        ./hyve config set-token azure-resource-group --token YOUR_RESOURCE_GROUP
+        # Azure CLI login (recommended for local dev)
         az login
+
+        # Or use a service principal
+        export AZURE_TENANT_ID=your-tenant-id
+        export AZURE_CLIENT_ID=your-client-id
+        export AZURE_CLIENT_SECRET=your-client-secret
         ```
       </Tab>
     </Tabs>
+  </Step>
 
-    The token is encrypted and stored in `~/.hyve/credentials.db`
+  <Step title="Register provider resources">
+    Each provider requires some one-time setup before creating clusters:
 
-    <Note>
-      Alternatively, you can use environment variables or create a `.env` file
-    </Note>
+    <Tabs>
+      <Tab title="Civo">
+        No additional setup required — the token stored above is all you need.
+      </Tab>
+
+      <Tab title="AWS">
+        ```bash
+        # Register a VPC alias (required for EKS)
+        hyve config aws vpc-add --account prod --name prod-vpc --id vpc-0abc123456789
+
+        # Register an EKS IAM role alias (required for EKS)
+        hyve config aws eks-role-add --account prod --name eks-role \
+          --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+
+        # Or let Hyve create them for you
+        hyve config aws vpc-create --account prod --name prod-vpc --region us-east-1
+        hyve config aws eks-role-create --account prod --name eks-role \
+          --role-name hyve-eks-role --region us-east-1
+        ```
+      </Tab>
+
+      <Tab title="GCP">
+        ```bash
+        # Register a GCP project alias (required for GKE)
+        hyve config gcp add-project --project prod --name prod --id my-gcp-project-123
+        ```
+      </Tab>
+
+      <Tab title="Azure">
+        ```bash
+        # Register a subscription alias
+        hyve config azure add-subscription-ids --name prod-sub \
+          --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+        # Create a resource group in Azure and register it locally
+        hyve config azure add-resource-group --subscription prod-sub \
+          --name hyve-rg --location eastus
+        ```
+      </Tab>
+    </Tabs>
   </Step>
 
   <Step title="Configure Git credentials (optional)">
     For private repositories, store your Git credentials:
 
     ```bash
-    ./hyve git credentials --username your-username --password your_token
+    hyve git credentials --username your-username --password your_token
     ```
   </Step>
 
   <Step title="Add your first repository">
     ```bash
-    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
     ```
 
     This creates a local clone and sets it as your active repository.
@@ -127,37 +178,43 @@ Before you begin, ensure you have:
     <Tabs>
       <Tab title="Civo">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider civo \
           --region PHX1 \
-          --nodes g4s.kube.medium,g4s.kube.medium
+          --nodes g4s.kube.medium \
+          --civo-account my-org
         ```
       </Tab>
 
       <Tab title="AWS">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider aws \
           --region us-east-1 \
-          --nodes t3.large,t3.large
+          --aws-account prod \
+          --vpc-name prod-vpc \
+          --eks-role-name eks-role \
+          --node-group "name=workers,type=t3.medium,count=2"
         ```
       </Tab>
 
       <Tab title="GCP">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider gcp \
+          --gcp-project prod \
           --region us-central1 \
-          --nodes e2-standard-4,e2-standard-4
+          --node-group "name=workers,type=e2-standard-4,count=2"
         ```
       </Tab>
 
       <Tab title="Azure">
         ```bash
-        ./hyve cluster add my-cluster \
+        hyve cluster add my-cluster \
           --provider azure \
           --region eastus \
-          --nodes Standard_DS3_v2,Standard_DS3_v2
+          --node-group "name=system,type=Standard_DS2_v2,count=2,mode=System" \
+          --node-group "name=workers,type=Standard_DS3_v2,count=2,mode=User"
         ```
       </Tab>
     </Tabs>
@@ -166,7 +223,7 @@ Before you begin, ensure you have:
   </Step>
 
   <Step title="Monitor cluster creation">
-    The cluster will be created in the cloud. You can check status with:
+    The cluster will be created in the cloud. You can check the definition with:
 
     ```bash
     # View cluster configuration
@@ -179,13 +236,13 @@ Before you begin, ensure you have:
 
     ```bash
     # Sync all cluster kubeconfigs
-    ./hyve kubeconfig sync
+    hyve kubeconfig sync
 
     # List available clusters
-    ./hyve cluster list
+    hyve cluster list
 
     # Use a cluster
-    eval $(./hyve kubeconfig use my-cluster --eval)
+    eval $(hyve kubeconfig use my-cluster --eval)
     kubectl get nodes
     ```
   </Step>
@@ -217,37 +274,39 @@ Before you begin, ensure you have:
   <Accordion title="Multi-Environment Setup">
     ```bash
     # Production
-    ./hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    ./hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+    hyve cluster add prod-app --provider civo --region NYC1 \
+      --nodes g4s.kube.large --civo-account my-org
 
     # Development
-    ./hyve git add development --repo-url https://github.com/company/hyve-dev.git
-    ./hyve git use development
-    ./hyve cluster add dev-app --provider civo --region PHX1 --nodes g4s.kube.small
+    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    hyve git use development
+    hyve cluster add dev-app --provider civo --region PHX1 \
+      --nodes g4s.kube.small --civo-account my-org
     ```
   </Accordion>
 
   <Accordion title="Create Cluster from Template">
     ```bash
     # Create a template with lifecycle workflows
-    ./hyve template create prod-template \
+    hyve template create prod-template \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
       --on-created setup-monitoring,deploy-app \
       --on-destroy backup-data
 
     # Execute the template
-    ./hyve template execute prod-template prod-cluster-01
+    hyve template execute prod-template prod-cluster-01
     ```
   </Accordion>
 
   <Accordion title="Run a Workflow">
     ```bash
     # Create a workflow
-    ./hyve workflow create --template deployment-pipeline
+    hyve workflow create --template deployment-pipeline
 
     # Run the workflow
-    ./hyve workflow run deployment-pipeline --cluster my-cluster
+    hyve workflow run deployment-pipeline --cluster my-cluster
     ```
   </Accordion>
 </AccordionGroup>
@@ -260,22 +319,30 @@ Before you begin, ensure you have:
 
     ```bash
     # Set global credentials
-    ./hyve git credentials --username your-username --password your_token
+    hyve git credentials --username your-username --password your_token
 
     # Or use environment variable
     export HYVE_GIT_TOKEN=your_personal_access_token
     ```
   </Accordion>
 
-  <Accordion title="Cluster creation fails">
-    Check your API token is valid:
+  <Accordion title="Civo: cluster creation fails">
+    Check your API token is valid and the org name matches:
 
     ```bash
-    # View stored token
-    ./hyve config get-token civo
+    # View stored tokens
+    hyve config list-tokens
 
-    # Update token
-    ./hyve config set-token civo --token YOUR_NEW_TOKEN
+    # Update token for an org
+    hyve config set-token civo --org my-org
+    ```
+  </Accordion>
+
+  <Accordion title="AWS: missing VPC or EKS role">
+    ```bash
+    # List registered VPCs and roles
+    hyve config aws vpc-list --account prod
+    hyve config aws eks-role-list --account prod
     ```
   </Accordion>
 
@@ -283,7 +350,7 @@ Before you begin, ensure you have:
     You need to add a Git repository first:
 
     ```bash
-    ./hyve git add my-repo --repo-url https://github.com/user/repo.git
+    hyve git add my-repo --repo-url https://github.com/user/repo.git
     ```
   </Accordion>
 </AccordionGroup>

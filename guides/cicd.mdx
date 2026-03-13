@@ -98,13 +98,14 @@ kind: Cluster
 metadata:
   name: production
 spec:
-  provider: civo
-  region: NYC1
+  provider: gcp
+  gcpProject: my-project
+  region: us-central1
   nodes:
-    - size: g4s.kube.large
-    - size: g4s.kube.large
-    - size: g4s.kube.large
-  clusterType: k3s
+    - size: e2-standard-4
+    - size: e2-standard-4
+    - size: e2-standard-4
+  clusterType: gke
 ```
 
 ## GitHub Actions Workflows
@@ -160,18 +161,10 @@ jobs:
             -o /usr/local/bin/hyve
           chmod +x /usr/local/bin/hyve
 
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
       - name: Reconcile clusters
         env:
           # Secret names match the ${...} references in your provider-configs/*.yaml files.
           # You choose the names — Hyve reads whatever variable each YAML field points to.
-
-          # Civo (provider-configs/civo.yaml → organizations[*].token)
-          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
 
           # AWS (provider-configs/aws.yaml → accounts[*].access_key_id / secret_access_key)
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
@@ -185,7 +178,8 @@ jobs:
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
 
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Civo (provider-configs/civo.yaml → organizations[*].token)
+          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
@@ -237,11 +231,6 @@ jobs:
             -o /usr/local/bin/hyve
           chmod +x /usr/local/bin/hyve
 
-      - name: Configure Git identity
-        run: |
-          git config --global user.name "hyve-bot"
-          git config --global user.email "hyve-bot@users.noreply.github.com"
-
       - name: Remove all cluster definitions
         run: find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
 
@@ -249,14 +238,13 @@ jobs:
         env:
           # Same secrets as your regular reconcile workflow —
           # names match the ${...} references in provider-configs/*.yaml
-          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
-          HYVE_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
         run: |
           hyve reconcile --path .
 ```
@@ -270,9 +258,10 @@ Here is the complete flow from developer change to provisioned cluster:
 ```bash
 # 1. Developer: add a new cluster definition locally
 hyve cluster add staging \
-  --provider civo \
-  --region PHX1 \
-  --nodes g4s.kube.medium,g4s.kube.medium
+  --provider gcp \
+  --gcp-project my-project \
+  --region us-central1 \
+  --nodes e2-standard-4,e2-standard-4
 
 # 2. Developer: run reconcile (in cicd mode — pushes state, does NOT provision)
 hyve reconcile
@@ -286,7 +275,7 @@ hyve reconcile
 # 4. Pipeline runs: hyve reconcile --path .
 # Output:
 # Using local repository path: /home/runner/work/hyve-state/hyve-state
-# Cluster 'staging' created in Civo (NYC1)
+# Cluster 'staging' created in GCP (us-central1)
 # ✅ Changes committed and pushed to remote repository successfully
 # Cluster reconciliation completed
 ```
@@ -296,21 +285,6 @@ hyve reconcile
 Hyve resolves CI/CD credentials from your `provider-configs/*.yaml` files. Each credential field accepts either a **literal value** or an **environment variable reference** (`${VAR_NAME}`). At reconcile time, Hyve expands any `${...}` references using the process environment, so a single pipeline can serve multiple cloud accounts by simply making the right variables available.
 
 You choose the secret names — Hyve has no naming requirements. The only rule is that the name inside `${...}` in your YAML must match the env var (or secret) you expose in the pipeline.
-
-### Civo
-
-```yaml
-# provider-configs/civo.yaml
-organizations:
-  - name: my-org
-    org_id: your-org-id
-    token: ${MY_ORG_CIVO_TOKEN}   # name this whatever you like
-```
-
-```yaml
-# workflow env:
-MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
-```
 
 ### AWS
 
@@ -373,6 +347,21 @@ PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
 
 When credentials are empty, Hyve uses the Azure SDK default chain (`az login`, managed identity, etc.).
 
+### Civo
+
+```yaml
+# provider-configs/civo.yaml
+organizations:
+  - name: my-org
+    org_id: your-org-id
+    token: ${MY_ORG_CIVO_TOKEN}   # name this whatever you like
+```
+
+```yaml
+# workflow env:
+MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+```
+
 ### Credential Resolution Order
 
 For each provider account, Hyve resolves credentials in this order:
@@ -405,8 +394,8 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
     ```yaml
     permissions:
-      id-token: write
-      contents: read
+    id-token: write
+    contents: read
     ```
   </Accordion>
 
@@ -432,8 +421,8 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
     ```yaml
     # provider-configs/civo.yaml
     organizations:
-      - name: my-org
-        token: ${MY_ORG_CIVO_TOKEN}
+    - name: my-org
+    token: ${MY_ORG_CIVO_TOKEN}
     ```
 
     ```yaml
@@ -447,7 +436,7 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
     ```yaml
     permissions:
-      contents: write
+    contents: write
     ```
 
     Or use a `token` with write access in the `checkout` step.

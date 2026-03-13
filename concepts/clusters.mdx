@@ -21,33 +21,127 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
   </Card>
 
   <Card title="Multi-Cloud" icon="cloud" color="#0ea5e9">
-    Supports Civo, AWS (EKS), GCP (GKE), and Azure (AKS)
+    Supports AWS (EKS), GCP (GKE), Azure (AKS), and Civo
   </Card>
 </CardGroup>
 
 ## Cluster Definition
 
-Clusters are defined using YAML files following a standard structure:
+Clusters are defined using YAML files following a standard structure. The required fields vary by provider:
 
-```yaml
-apiVersion: v1
-kind: Cluster
-metadata:
-  name: production
-  region: PHX1
-spec:
-  provider: civo
-  nodes:
-    - g4s.kube.large
-    - g4s.kube.large
-    - g4s.kube.large
-  workflows:
-    onCreated:
-      - setup-monitoring
-      - deploy-app
-    onDestroy:
-      - backup-data
-```
+<Tabs>
+  <Tab title="Civo">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: PHX1           # PHX1, NYC1, LON1, FRA1
+    spec:
+      provider: civo
+      civoOrganization: my-org   # matches --org name in hyve config set-token
+      nodes:
+        - g4s.kube.large
+        - g4s.kube.large
+        - g4s.kube.large
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+          - deploy-app
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="Azure (AKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: eastus
+    spec:
+      provider: azure
+      azureSubscription: prod-sub    # alias from hyve config azure add-subscription-ids
+      nodeGroups:
+        - name: system               # first pool must be System mode
+          instanceType: Standard_DS2_v2
+          count: 2
+          mode: System
+        - name: workers
+          instanceType: Standard_DS3_v2
+          count: 3
+          minCount: 1
+          maxCount: 8
+          mode: User
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+          - deploy-app
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="AWS (EKS)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-east-1
+    spec:
+      provider: aws
+      awsAccount: prod             # alias from hyve config aws account-add
+      awsVpcName: prod-vpc         # alias from hyve config aws vpc-add
+      awsEksRole: eks-role         # alias from hyve config aws eks-role-add
+      nodeGroups:
+        - name: system
+          instanceType: t3.medium
+          count: 2
+        - name: workers
+          instanceType: m5.xlarge
+          count: 4
+          minCount: 2
+          maxCount: 10
+          spot: true
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+
+  <Tab title="GCP (GKE)">
+    ```yaml
+    apiVersion: v1
+    kind: Cluster
+    metadata:
+      name: production
+      region: us-central1
+    spec:
+      provider: gcp
+      gcpProject: prod             # alias from hyve config gcp add-project
+      nodeGroups:
+        - name: workers
+          instanceType: e2-standard-4
+          count: 3
+          minCount: 2
+          maxCount: 8
+      clusterType: k3s
+      workflows:
+        onCreated:
+          - setup-monitoring
+        onDestroy:
+          - backup-data
+    ```
+  </Tab>
+</Tabs>
 
 ### Metadata Fields
 
@@ -65,12 +159,30 @@ spec:
   Cloud provider: `civo`, `aws`, `gcp`, or `azure`
 </ParamField>
 
-<ParamField path="spec.nodes" type="array" required>
-  List of node sizes. Examples by provider:
-  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
+<ParamField path="spec.nodes" type="array">
+  List of node sizes for simple single-pool clusters. Each entry represents one node. Use `spec.nodeGroups` instead for named multi-pool configurations with autoscaling. One of `nodes` or `nodeGroups` should be specified.
+
+  Examples by provider:
   - **AWS**: `t3.medium`, `t3.large`, `m5.xlarge`
   - **GCP**: `e2-medium`, `e2-standard-4`, `n1-standard-8`
   - **Azure**: `Standard_DS2_v2`, `Standard_DS3_v2`, `Standard_DS4_v2`
+  - **Civo**: `g4s.kube.small`, `g4s.kube.medium`, `g4s.kube.large`
+</ParamField>
+
+<ParamField path="spec.nodeGroups" type="NodeGroup[]">
+  Array of named node group definitions. Preferred over `spec.nodes` for AWS (EKS), GCP (GKE), and Azure (AKS) — providers that natively support multiple named node pools with independent scaling.
+
+  Each `NodeGroup` supports:
+  - `name` (string, required) — Unique pool name
+  - `instanceType` (string, required) — Instance/VM size
+  - `count` (int) — Desired node count
+  - `minCount` (int) — Minimum count for autoscaling
+  - `maxCount` (int) — Maximum count for autoscaling
+  - `diskSize` (int) — OS disk size in GB
+  - `labels` (map) — Kubernetes node labels
+  - `taints` (array) — Kubernetes node taints (`key`, `value`, `effect`)
+  - `mode` (string) — Azure only: `System` or `User`
+  - `spot` (bool) — Use spot/preemptible instances
 </ParamField>
 
 <ParamField path="spec.workflows.onCreated" type="array">
@@ -86,17 +198,22 @@ spec:
 ### Using CLI
 
 ```bash
-# Create cluster with single node
+# Civo — simple nodes list
 hyve cluster add my-cluster \
   --provider civo \
   --region PHX1 \
   --nodes g4s.kube.medium
 
-# Create cluster with multiple nodes
+# AWS EKS — named node groups (recommended for multi-cloud providers)
 hyve cluster add production \
-  --provider civo \
-  --region NYC1 \
-  --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
+  --provider aws \
+  --region us-east-1 \
+  --aws-account main \
+  --vpc-name prod-vpc \
+  --eks-role-name eks-role \
+  --node-role-name node-role \
+  --node-group "name=system,type=t3.medium,count=2" \
+  --node-group "name=workers,type=m5.large,count=4,min=2,max=10"
 ```
 
 This command:
@@ -319,15 +436,6 @@ hyve reconcile
 ## Node Sizes
 
 <Tabs>
-  <Tab title="Civo">
-    | Size | vCPUs | RAM | Storage |
-    |------|-------|-----|---------|
-    | `g4s.kube.small` | 1 | 2GB | 30GB |
-    | `g4s.kube.medium` | 2 | 4GB | 50GB |
-    | `g4s.kube.large` | 4 | 8GB | 100GB |
-    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
-  </Tab>
-
   <Tab title="AWS (EKS)">
     | Size | vCPUs | RAM |
     |------|-------|-----|
@@ -354,6 +462,15 @@ hyve reconcile
     | `Standard_DS4_v2` | 8 | 28GB |
     | `Standard_DS5_v2` | 16 | 56GB |
   </Tab>
+
+  <Tab title="Civo">
+    | Size | vCPUs | RAM | Storage |
+    |------|-------|-----|---------|
+    | `g4s.kube.small` | 1 | 2GB | 30GB |
+    | `g4s.kube.medium` | 2 | 4GB | 50GB |
+    | `g4s.kube.large` | 4 | 8GB | 100GB |
+    | `g4s.kube.xlarge` | 8 | 16GB | 200GB |
+  </Tab>
 </Tabs>
 
 <Tip>
@@ -363,15 +480,6 @@ hyve reconcile
 ## Regions
 
 <Tabs>
-  <Tab title="Civo">
-    | Region | Location | Code |
-    |--------|----------|------|
-    | Phoenix, USA | Arizona | `PHX1` |
-    | New York, USA | New York | `NYC1` |
-    | London, UK | United Kingdom | `LON1` |
-    | Frankfurt, Germany | Germany | `FRA1` |
-  </Tab>
-
   <Tab title="AWS">
     | Region | Location | Code |
     |--------|----------|------|
@@ -397,6 +505,15 @@ hyve reconcile
     | US West | California | `westus2` |
     | EU | Netherlands | `westeurope` |
     | EU | UK South | `uksouth` |
+  </Tab>
+
+  <Tab title="Civo">
+    | Region | Location | Code |
+    |--------|----------|------|
+    | Phoenix, USA | Arizona | `PHX1` |
+    | New York, USA | New York | `NYC1` |
+    | London, UK | United Kingdom | `LON1` |
+    | Frankfurt, Germany | Germany | `FRA1` |
   </Tab>
 </Tabs>
 
@@ -597,10 +714,23 @@ metadata:
   region: us-east-1
 spec:
   provider: aws
-  nodes:
-    - m5.large
-    - m5.large
-    - m5.large
+  awsAccount: main-account
+  awsVpcName: prod-vpc
+  awsEksRole: eks-cluster-role
+  awsNodeRole: node-role
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+    - name: workers
+      instanceType: m5.large
+      count: 4
+      minCount: 2
+      maxCount: 10
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ### GCP GKE Cluster
@@ -614,10 +744,17 @@ metadata:
   region: us-central1
 spec:
   provider: gcp
-  nodes:
-    - e2-standard-4
-    - e2-standard-4
-    - e2-standard-4
+  gcpProject: my-project
+  nodeGroups:
+    - name: default-pool
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 2
+      maxCount: 8
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ### Azure AKS Cluster
@@ -631,10 +768,22 @@ metadata:
   region: eastus
 spec:
   provider: azure
-  nodes:
-    - Standard_DS3_v2
-    - Standard_DS3_v2
-    - Standard_DS3_v2
+  azureSubscription: my-subscription
+  nodeGroups:
+    - name: system
+      instanceType: Standard_DS2_v2
+      count: 2
+      mode: System
+    - name: workers
+      instanceType: Standard_DS3_v2
+      count: 3
+      minCount: 1
+      maxCount: 8
+      mode: User
+  clusterType: k3s
+  ingress:
+    enabled: true
+    loadBalancer: true
 ```
 
 ## Best Practices

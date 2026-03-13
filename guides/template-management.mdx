@@ -12,9 +12,10 @@ Templates in Hyve enable reusable cluster configurations with automated workflow
 ### What are Templates?
 
 Templates combine:
-- Cluster specifications (provider, region, nodes)
+- Cluster specifications (provider, region, nodes or node groups)
 - Ingress configuration
 - Lifecycle workflows (onCreated runs after cluster creation, onDestroy runs before deletion)
+- Node group definitions for multi-pool AWS EKS, GCP GKE, and Azure AKS clusters
 - Reusable patterns for consistent deployments
 
 ### Creating Templates
@@ -44,7 +45,7 @@ Templates combine:
     ```
   </Tab>
 
-  <Tab title="Manual YAML">
+  <Tab title="Manual YAML (Civo)">
     Create `~/.hyve/repositories/<repo>/templates/my-template.yaml`:
     ```yaml
     apiVersion: v1
@@ -69,6 +70,37 @@ Templates combine:
           - deploy-app
         onDestroy:
           - backup-data
+    ```
+  </Tab>
+
+  <Tab title="Manual YAML (AWS)">
+    Create `~/.hyve/repositories/<repo>/templates/aws-template.yaml`:
+    ```yaml
+    apiVersion: v1
+    kind: Template
+    metadata:
+      name: aws-eks-template
+      description: AWS EKS cluster with managed node groups
+    spec:
+      provider: aws
+      region: us-east-1
+      nodeGroups:
+        - name: workers
+          instanceType: t3.medium
+          count: 3
+          minCount: 1
+          maxCount: 5
+      clusterType: eks
+      awsAccount: main-account    # alias from provider-configs/aws.yaml
+      awsVpcName: k8svpc          # VPC alias → resolved to VPC ID at execution
+      awsEksRole: k8srole         # EKS cluster role alias → resolved to ARN
+      awsNodeRole: k8snoderole    # EKS node role alias → resolved to ARN
+      ingress:
+        enabled: false
+        loadBalancer: false
+      workflows:
+        onCreated:
+          - deploy-app
     ```
   </Tab>
 </Tabs>
@@ -125,12 +157,27 @@ metadata:
 
 ```yaml
 spec:
-  provider: civo                   # Required: Cloud provider
+  provider: civo                   # Required: Cloud provider (civo, aws, gcp, azure)
   region: NYC1                     # Required: Deployment region
-  nodes:                           # Required: List of node sizes
+  nodes:                           # Optional: Simple node list (Civo single-pool clusters)
     - g4s.kube.large
     - g4s.kube.large
-  clusterType: k3s                 # Optional: k3s or talos (default: k3s)
+  nodeGroups:                      # Optional: Named node pools (AWS EKS, GCP GKE, Azure AKS)
+    - name: workers                #   Pool name
+      instanceType: t3.medium      #   Node instance/machine type
+      count: 3                     #   Desired node count
+      minCount: 1                  #   Minimum nodes (enables autoscaling)
+      maxCount: 5                  #   Maximum nodes (enables autoscaling)
+      diskSize: 50                 #   Root disk size in GB (optional)
+      spot: false                  #   Use spot/preemptible instances (optional)
+      mode: System                 #   Azure only: System or User pool (optional)
+      labels:                      #   Node labels (optional)
+        role: worker
+      taints:                      #   Node taints (optional)
+        - key: dedicated
+          value: gpu
+          effect: NoSchedule
+  clusterType: k3s                 # Optional: k3s, talos, or eks (default: k3s)
   ingress:                         # Optional: Ingress configuration
     enabled: true
     loadBalancer: true
@@ -140,6 +187,12 @@ spec:
       - workflow-name-2
     onDestroy:                     # Run before cluster deletion
       - cleanup-workflow
+
+  # AWS-specific fields (only when provider: aws)
+  awsAccount: main-account         # Account alias from provider-configs/aws.yaml
+  awsVpcName: k8svpc               # VPC alias → resolved to VPC ID at execution time
+  awsEksRole: k8srole              # EKS cluster role alias → resolved to role ARN
+  awsNodeRole: k8snoderole         # EKS node role alias → resolved to role ARN
 ```
 
 ## Executing Templates
@@ -154,11 +207,12 @@ hyve template execute prod-template prod-cluster-01
 
 **This command:**
 1. Creates cluster definition from template
-2. Provisions cluster in cloud provider
-3. Waits for cluster to be ready
-4. Syncs kubeconfig
-5. Executes all `onCreated` workflows in order
-6. Note: `onDestroy` workflows run when the cluster is deleted
+2. **For AWS**: resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` aliases to VPC IDs and role ARNs from `provider-configs/aws.yaml`
+3. Provisions cluster in cloud provider
+4. Waits for cluster to be ready
+5. Syncs kubeconfig
+6. Executes all `onCreated` workflows in order
+7. Note: `onDestroy` workflows run when the cluster is deleted
 
 ### Execution Output
 
@@ -326,7 +380,7 @@ hyve template validate production-standard
     Errors:
       • Missing spec.provider
       • Missing spec.region
-      • Missing spec.nodes (at least one node required)
+      • Missing spec.nodes or spec.nodeGroups (at least one required)
       • Invalid kind 'ClusterTemplate', expected 'Template'
     ```
   </Tab>
@@ -456,6 +510,149 @@ spec:
 hyve template execute production-template prod-us-east-01
 hyve template execute production-template prod-us-west-01
 ```
+
+### AWS EKS Template
+
+EKS cluster using named node groups and aliases from your AWS provider config:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: aws-eks-template
+  description: Standard AWS EKS cluster with managed node groups
+spec:
+  provider: aws
+  region: us-east-1
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+      minCount: 1
+      maxCount: 4
+    - name: workers
+      instanceType: t3.large
+      count: 3
+      minCount: 1
+      maxCount: 10
+      spot: true
+      labels:
+        role: worker
+  clusterType: eks
+  awsAccount: main-account    # matches accounts[*].name in provider-configs/aws.yaml
+  awsVpcName: k8svpc          # matches accounts[*].vpcs[*].name
+  awsEksRole: k8srole         # matches accounts[*].roles[*].name (EKS cluster role)
+  awsNodeRole: k8snoderole    # matches accounts[*].roles[*].name (EKS node role)
+  ingress:
+    enabled: false
+    loadBalancer: false
+  workflows:
+    onCreated:
+      - deploy-app
+```
+
+<Info>
+  AWS alias names (`awsAccount`, `awsVpcName`, `awsEksRole`, `awsNodeRole`) are resolved to actual IDs and ARNs from `provider-configs/aws.yaml` when `hyve template execute` runs. See the [AWS provider config](/configuration) for how to define these aliases.
+</Info>
+
+<Info>
+  **EKS instance type:** avoid `nano` and `micro` instance types (e.g. `t3.micro`, `t2.micro`) for EKS node groups. These instances expose only 4 pods maximum (2 ENIs × 2 IPs), which is insufficient for EKS system daemonsets (`aws-node`, `kube-proxy`) alongside workloads. Use **`t3.small`** (11 pods) at minimum, or **`t3.medium`** (17 pods) as the recommended baseline.
+</Info>
+
+**Usage:**
+```bash
+hyve template execute aws-eks-template eks-prod-01
+```
+
+---
+
+### GCP GKE Template
+
+GKE cluster with multiple node pools for system and workload separation:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: gcp-gke-template
+  description: GCP GKE cluster with separate system and worker node pools
+spec:
+  provider: gcp
+  region: us-central1
+  nodeGroups:
+    - name: system-pool
+      instanceType: e2-standard-2
+      count: 2
+      minCount: 1
+      maxCount: 3
+    - name: worker-pool
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 1
+      maxCount: 10
+      labels:
+        role: worker
+  clusterType: gke
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+```
+
+**Usage:**
+```bash
+hyve template execute gcp-gke-template gke-prod-01
+```
+
+---
+
+### Azure AKS Template
+
+AKS cluster with System and User node pools:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: azure-aks-template
+  description: Azure AKS cluster with System and User agent pool profiles
+spec:
+  provider: azure
+  region: eastus
+  nodeGroups:
+    - name: systempool
+      instanceType: Standard_D2s_v3
+      count: 2
+      minCount: 1
+      maxCount: 3
+      mode: System
+    - name: workerpool
+      instanceType: Standard_D4s_v3
+      count: 3
+      minCount: 1
+      maxCount: 10
+      mode: User
+      labels:
+        role: worker
+  clusterType: aks
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+```
+
+**Usage:**
+```bash
+hyve template execute azure-aks-template aks-prod-01
+```
+
+---
 
 ### Edge Computing Template
 
@@ -840,6 +1037,28 @@ hyve cluster modify prod-green --name prod-blue
 
     # 5. Review template YAML
     hyve template show my-template
+    ```
+  </Accordion>
+
+  <Accordion title="AWS Alias Not Found">
+    **Problem:** `hyve template execute` fails with "AWS VPC 'k8svpc' not found in account 'main-account'"
+
+    **Cause:** The alias name in the template doesn't match any entry in `provider-configs/aws.yaml`.
+
+    **Solution:** Verify your provider config contains matching alias names:
+    ```yaml
+    # provider-configs/aws.yaml
+    accounts:
+      - name: main-account         # must match awsAccount in template
+        account_id: "123456789012"
+        vpcs:
+          - name: k8svpc           # must match awsVpcName in template
+            vpc_id: vpc-0abc123
+        roles:
+          - name: k8srole          # must match awsEksRole in template
+            role_arn: arn:aws:iam::123456789012:role/EKSClusterRole
+          - name: k8snoderole      # must match awsNodeRole in template
+            role_arn: arn:aws:iam::123456789012:role/EKSNodeRole
     ```
   </Accordion>
 

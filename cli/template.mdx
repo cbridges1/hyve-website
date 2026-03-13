@@ -340,7 +340,7 @@ hyve template validate prod-template
 Errors:
   • Missing apiVersion
   • Missing spec.region
-  • Missing spec.nodes (at least one node required)
+  • Missing spec.nodes or spec.nodeGroups (at least one required)
   • Invalid kind 'Cluster', expected 'Template'
 
 ⚠️  Warnings:
@@ -417,8 +417,25 @@ spec:
   Cloud provider region
 </ParamField>
 
-<ParamField path="spec.nodes" type="string[]" required>
-  Array of node sizes. Each entry creates one node.
+<ParamField path="spec.nodes" type="string[]">
+  Array of node sizes for simple single-pool clusters (Civo). Each entry creates one node. Either `nodes` or `nodeGroups` must be specified.
+</ParamField>
+
+<ParamField path="spec.nodeGroups" type="object[]">
+  Named node pools for AWS EKS, GCP GKE, and Azure AKS. Use instead of `nodes` when you need multiple pools, autoscaling, spot instances, or per-pool labels and taints. Each entry supports:
+
+  | Field | Type | Description |
+  |-------|------|-------------|
+  | `name` | string | Pool name (required) |
+  | `instanceType` | string | Node instance/machine type (required) |
+  | `count` | integer | Desired node count |
+  | `minCount` | integer | Minimum nodes for autoscaling |
+  | `maxCount` | integer | Maximum nodes for autoscaling |
+  | `diskSize` | integer | Root disk size in GB |
+  | `spot` | boolean | Use spot/preemptible instances |
+  | `mode` | string | Azure only: `System` or `User` pool |
+  | `labels` | map | Key-value node labels |
+  | `taints` | object[] | Node taints (`key`, `value`, `effect`) |
 </ParamField>
 
 <ParamField path="spec.clusterType" type="string" default="k3s">
@@ -440,6 +457,34 @@ spec:
 <ParamField path="spec.workflows.onDestroy" type="string[]">
   Names of workflows to execute before cluster destruction
 </ParamField>
+
+### AWS-Specific Fields
+
+These fields apply when `spec.provider` is `aws`. They reference alias names defined in `provider-configs/aws.yaml` and are resolved to actual IDs and ARNs at execution time.
+
+<ParamField path="spec.awsAccount" type="string">
+  AWS account alias name as defined under `accounts[*].name` in `provider-configs/aws.yaml`
+</ParamField>
+
+<ParamField path="spec.awsVpcName" type="string">
+  VPC alias name as defined under `accounts[*].vpcs[*].name` in `provider-configs/aws.yaml`. Resolved to a VPC ID at execution time.
+</ParamField>
+
+<ParamField path="spec.awsEksRole" type="string">
+  EKS cluster IAM role alias as defined under `accounts[*].roles[*].name` in `provider-configs/aws.yaml`. Resolved to a role ARN at execution time.
+</ParamField>
+
+<ParamField path="spec.awsNodeRole" type="string">
+  EKS node IAM role alias as defined under `accounts[*].roles[*].name` in `provider-configs/aws.yaml`. Resolved to a role ARN at execution time.
+</ParamField>
+
+<Info>
+  AWS alias fields cannot be set via `hyve template create` flags — add them manually to the template YAML after creation. Aliases are resolved from `provider-configs/aws.yaml` when `hyve template execute` runs.
+</Info>
+
+<Info>
+  **EKS instance type:** avoid `nano` and `micro` instance types (e.g. `t3.micro`, `t2.micro`) for EKS node groups. These instances support only 4 pods maximum (2 ENIs × 2 IPs), which is not enough to run EKS system daemonsets (`aws-node`, `kube-proxy`) alongside workloads. Use **`t3.small`** (11 pods) at minimum, or **`t3.medium`** (17 pods) as the recommended baseline.
+</Info>
 
 ---
 
@@ -678,6 +723,140 @@ spec:
   workflows:
     onCreated:
       - setup-monitoring
+```
+
+---
+
+### AWS EKS Cluster
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: aws-eks-standard
+  description: Standard AWS EKS cluster using named node groups and aliases from provider-configs/aws.yaml
+spec:
+  provider: aws
+  region: us-east-1
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+      minCount: 1
+      maxCount: 4
+    - name: workers
+      instanceType: t3.large
+      count: 3
+      minCount: 1
+      maxCount: 10
+      spot: true
+      labels:
+        role: worker
+  clusterType: eks
+  awsAccount: main-account    # alias from provider-configs/aws.yaml accounts[*].name
+  awsVpcName: k8svpc          # alias from accounts[*].vpcs[*].name
+  awsEksRole: k8srole         # alias from accounts[*].roles[*].name (EKS cluster role)
+  awsNodeRole: k8snoderole    # alias from accounts[*].roles[*].name (EKS node role)
+  ingress:
+    enabled: false
+    loadBalancer: false
+  workflows:
+    onCreated:
+      - deploy-app
+```
+
+**Execute:**
+
+```bash
+hyve template execute aws-eks-standard eks-prod-01
+```
+
+At execution time Hyve resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` to their actual IDs and ARNs from `provider-configs/aws.yaml` before creating the cluster.
+
+---
+
+### GCP GKE Cluster
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: gcp-gke-standard
+  description: GCP GKE cluster with separate system and worker node pools
+spec:
+  provider: gcp
+  region: us-central1
+  nodeGroups:
+    - name: system-pool
+      instanceType: e2-standard-2
+      count: 2
+      minCount: 1
+      maxCount: 3
+    - name: worker-pool
+      instanceType: e2-standard-4
+      count: 3
+      minCount: 1
+      maxCount: 10
+      labels:
+        role: worker
+  clusterType: gke
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+```
+
+**Execute:**
+
+```bash
+hyve template execute gcp-gke-standard gke-prod-01
+```
+
+---
+
+### Azure AKS Cluster
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: azure-aks-standard
+  description: Azure AKS cluster with System and User agent pool profiles
+spec:
+  provider: azure
+  region: eastus
+  nodeGroups:
+    - name: systempool
+      instanceType: Standard_D2s_v3
+      count: 2
+      minCount: 1
+      maxCount: 3
+      mode: System
+    - name: workerpool
+      instanceType: Standard_D4s_v3
+      count: 3
+      minCount: 1
+      maxCount: 10
+      mode: User
+      labels:
+        role: worker
+  clusterType: aks
+  ingress:
+    enabled: true
+    loadBalancer: true
+  workflows:
+    onCreated:
+      - setup-monitoring
+      - deploy-app
+```
+
+**Execute:**
+
+```bash
+hyve template execute azure-aks-standard aks-prod-01
 ```
 
 ---
