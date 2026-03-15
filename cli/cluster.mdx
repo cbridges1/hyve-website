@@ -39,7 +39,35 @@ hyve cluster add [cluster-name] [flags]
   Node sizes for the cluster (comma-separated). Each entry creates one node. For simple single-pool clusters. Use `--node-group` instead for named multi-pool configurations with autoscaling.
 </ParamField>
 
-<ParamField path="--node-group" type="string (repeatable)">
+<ParamField path="--cluster-type" type="string" default="k3s">
+  Type of Kubernetes cluster (k3s, talos)
+</ParamField>
+
+<ParamField path="--account-name, -a" type="string">
+  AWS account alias (required for AWS provider). Configure aliases with `hyve config aws account add`.
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  GCP project alias (required for GCP provider). Configure aliases with `hyve config gcp project add`.
+</ParamField>
+
+<ParamField path="--subscription-name, -s" type="string">
+  Azure subscription alias (required for Azure provider). Configure aliases with `hyve config azure subscription add`.
+</ParamField>
+
+<ParamField path="--org-name, -o" type="string">
+  Civo organization alias (required for Civo provider). Configure aliases with `hyve config civo org add`.
+</ParamField>
+
+<ParamField path="--vpc-name, -v" type="string">
+  AWS VPC alias (required for AWS provider). Configure aliases with `hyve config aws vpc add` or create with `hyve config aws vpc create`.
+</ParamField>
+
+<ParamField path="--eks-role-name, -e" type="string">
+  AWS EKS IAM role alias (required for AWS provider). Configure aliases with `hyve config aws eks-role add` or create with `hyve config aws eks-role create`.
+</ParamField>
+
+<ParamField path="--node-group, -g" type="string (repeatable)">
   Named node group spec. Can be specified multiple times for multiple pools. Mutually exclusive with `--nodes` — when node groups are provided, they take precedence.
 
   Format: `name=<name>,type=<instanceType>,count=<n>[,min=<n>,max=<n>,disk=<gb>,spot=true,mode=System|User]`
@@ -60,45 +88,21 @@ hyve cluster add [cluster-name] [flags]
   </Info>
 </ParamField>
 
-<ParamField path="--cluster-type" type="string" default="k3s">
-  Type of Kubernetes cluster (k3s, talos)
-</ParamField>
-
-<ParamField path="--gcp-project" type="string">
-  GCP project alias (required for GCP provider). Configure aliases with `hyve config gcp add-project`.
-</ParamField>
-
-<ParamField path="--civo-account" type="string">
-  Civo organization alias to use. Must match the `--org` name used when storing the token with `hyve config set-token civo --org <name>`.
-</ParamField>
-
-<ParamField path="--aws-account" type="string">
-  AWS account alias (required for AWS provider). Configure aliases with `hyve config aws account-add`.
-</ParamField>
-
-<ParamField path="--vpc-name" type="string">
-  AWS VPC name alias (required for AWS provider). Configure aliases with `hyve config aws vpc-add` or create with `hyve config aws vpc-create`.
-</ParamField>
-
-<ParamField path="--eks-role-name" type="string">
-  AWS EKS IAM role name alias (required for AWS provider). Configure aliases with `hyve config aws eks-role-add` or create with `hyve config aws eks-role-create`.
-</ParamField>
-
 **Examples by Provider:**
 
 <Tabs>
   <Tab title="AWS">
     ```bash
-    # First, configure AWS resources (--account required)
-    hyve config aws vpc-add --account production --name prod-vpc --id vpc-12345678
-    hyve config aws eks-role-add --account production --name eks-cluster-role \
+    # First, configure AWS resources (-a/--account required)
+    hyve config aws vpc add --account prod --name prod-vpc --id vpc-12345678
+    hyve config aws eks-role add --account prod --name eks-cluster-role \
       --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
 
     # Single node group (AWS EKS)
     hyve cluster add aws-prod \
       --provider aws \
       --region us-east-1 \
-      --aws-account production \
+      --account-name production \
       --vpc-name prod-vpc \
       --eks-role-name eks-cluster-role \
       --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
@@ -107,7 +111,7 @@ hyve cluster add [cluster-name] [flags]
     hyve cluster add aws-mixed \
       --provider aws \
       --region us-east-1 \
-      --aws-account production \
+      --account-name production \
       --vpc-name prod-vpc \
       --eks-role-name eks-cluster-role \
       --node-group "name=system,type=t3.medium,count=2" \
@@ -117,7 +121,7 @@ hyve cluster add [cluster-name] [flags]
     hyve cluster add aws-dev \
       --provider aws \
       --region us-east-1 \
-      --aws-account production \
+      --account-name production \
       --vpc-name prod-vpc \
       --eks-role-name eks-cluster-role \
       --nodes t3.medium
@@ -127,26 +131,26 @@ hyve cluster add [cluster-name] [flags]
   <Tab title="GCP">
     ```bash
     # First, configure GCP project aliases
-    hyve config gcp add-project --project dev --name dev --id my-dev-project-123
-    hyve config gcp add-project --project prod --name prod --id my-prod-project-456
+    hyve config gcp project add --name dev --id my-dev-project-123
+    hyve config gcp project add --name prod --id my-prod-project-456
 
     # Single node group (GCP GKE)
     hyve cluster add gcp-prod \
       --provider gcp \
-      --gcp-project prod \
+      --project-name prod \
       --region us-east1 \
       --node-group "name=workers,type=e2-standard-4,count=3,min=2,max=6"
 
     # Multiple node groups (system + high-memory workers)
     hyve cluster add gcp-mixed \
       --provider gcp \
-      --gcp-project prod \
+      --project-name prod \
       --region us-central1 \
       --node-group "name=system,type=e2-standard-2,count=2" \
       --node-group "name=workers,type=n1-highmem-4,count=3,min=1,max=8,spot=true"
 
     # Simple GCP GKE cluster using --nodes (backward-compatible)
-    hyve cluster add gcp-dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
+    hyve cluster add gcp-dev --provider gcp --project-name dev --region us-central1 --nodes e2-medium
     ```
   </Tab>
 
@@ -197,13 +201,13 @@ hyve cluster add [cluster-name] [flags]
 </Warning>
 
 <Info>
-  **GCP Clusters**: The `--gcp-project` flag is required for GCP clusters. Configure project aliases first with `hyve config gcp add-project --name <alias> --id <project-id>`.
+  **GCP Clusters**: The `--project-name` flag is required for GCP clusters. Configure project aliases first with `hyve config gcp project add --name <alias> --id <project-id>`.
 </Info>
 
 <Info>
   **AWS Clusters**: The `--vpc-name` and `--eks-role-name` flags are required for AWS EKS clusters. Configure these first:
-  - VPC: `hyve config aws vpc-add --name <alias> --id <vpc-id>` or `hyve config aws vpc-create --name <alias> --region <region>`
-  - EKS Role: `hyve config aws eks-role-add --name <alias> --role-arn <arn>` or `hyve config aws eks-role-create --name <alias> --role-name <name>`
+  - VPC: `hyve config aws vpc add --name <alias> --id <vpc-id>` or `hyve config aws vpc create --name <alias> --region <region>`
+  - EKS Role: `hyve config aws eks-role add --name <alias> --role-arn <arn>` or `hyve config aws eks-role create --name <alias> --role-name <name>`
 </Info>
 
 **Output:**
@@ -487,7 +491,7 @@ metadata:
   region: PHX1               # PHX1 | NYC1 | LON1 | FRA1
 spec:
   provider: civo
-  civoOrganization: my-org   # org alias — must match --org used in hyve config set-token
+  civoOrganization: my-org   # org alias — must match --org used in hyve config civo token set
   nodes:
     - g4s.kube.medium        # one entry per node
     - g4s.kube.medium
@@ -518,7 +522,7 @@ metadata:
   region: eastus
 spec:
   provider: azure
-  azureSubscription: prod-sub      # alias from hyve config azure add-subscription-ids
+  azureSubscription: prod-sub      # alias from hyve config azure subscription add
   nodeGroups:
     - name: system                 # first pool must be System mode
       instanceType: Standard_DS2_v2
@@ -543,7 +547,7 @@ spec:
 ```
 
 <Info>
-  The `azureSubscription` alias must be registered with `hyve config azure add-subscription-ids --name <alias> --id <subscription-id>` and a resource group must exist in Azure before cluster creation (`hyve config azure add-resource-group --subscription <alias> --name <rg> --location <region>`).
+  The `azureSubscription` alias must be registered with `hyve config azure subscription add --name <alias> --id <subscription-id>` and a resource group must exist in Azure before cluster creation (`hyve config azure resource-group add --subscription <alias> --name <rg> --location <region>`).
 </Info>
 
 ### GCP Cluster Structure
@@ -558,7 +562,7 @@ metadata:
   region: us-central1
 spec:
   provider: gcp
-  gcpProject: prod              # alias from hyve config gcp add-project
+  gcpProject: prod              # alias from hyve config gcp project add
   gcpProjectId: my-project-123  # resolved project ID (auto-populated)
   nodeGroups:
     - name: workers
@@ -584,11 +588,11 @@ metadata:
   region: us-east-1
 spec:
   provider: aws
-  awsAccount: prod                 # alias from hyve config aws account-add
+  awsAccount: prod                 # alias from hyve config aws account add
   awsAccountId: "123456789012"     # resolved account ID (auto-populated)
-  awsVpcName: prod-vpc             # alias from hyve config aws vpc-add (required)
+  awsVpcName: prod-vpc             # alias from hyve config aws vpc add (required)
   awsVpcId: vpc-12345678           # resolved VPC ID (auto-populated)
-  awsEksRole: eks-cluster-role     # alias from hyve config aws eks-role-add (required)
+  awsEksRole: eks-cluster-role     # alias from hyve config aws eks-role add (required)
   awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # resolved (auto-populated)
   nodeGroups:
     - name: system
@@ -668,7 +672,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.gcpProject" type="string">
-  GCP project alias (for GCP provider only). Set via `--gcp-project` flag.
+  GCP project alias (for GCP provider only). Set via `--project-name` flag.
 </ParamField>
 
 <ParamField path="spec.gcpProjectId" type="string">
@@ -676,7 +680,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.awsAccount" type="string">
-  AWS account alias (for AWS provider only). Set via `--aws-account` flag.
+  AWS account alias (for AWS provider only). Set via `--account-name/-a` flag.
 </ParamField>
 
 <ParamField path="spec.awsAccountId" type="string">
@@ -684,7 +688,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.awsVpcName" type="string">
-  AWS VPC alias (required for AWS provider). Set via `--vpc-name` flag.
+  AWS VPC alias (required for AWS provider). Set via `--vpc-name/-v` flag.
 </ParamField>
 
 <ParamField path="spec.awsVpcId" type="string">
@@ -692,7 +696,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.awsEksRole" type="string">
-  AWS EKS IAM role alias (required for AWS provider). Set via `--eks-role-name` flag.
+  AWS EKS IAM role alias (required for AWS provider). Set via `--eks-role-name/-e` flag.
 </ParamField>
 
 <ParamField path="spec.awsEksRoleArn" type="string">
@@ -747,32 +751,32 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     ```bash
     # Development cluster
     hyve cluster add dev --provider civo --region PHX1 \
-      --nodes g4s.kube.small --civo-account my-org
+      --nodes g4s.kube.small --org-name my-org
 
     # Production cluster with HA
     hyve cluster add prod --provider civo --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --civo-account my-org
+      --org-name my-org
 
     # Talos-based cluster
     hyve cluster add secure --provider civo --region FRA1 \
-      --nodes g4s.kube.medium --cluster-type talos --civo-account my-org
+      --nodes g4s.kube.medium --cluster-type talos --org-name my-org
     ```
   </Accordion>
 
   <Accordion title="AWS Examples">
     ```bash
     # First, configure AWS VPC and EKS role aliases (--account required)
-    hyve config aws vpc-add --account prod --name prod-vpc --id vpc-87654321
-    hyve config aws vpc-add --account prod --name eu-vpc --id vpc-12345678
-    hyve config aws eks-role-add --account prod --name eks-role \
+    hyve config aws vpc add --account prod --name prod-vpc --id vpc-87654321
+    hyve config aws vpc add --account prod --name eu-vpc --id vpc-12345678
+    hyve config aws eks-role add --account prod --name eks-role \
       --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
 
     # Production cluster with a single named node group (preferred for EKS)
     hyve cluster add prod \
       --provider aws \
       --region us-west-2 \
-      --aws-account prod \
+      --account-name prod \
       --vpc-name prod-vpc \
       --eks-role-name eks-role \
       --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
@@ -781,7 +785,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     hyve cluster add compute \
       --provider aws \
       --region eu-west-1 \
-      --aws-account prod \
+      --account-name prod \
       --vpc-name eu-vpc \
       --eks-role-name eks-role \
       --node-group "name=system,type=t3.medium,count=2" \
@@ -791,7 +795,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     hyve cluster add dev \
       --provider aws \
       --region us-east-1 \
-      --aws-account prod \
+      --account-name prod \
       --vpc-name prod-vpc \
       --eks-role-name eks-role \
       --nodes t3.medium
@@ -801,20 +805,20 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
   <Accordion title="GCP Examples">
     ```bash
     # First, configure GCP project aliases
-    hyve config gcp add-project --project dev --name dev --id my-dev-project
-    hyve config gcp add-project --project prod --name prod --id my-prod-project
+    hyve config gcp project add --name dev --id my-dev-project
+    hyve config gcp project add --name prod --id my-prod-project
 
     # Production cluster with named node group (preferred for GKE)
-    hyve cluster add prod --provider gcp --gcp-project prod --region us-east1 \
+    hyve cluster add prod --provider gcp --project-name prod --region us-east1 \
       --node-group "name=workers,type=e2-standard-4,count=3,min=2,max=6"
 
     # Multi-pool cluster with system and high-memory node pools
-    hyve cluster add memory --provider gcp --gcp-project prod --region europe-west1 \
+    hyve cluster add memory --provider gcp --project-name prod --region europe-west1 \
       --node-group "name=system,type=e2-standard-2,count=2" \
       --node-group "name=workers,type=n1-highmem-8,count=2,min=1,max=6,spot=true"
 
-    # Development cluster using --nodes (backward-compatible, --gcp-project is required)
-    hyve cluster add dev --provider gcp --gcp-project dev --region us-central1 --nodes e2-medium
+    # Development cluster using --nodes (backward-compatible, --project-name is required)
+    hyve cluster add dev --provider gcp --project-name dev --region us-central1 --nodes e2-medium
     ```
   </Accordion>
 
