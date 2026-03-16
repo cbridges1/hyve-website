@@ -191,11 +191,11 @@ GCP uses Application Default Credentials. Hyve does not store GCP credentials.
 
     ```bash
     # Add project with alias
-    hyve config gcp add-project --name dev --id my-dev-project-123
-    hyve config gcp add-project --name prod --id my-prod-project-456
+    hyve config gcp project add --name dev --id my-dev-project-123
+    hyve config gcp project add --name prod --id my-prod-project-456
 
     # Use alias when creating clusters
-    hyve cluster add my-cluster --provider gcp --gcp-project dev --region us-central1
+    hyve cluster add my-cluster --provider gcp --project-name dev --region us-central1
     ```
   </Step>
 </Steps>
@@ -253,42 +253,48 @@ Provider-specific configurations (like GCP project IDs and AWS account IDs) are 
 
 ```bash
 # Add GCP projects with aliases
-hyve config gcp add-project --name dev --id my-dev-project-123
-hyve config gcp add-project --name prod --id my-prod-project-456
+hyve config gcp project add --name dev --id my-dev-project-123
+hyve config gcp project add --name prod --id my-prod-project-456
 
 # List configured projects
-hyve config gcp list-projects
+hyve config gcp project list
 
 # Get project ID by alias
-hyve config gcp get-project dev
+hyve config gcp project get dev
 
 # Remove a project
-hyve config gcp remove-project dev
+hyve config gcp project remove dev
 
 # Use alias when creating clusters
-hyve cluster add my-cluster --provider gcp --gcp-project dev --region us-central1
+hyve cluster add my-cluster --provider gcp --project-name dev --region us-central1
 ```
 
 ### AWS Configuration
 
 ```bash
 # Account management (with aliases)
-hyve config aws account-add --name prod --id 123456789012
-hyve config aws account-list
-hyve config aws account-get prod
-hyve config aws account-remove prod
+hyve config aws account add --name prod --id 123456789012
+hyve config aws account list
+hyve config aws account get prod
+hyve config aws account remove prod
 
-# EKS IAM Role management (configuration only)
-hyve config aws eks-role-add --name default-role --role-arn arn:aws:iam::123456789012:role/my-eks-role
-hyve config aws eks-role-list
-hyve config aws eks-role-get default-role
-hyve config aws eks-role-remove default-role
+# EKS IAM Role management
+hyve config aws eks-role add --account prod --name default-role --role-arn arn:aws:iam::123456789012:role/my-eks-role
+hyve config aws eks-role list --account prod
+hyve config aws eks-role get default-role --account prod
+hyve config aws eks-role remove default-role --account prod
 
-# VPC management (configuration only)
-hyve config aws vpc-add --name default-vpc --id vpc-0123456789abcdef0
-hyve config aws vpc-list
-hyve config aws vpc-get default-vpc
-hyve config aws vpc-remove default-vpc
+# Node Role management
+hyve config aws node-role add --account prod --name default-node-role --role-arn arn:aws:iam::123456789012:role/my-node-role
+hyve config aws node-role list --account prod
+hyve config aws node-role get default-node-role --account prod
+hyve config aws node-role remove default-node-role --account prod
+
+# VPC management
+hyve config aws vpc add --account prod --name default-vpc --id vpc-0123456789abcdef0
+hyve config aws vpc list --account prod
+hyve config aws vpc get default-vpc --account prod
+hyve config aws vpc remove default-vpc --account prod
 ```
 
 ### AWS Resource Creation
@@ -297,36 +303,36 @@ Hyve can create actual AWS resources (IAM roles and VPCs) and store their aliase
 
 ```bash
 # Create EKS IAM role in AWS
-hyve config aws eks-role-create --name default-role --role-name my-eks-cluster-role --region us-east-1
+hyve config aws eks-role create --account prod --name default-role --role-name my-eks-cluster-role --region us-east-1
 
 # Delete EKS IAM role from AWS
-hyve config aws eks-role-delete default-role --region us-east-1
+hyve config aws eks-role delete default-role --account prod --region us-east-1
 
 # Delete from config only (keep AWS resource)
-hyve config aws eks-role-delete default-role --config-only
+hyve config aws eks-role delete default-role --account prod --config-only
 
 # Create VPC in AWS
-hyve config aws vpc-create --name dev-vpc --region us-east-1 --cidr 10.0.0.0/16
+hyve config aws vpc create --account prod --name dev-vpc --region us-east-1 --cidr 10.0.0.0/16
 
 # Create VPC with subnets
-hyve config aws vpc-create --name dev-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
+hyve config aws vpc create --account prod --name dev-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
 
 # Delete VPC from AWS
-hyve config aws vpc-delete dev-vpc --region us-east-1
+hyve config aws vpc delete dev-vpc --account prod --region us-east-1
 ```
 
 ### Azure Configuration
 
 ```bash
 # Add subscription aliases
-hyve config azure add-subscription-ids --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-hyve config azure list-subscription-ids
-hyve config azure remove-subscription-ids --name prod-sub
+hyve config azure subscription add --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+hyve config azure subscription list
+hyve config azure subscription remove prod-sub
 
 # Manage resource groups
-hyve config azure add-resource-group --subscription prod-sub --name hyve-rg --location eastus
-hyve config azure list-resource-groups --subscription prod-sub
-hyve config azure delete-resource-group --subscription prod-sub --name hyve-rg
+hyve config azure resource-group add --subscription prod-sub --name hyve-rg --location eastus
+hyve config azure resource-group list --subscription prod-sub
+hyve config azure resource-group delete --subscription prod-sub --name hyve-rg
 ```
 
 ### Provider Config Files
@@ -602,8 +608,8 @@ hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
 # 4. Configure provider settings (stored in repository)
-hyve config gcp add-project --name dev --id my-gcp-project-id
-hyve config aws account-add --name prod --id 123456789012
+hyve config gcp project add --name dev --id my-gcp-project-id
+hyve config aws account add --name prod --id 123456789012
 ```
 
 ### Multi-Organization Civo Setup
@@ -623,10 +629,10 @@ hyve cluster add prod-cluster --provider civo --civo-account production --region
 
 ```bash
 # Create EKS IAM role (--account required)
-hyve config aws eks-role-create --account prod --name default-role --role-name hyve-eks-role --region us-east-1
+hyve config aws eks-role create --account prod --name default-role --role-name hyve-eks-role --region us-east-1
 
 # Create VPC with subnets
-hyve config aws vpc-create --account prod --name eks-vpc --region us-east-1 --cidr 10.0.0.0/16 --subnets 10.0.1.0/24,10.0.2.0/24
+hyve config aws vpc create --account prod --name eks-vpc --region us-east-1 --cidr 10.0.0.0/16 --subnets 10.0.1.0/24,10.0.2.0/24
 
 # Use in cluster creation
 hyve cluster add my-eks-cluster \

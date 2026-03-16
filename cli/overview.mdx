@@ -111,12 +111,15 @@ hyve git remove <name>
 hyve config civo token set --org/-o <name> [--token/-t <token>]
 hyve config civo token get --org <name>
 hyve config civo token clear --org <name>
-hyve config civo token list
+
+# Civo organization aliases (stored in repository)
+hyve config civo org add --name/-n <alias> --id/-i <org-id>
 
 # Provider config (stored in repository)
 hyve config gcp project add --name/-n <alias> --id/-i <project-id>
 hyve config aws account add --name/-n <alias> --id/-i <account-id>
 hyve config aws eks-role add --account/-a <name> --name/-n <alias> --role-arn/-r <arn>
+hyve config aws node-role add --account/-a <name> --name/-n <alias> --role-arn/-r <arn>
 hyve config aws vpc add --account/-a <name> --name/-n <alias> --id/-i <vpc-id>
 hyve config azure subscription add --name/-n <alias> --id/-i <subscription-id>
 hyve config azure resource-group add --subscription/-s <alias> --name/-n <rg> --location/-l <region>

@@ -99,7 +99,7 @@ hyve git add production --repo-url https://github.com/company/hyve-prod.git
 #    credentials_json: ${GCP_CREDENTIALS_JSON}
 
 # 3. Create a cluster
-hyve cluster add production --provider gcp --gcp-project my-project --region us-central1 --nodes e2-standard-4
+hyve cluster add production --provider gcp --project-name my-project --region us-central1 --nodes e2-standard-4
 
 # 4. Execute a workflow
 hyve workflow run deploy-app --cluster production
@@ -167,7 +167,7 @@ hyve template execute prod-template prod-cluster-01
     Define and deploy your first Kubernetes cluster
 
     ```bash
-    hyve cluster add my-cluster --provider gcp --gcp-project my-project --region us-central1
+    hyve cluster add my-cluster --provider gcp --project-name my-project --region us-central1
     ```
   </Step>
 </Steps>

@@ -61,13 +61,35 @@ hyve config civo token clear --org <name>
 
 Removes the stored token for the specified organization.
 
-### hyve config civo token list
+---
+
+## Civo Organization Management
+
+Civo organization aliases map a friendly name to a Civo organization ID. They are stored in `provider-configs/civo.yaml` in your state repository and are referenced by the `--org-name` flag when creating clusters.
 
 ```bash
-hyve config civo token list
+# Add an organization alias
+hyve config civo org add --name/-n <alias> --id/-i <org-id>
+
+# List configured organizations
+hyve config civo org list
+
+# Get organization ID by alias
+hyve config civo org get <alias>
+
+# Remove an organization alias
+hyve config civo org remove <alias>
 ```
 
-Lists all Civo organization aliases with stored tokens.
+**Example:**
+
+```bash
+hyve config civo org add --name my-org --id abc123def456
+hyve config civo org add --name staging-org --id xyz789uvw012
+
+# Use alias when creating clusters
+hyve cluster add civo-cluster --provider civo --org-name my-org --region PHX1 --nodes g4s.kube.medium
+```
 
 ---
 
@@ -139,12 +161,34 @@ hyve config aws eks-role create --account/-a <name> --name/-n <alias> --role-nam
 hyve config aws eks-role delete --account/-a <name> --name/-n <alias> [--region/-r <region>] [--config-only]
 
 # List / get / remove aliases
-hyve config aws eks-role list   --account/-a <name>
-hyve config aws eks-role get    --account/-a <name> --name/-n <alias>
-hyve config aws eks-role remove --account/-a <name> --name/-n <alias>
+hyve config aws eks-role list          --account/-a <name>
+hyve config aws eks-role get    <alias> --account/-a <name>
+hyve config aws eks-role remove <alias> --account/-a <name>
 ```
 
 `eks-role create` creates an IAM role with the EKS assume-role policy and attaches `AmazonEKSClusterPolicy`.
+
+### Node Role Aliases
+
+Register an existing IAM node role or create one in AWS:
+
+```bash
+# Register existing node role
+hyve config aws node-role add --account/-a <name> --name/-n <alias> --role-arn/-r <arn>
+
+# Create node role in AWS and register alias
+hyve config aws node-role create --account/-a <name> --name/-n <alias> --role-name <aws-name> [--region/-r <region>]
+
+# Delete node role from AWS
+hyve config aws node-role delete <alias> --account/-a <name> [--region/-r <region>] [--config-only]
+
+# List / get / remove aliases
+hyve config aws node-role list   --account/-a <name>
+hyve config aws node-role get    <alias> --account/-a <name>
+hyve config aws node-role remove <alias> --account/-a <name>
+```
+
+`node-role create` creates an IAM role with the EC2 assume-role policy and attaches the policies required for EKS worker nodes (`AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`, `AmazonEC2ContainerRegistryReadOnly`).
 
 ### VPC Aliases
 
@@ -161,9 +205,9 @@ hyve config aws vpc create --account/-a <name> --name/-n <alias> [--region/-r <r
 hyve config aws vpc delete --account/-a <name> --name/-n <alias> [--region/-r <region>] [--config-only]
 
 # List / get / remove aliases
-hyve config aws vpc list   --account/-a <name>
-hyve config aws vpc get    --account/-a <name> --name/-n <alias>
-hyve config aws vpc remove --account/-a <name> --name/-n <alias>
+hyve config aws vpc list          --account/-a <name>
+hyve config aws vpc get    <alias> --account/-a <name>
+hyve config aws vpc remove <alias> --account/-a <name>
 ```
 
 <Warning>
@@ -215,7 +259,7 @@ hyve config azure subscription add --name/-n <alias> --id/-i <subscription-id>
 hyve config azure subscription list
 
 # Remove a subscription alias
-hyve config azure subscription remove --name/-n <alias>
+hyve config azure subscription remove <alias>
 ```
 
 **Example:**
