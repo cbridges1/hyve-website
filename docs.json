@@ -42,7 +42,9 @@
           "cli/template",
           "cli/kubeconfig",
           "cli/config",
-          "cli/interactive"
+          "cli/interactive",
+          "cli/use",
+          "cli/run"
         ]
       }
     ],

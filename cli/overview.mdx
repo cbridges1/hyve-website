@@ -27,6 +27,12 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="interactive" icon="terminal" href="/cli/interactive" color="#eab308">
     Guided TUI
   </Card>
+  <Card title="use" icon="circle-play" href="/cli/use" color="#10b981">
+    Switch kubectl context
+  </Card>
+  <Card title="run" icon="bolt" href="/cli/run" color="#8b5cf6">
+    Scoped command execution
+  </Card>
 </CardGroup>
 
 ## Command Structure
@@ -161,6 +167,27 @@ Launches a full-screen guided TUI. Navigates all command groups — cluster, git
 
 [Full reference →](/cli/interactive)
 
+### use
+
+```bash
+hyve use <cluster-name>
+```
+
+Shortcut that merges a cluster's kubeconfig into `~/.kube/config` and sets it as the active `kubectl` context. Equivalent to `hyve kubeconfig use`.
+
+[Full reference →](/cli/use)
+
+### run
+
+```bash
+hyve run --cluster <cluster> <command> [args...]
+hyve run --cluster <cluster> --string "<command string>"
+```
+
+Execute any command with `KUBECONFIG` scoped to a specific cluster — without permanently changing the active context.
+
+[Full reference →](/cli/run)
+
 ---
 
 ## Environment Variables
@@ -197,8 +224,11 @@ hyve cluster add my-cluster --provider civo --region PHX1 --nodes g4s.kube.mediu
 
 # 5. Sync kubeconfig and connect
 hyve kubeconfig sync
-eval $(hyve kubeconfig use my-cluster --eval)
+hyve use my-cluster
 kubectl get nodes
+
+# Run a one-off command without changing active context
+hyve run --cluster my-cluster kubectl get pods -A
 ```
 
 ### CI/CD pipeline
