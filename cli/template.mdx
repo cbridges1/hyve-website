@@ -40,7 +40,7 @@ hyve template create [template-name] [flags]
 </ParamField>
 
 <ParamField path="--cluster-type" type="string" default="k3s">
-  Kubernetes cluster type (k3s, talos)
+  Kubernetes cluster type (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
 </ParamField>
 
 <ParamField path="--ingress" type="boolean" default="true">
@@ -468,7 +468,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.clusterType" type="string" default="k3s">
-  Kubernetes distribution type (k3s, talos)
+  Kubernetes distribution type (`k3s`, `talos`). **Civo only** — this field is ignored for AWS (EKS), GCP (GKE), and Azure (AKS) providers.
 </ParamField>
 
 <ParamField path="spec.ingress.enabled" type="boolean" default="true">

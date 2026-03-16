@@ -41,7 +41,8 @@
           "cli/workflow",
           "cli/template",
           "cli/kubeconfig",
-          "cli/config"
+          "cli/config",
+          "cli/interactive"
         ]
       }
     ],

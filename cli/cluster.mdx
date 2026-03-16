@@ -40,7 +40,7 @@ hyve cluster add [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--cluster-type" type="string" default="k3s">
-  Type of Kubernetes cluster (k3s, talos)
+  Type of Kubernetes cluster (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
 </ParamField>
 
 <ParamField path="--account-name, -a" type="string">
@@ -294,7 +294,7 @@ hyve cluster modify [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--cluster-type" type="string">
-  Update the cluster type
+  Update the cluster type (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
 </ParamField>
 
 **Example:**
@@ -660,7 +660,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.clusterType" type="string" default="k3s">
-  Kubernetes distribution type (k3s, talos)
+  Kubernetes distribution type (`k3s`, `talos`). **Civo only** — this field is ignored for AWS (EKS), GCP (GKE), and Azure (AKS) providers.
 </ParamField>
 
 <ParamField path="spec.ingress.enabled" type="boolean" default="true">

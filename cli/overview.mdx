@@ -24,6 +24,9 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="kubeconfig" icon="key" href="/cli/kubeconfig" color="#f43f5e">
     Cluster access
   </Card>
+  <Card title="interactive" icon="terminal" href="/cli/interactive" color="#eab308">
+    Guided TUI
+  </Card>
 </CardGroup>
 
 ## Command Structure
@@ -146,6 +149,17 @@ eval $(hyve kubeconfig use <cluster> --eval)
 ```
 
 [Full reference →](/cli/kubeconfig)
+
+### interactive
+
+```bash
+hyve interactive
+hyve tui          # alias
+```
+
+Launches a full-screen guided TUI. Navigates all command groups — cluster, git, config, workflow, template, kubeconfig — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+
+[Full reference →](/cli/interactive)
 
 ---
 
