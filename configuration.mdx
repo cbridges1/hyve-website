@@ -10,6 +10,10 @@ Hyve requires configuration for cloud provider authentication, Git credentials, 
 - **Civo**: API tokens stored encrypted in Hyve (AES-GCM)
 - **AWS, GCP, Azure**: Native CLI authentication (no credentials stored in Hyve)
 
+<Tip>
+  **Prefer menus over flags?** Run `hyve interactive` and select **config** from the root menu. All provider setup — tokens, org aliases, accounts, VPCs, EKS roles, subscriptions, and resource groups — is available through guided prompts with live-populated select lists.
+</Tip>
+
 ## Storage Location
 
 All configuration data is stored in the `~/.hyve/` directory:

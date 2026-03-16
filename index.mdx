@@ -15,15 +15,31 @@ Define clusters as YAML, commit the change, and Hyve reconciles the desired stat
 
 It supports **AWS (EKS), GCP (GKE), Azure (AKS), and Civo** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
 
-<Card
-  title="Quick Start"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
-  color="#3b82f6"
->
-  Get up and running with Hyve in minutes.
-</Card>
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+    horizontal
+    color="#3b82f6"
+  >
+    Get up and running with Hyve in minutes.
+  </Card>
+
+  <Card
+    title="Interactive Mode"
+    icon="terminal"
+    href="/cli/interactive"
+    horizontal
+    color="#eab308"
+  >
+    New to Hyve? Skip the flags — `hyve interactive` guides you through everything.
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Not sure where to start?** Run `hyve interactive` (or `hyve tui`) after installing. A guided menu walks you through every command — clusters, git, config, workflows, templates, and kubeconfigs — with no flags required.
+</Tip>
 
 ## Key Features
 
