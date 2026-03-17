@@ -430,6 +430,64 @@ hyve cluster list
   hyve kubeconfig get <cluster-name> --save    # Save to ~/.kube/config-<cluster-name>
 ```
 
+## Importing Clusters
+
+Use `hyve cluster import` to bring an already-running cluster under Hyve management without reprovisioning it. A YAML definition is written to Git; the cloud cluster is left untouched.
+
+```bash
+# Import an Azure AKS cluster — node groups auto-detected from cloud
+hyve cluster import my-aks-cluster \
+  --provider azure \
+  --region eastus \
+  --subscription-name prod-sub
+
+# Import a GKE cluster
+hyve cluster import my-gke-cluster \
+  --provider gcp \
+  --region us-central1 \
+  --project-name my-project
+
+# Import an EKS cluster — node groups auto-detected
+hyve cluster import my-eks-cluster \
+  --provider aws \
+  --region us-east-1 \
+  --account-name production \
+  --vpc-name prod-vpc \
+  --eks-role-name eks-cluster-role
+```
+
+### Node Group Auto-Detection
+
+When `--nodes` is not provided, Hyve queries the live cluster and records its current node pool configuration in the YAML definition. This keeps the imported definition accurate without manual specification.
+
+<Info>
+  The cluster is **not** reprovisioned on import. Reconciliation after import will compare the recorded definition against the live cluster and report no changes if the definition matches.
+</Info>
+
+<Warning>
+  Import is disabled when `strictDelete: true` is set in `hyve.yaml`. In strict-delete mode, importing an unmanaged cluster would cause it to be deleted on the next reconciliation run.
+</Warning>
+
+### Interactive Import
+
+In `hyve interactive`, select **Import an existing cluster**. The TUI:
+1. Presents configured account/subscription/project aliases for the selected provider
+2. Populates the region select from live data for that account
+3. Lists clusters discovered in the cloud for selection (or allows manual name entry)
+4. Auto-detects and records node groups from the running cluster
+
+### Releasing Clusters
+
+To stop managing a cluster without deleting it from the cloud, use `hyve cluster release`:
+
+```bash
+hyve cluster release my-cluster
+```
+
+This removes the YAML definition from Git. The cloud cluster continues running. Release is also disabled when `strictDelete: true`.
+
+---
+
 ## Deleting Clusters
 
 ### Standard Delete
@@ -455,7 +513,14 @@ In CI/CD mode with `strictDelete: true`, the push triggers the pipeline which de
     # Delete from cloud immediately, bypassing CI/CD
     hyve cluster delete my-cluster --force
     ```
-    Searches for the cluster, removes ingress controllers, deletes from cloud, then removes the YAML and reconciles.
+    **Order of operations:**
+    1. Deletes the cluster from the cloud provider **first**
+    2. Removes ingress controllers
+    3. Removes the YAML configuration file
+    4. Cleans up stored kubeconfig
+    5. Commits and reconciles
+
+    If the cloud delete fails the YAML is left intact, so you can safely retry.
   </Tab>
 
   <Tab title="Force Cloud Delete (no config)">
@@ -467,11 +532,12 @@ In CI/CD mode with `strictDelete: true`, the push triggers the pipeline which de
 
   <Tab title="Force Delete by Name">
     ```bash
-    # Search and delete cluster by name across regions
+    # Search and delete cluster by name across all regions (Civo)
     hyve cluster force-delete my-cluster
 
-    # Force delete in specific region
-    hyve cluster force-delete my-cluster --region NYC1
+    # Force delete in specific region (any provider)
+    hyve cluster force-delete my-cluster --provider azure --region eastus
+    hyve cluster force-delete my-cluster --provider gcp --project-name my-proj --region us-central1
     ```
   </Tab>
 </Tabs>

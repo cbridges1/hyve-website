@@ -373,15 +373,127 @@ hyve cluster delete orphaned-cluster --force --force-cloud
 
 **Force process (`--force`):**
 
-1. Explicitly searches for and deletes the cluster from the cloud provider
+1. **Deletes the cluster from the cloud provider first** (before touching Git)
 2. Removes any ingress controllers
 3. Removes the cluster configuration YAML file
 4. Commits changes to Git
-5. Runs reconciliation to clean up any remaining resources
+5. Cleans up the stored kubeconfig
+6. Runs reconciliation
+
+<Note>
+  Cloud deletion always happens before YAML removal. If the cloud delete fails the configuration file is preserved, so you can safely retry.
+</Note>
 
 <Info>
   The default (non-force) delete is the recommended approach in CI/CD workflows. Enable `strictDelete: true` in `hyve.yaml` so that removing a cluster YAML automatically triggers deletion in the pipeline. See the [CI/CD guide](/guides/cicd) for details.
 </Info>
+
+---
+
+### hyve cluster import
+
+Import an already-running cluster into Hyve without reprovisioning it. Hyve records the cluster definition in Git and auto-detects node group configuration from the cloud provider.
+
+```bash
+hyve cluster import <name> [flags]
+```
+
+<ParamField path="name" type="string" required>
+  Name of the existing cluster (must match the name in the cloud provider)
+</ParamField>
+
+<ParamField path="--provider, -p" type="string" required>
+  Cloud provider: `civo`, `aws`, `gcp`, or `azure`
+</ParamField>
+
+<ParamField path="--region, -r" type="string">
+  Region where the cluster is running
+</ParamField>
+
+<ParamField path="--account-name, -a" type="string">
+  AWS account alias (required for AWS)
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  GCP project alias (required for GCP)
+</ParamField>
+
+<ParamField path="--subscription-name, -s" type="string">
+  Azure subscription alias (required for Azure)
+</ParamField>
+
+<ParamField path="--org-name, -o" type="string">
+  Civo organization alias (required for Civo)
+</ParamField>
+
+<ParamField path="--vpc-name, -v" type="string">
+  AWS VPC alias (required for AWS)
+</ParamField>
+
+<ParamField path="--eks-role-name, -e" type="string">
+  AWS EKS IAM role alias (required for AWS)
+</ParamField>
+
+<ParamField path="--nodes, -n" type="string[]">
+  Explicit node sizes. If omitted, Hyve queries the cloud provider and auto-detects the running node pool configuration.
+</ParamField>
+
+**Examples:**
+
+```bash
+# Import an Azure AKS cluster (node groups auto-detected from cloud)
+hyve cluster import my-aks-cluster \
+  --provider azure \
+  --region eastus \
+  --subscription-name prod-sub
+
+# Import a GKE cluster with explicit nodes
+hyve cluster import my-gke-cluster \
+  --provider gcp \
+  --region us-central1 \
+  --project-name my-project \
+  --nodes e2-standard-4
+
+# Import an EKS cluster (node groups auto-detected)
+hyve cluster import my-eks-cluster \
+  --provider aws \
+  --region us-east-1 \
+  --account-name production \
+  --vpc-name prod-vpc \
+  --eks-role-name eks-cluster-role
+```
+
+<Info>
+  When `--nodes` is not specified, Hyve queries the live cluster and records its current node pool configuration. The cloud cluster is **not** reprovisioned — only a YAML definition is written to Git.
+</Info>
+
+<Warning>
+  Import is disabled when `strictDelete: true` is set in `hyve.yaml`. In strict-delete mode, Hyve owns the full desired state — importing an unmanaged cluster would cause it to be deleted on the next reconciliation.
+</Warning>
+
+---
+
+### hyve cluster release
+
+Remove a cluster from Hyve management without deleting it from the cloud.
+
+```bash
+hyve cluster release <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster to release
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster release my-cluster
+```
+
+<Warning>
+  Release is disabled when `strictDelete: true` is set in `hyve.yaml`. Removing a cluster definition in strict-delete mode would cause the cloud cluster to be deleted on the next reconciliation. Use `hyve cluster delete` instead.
+</Warning>
 
 ---
 
@@ -397,18 +509,29 @@ hyve cluster force-delete [cluster-name] [flags]
   Name of the cluster to force delete
 </ParamField>
 
-<ParamField path="--region" type="string">
-  Specific region to search. If not provided, searches common regions (PHX1, NYC1, FRA1, LON1).
+<ParamField path="--provider, -p" type="string" default="civo">
+  Cloud provider: `civo`, `aws`, `gcp`, or `azure`
 </ParamField>
 
-**Example:**
+<ParamField path="--region, -r" type="string">
+  Specific region to search. If not provided, searches common regions for the selected provider.
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  GCP project alias (required for GCP provider)
+</ParamField>
+
+**Examples:**
 
 ```bash
-# Force delete with region hint
-hyve cluster force-delete orphaned-cluster --region NYC1
+# Force delete a Civo cluster with region hint
+hyve cluster force-delete orphaned-cluster --provider civo --region NYC1
 
-# Search all common regions
-hyve cluster force-delete lost-cluster
+# Force delete an Azure AKS cluster
+hyve cluster force-delete old-aks-cluster --provider azure --region eastus
+
+# Force delete a GKE cluster
+hyve cluster force-delete lost-gke --provider gcp --project-name my-project --region us-central1
 ```
 
 **Output:**

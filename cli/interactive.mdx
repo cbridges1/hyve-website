@@ -55,9 +55,11 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | Action | Description |
 |--------|-------------|
 | Add a new cluster | Provider, region, node sizes, and account aliases collected via guided prompts. Account/VPC/role fields are populated from your configured aliases. |
+| Import an existing cluster | Provider and account selected from configured aliases; region populated from live data; cluster name selected from clusters discovered in the cloud or entered manually. Node groups are auto-detected from the running cluster. Disabled when `strictDelete: true`. |
 | Modify an existing cluster | Cluster selected from a live list. |
-| Delete a cluster | Cluster selected from list; choice between GitOps (state-only) and immediate cloud deletion. |
-| Force-delete from cloud | Cluster and provider details collected; destructive action requires explicit confirmation. |
+| Release a cluster from management | Cluster selected from list; removes the definition from Git without deleting the cloud cluster. Disabled when `strictDelete: true`. |
+| Delete a cluster | Cluster selected from list; choice between GitOps (state-only removal) and immediate cloud deletion. When "delete from cloud now" is chosen the cloud cluster is deleted **before** the YAML is removed. |
+| Force-delete from cloud | Provider selected first; account/subscription/project alias then selected from configured aliases; region populated from live data for the selected account. Destructive action requires explicit confirmation. Does not require a configuration file. |
 | List clusters | Prints all cluster definitions. |
 
 ### git
