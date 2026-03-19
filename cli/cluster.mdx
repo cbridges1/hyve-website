@@ -88,6 +88,28 @@ hyve cluster add [cluster-name] [flags]
   </Info>
 </ParamField>
 
+<ParamField path="--on-created" type="string (repeatable)">
+  Name of a workflow to run after the cluster is successfully created. Can be specified multiple times to attach several workflows. Workflow names must match an existing workflow defined with `hyve workflow add`.
+
+  ```bash
+  hyve cluster add my-cluster --provider civo --region PHX1 \
+    --nodes g4s.kube.medium --org-name my-org \
+    --on-created setup-monitoring \
+    --on-created notify-slack
+  ```
+</ParamField>
+
+<ParamField path="--on-destroy" type="string (repeatable)">
+  Name of a workflow to run before the cluster is destroyed. Can be specified multiple times to attach several workflows. Workflow names must match an existing workflow defined with `hyve workflow add`.
+
+  ```bash
+  hyve cluster add my-cluster --provider civo --region PHX1 \
+    --nodes g4s.kube.medium --org-name my-org \
+    --on-destroy backup-data \
+    --on-destroy notify-slack
+  ```
+</ParamField>
+
 **Examples by Provider:**
 
 <Tabs>
@@ -241,10 +263,19 @@ spec:
   nodes:
     - g4s.kube.medium
   clusterType: k3s
+  workflows:
+    onCreated:
+      - setup-monitoring
+    onDestroy:
+      - backup-data
   ingress:
     enabled: true
     loadBalancer: true
 ```
+
+<Info>
+  The `workflows` field is omitted from the YAML when no workflows are attached.
+</Info>
 
 <Info>
   The cluster configuration is automatically committed to Git and reconciliation is triggered to create the cluster in the cloud provider.
@@ -794,6 +825,14 @@ spec:
   Enable load balancer for ingress controller
 </ParamField>
 
+<ParamField path="spec.workflows.onCreated" type="string[]">
+  List of workflow names to run after the cluster is successfully created. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-created` flag or the interactive TUI.
+</ParamField>
+
+<ParamField path="spec.workflows.onDestroy" type="string[]">
+  List of workflow names to run before the cluster is destroyed. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-destroy` flag or the interactive TUI.
+</ParamField>
+
 <ParamField path="spec.gcpProject" type="string">
   GCP project alias (for GCP provider only). Set via `--project-name` flag.
 </ParamField>
@@ -884,6 +923,12 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     # Talos-based cluster
     hyve cluster add secure --provider civo --region FRA1 \
       --nodes g4s.kube.medium --cluster-type talos --org-name my-org
+
+    # Cluster with lifecycle workflows
+    hyve cluster add managed --provider civo --region PHX1 \
+      --nodes g4s.kube.medium --org-name my-org \
+      --on-created setup-monitoring --on-created notify-slack \
+      --on-destroy backup-data
     ```
   </Accordion>
 
@@ -1196,6 +1241,32 @@ hyve cluster add us-west --provider civo --region PHX1 --nodes g4s.kube.medium,g
 hyve cluster add eu-central --provider civo --region FRA1 --nodes g4s.kube.medium,g4s.kube.medium
 
 # All clusters managed in the same Git repository
+```
+
+### Attach Lifecycle Workflows
+
+```bash
+# Run a monitoring setup workflow after creation and a backup workflow before destruction
+hyve cluster add production \
+  --provider civo \
+  --region NYC1 \
+  --nodes g4s.kube.large,g4s.kube.large \
+  --org-name my-org \
+  --on-created setup-monitoring \
+  --on-destroy backup-data
+
+# Multiple workflows per lifecycle event
+hyve cluster add production \
+  --provider aws \
+  --region us-east-1 \
+  --account-name prod \
+  --vpc-name prod-vpc \
+  --eks-role-name eks-role \
+  --node-group "name=workers,type=m5.large,count=3" \
+  --on-created setup-monitoring \
+  --on-created notify-slack \
+  --on-destroy backup-data \
+  --on-destroy notify-slack
 ```
 
 ### Cleanup Orphaned Clusters
