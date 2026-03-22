@@ -40,7 +40,7 @@ hyve template create [template-name] [flags]
 </ParamField>
 
 <ParamField path="--cluster-type" type="string" default="k3s">
-  Kubernetes cluster type (k3s, talos)
+  Kubernetes cluster type (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
 </ParamField>
 
 <ParamField path="--ingress" type="boolean" default="true">
@@ -51,7 +51,7 @@ hyve template create [template-name] [flags]
   Enable load balancer for ingress
 </ParamField>
 
-<ParamField path="--on-created" type="string">
+<ParamField path="--on-created, -c" type="string">
   Workflows to run after cluster creation (comma-separated)
 </ParamField>
 
@@ -228,10 +228,39 @@ hyve template execute [template-name] [cluster-name]
   Name for the new cluster
 </ParamField>
 
+**Provider-specific flags** (override template values; required if not set in the template):
+
+| Flag | Short | Provider | Description |
+|------|-------|----------|-------------|
+| `--org` | `-o` | Civo | Civo organization alias |
+| `--account` | `-a` | AWS | AWS account alias |
+| `--vpc-name` | `-v` | AWS | AWS VPC alias |
+| `--eks-role` | `-e` | AWS | AWS EKS cluster role alias |
+| `--node-role` | `-n` | AWS | AWS node role alias |
+| `--subscription` | `-s` | Azure | Azure subscription alias |
+| `--resource-group` | `-g` | Azure | Azure resource group name |
+| `--project` | `-p` | GCP | GCP project alias |
+
 **Example:**
 
 ```bash
+# Civo template (org set in template YAML — no flags needed)
 hyve template execute prod-template prod-cluster-01
+
+# Civo template with org override
+hyve template execute prod-template prod-cluster-01 --org my-org
+
+# AWS template with all required flags
+hyve template execute aws-template eks-prod-01 \
+  --account prod \
+  --vpc-name prod-vpc \
+  --eks-role eks-role \
+  --node-role node-role
+
+# Azure template with overrides
+hyve template execute azure-template aks-prod-01 \
+  --subscription prod-sub \
+  --resource-group hyve-rg
 ```
 
 **Output:**
@@ -439,7 +468,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.clusterType" type="string" default="k3s">
-  Kubernetes distribution type (k3s, talos)
+  Kubernetes distribution type (`k3s`, `talos`). **Civo only** — this field is ignored for AWS (EKS), GCP (GKE), and Azure (AKS) providers.
 </ParamField>
 
 <ParamField path="spec.ingress.enabled" type="boolean" default="true">

@@ -15,15 +15,31 @@ Define clusters as YAML, commit the change, and Hyve reconciles the desired stat
 
 It supports **AWS (EKS), GCP (GKE), Azure (AKS), and Civo** out of the box, with multi-account credential routing, strict delete enforcement, automated post-deploy workflows, and encrypted kubeconfig storage.
 
-<Card
-  title="Quick Start"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
-  color="#3b82f6"
->
-  Get up and running with Hyve in minutes.
-</Card>
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+    horizontal
+    color="#3b82f6"
+  >
+    Get up and running with Hyve in minutes.
+  </Card>
+
+  <Card
+    title="Interactive Mode"
+    icon="terminal"
+    href="/cli/interactive"
+    horizontal
+    color="#eab308"
+  >
+    New to Hyve? Skip the flags — `hyve interactive` guides you through everything.
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Not sure where to start?** Run `hyve interactive` (or `hyve tui`) after installing. A guided menu walks you through every command — clusters, git, config, workflows, templates, and kubeconfigs — with no flags required.
+</Tip>
 
 ## Key Features
 
@@ -99,7 +115,7 @@ hyve git add production --repo-url https://github.com/company/hyve-prod.git
 #    credentials_json: ${GCP_CREDENTIALS_JSON}
 
 # 3. Create a cluster
-hyve cluster add production --provider gcp --gcp-project my-project --region us-central1 --nodes e2-standard-4
+hyve cluster add production --provider gcp --project-name my-project --region us-central1 --nodes e2-standard-4
 
 # 4. Execute a workflow
 hyve workflow run deploy-app --cluster production
@@ -167,7 +183,7 @@ hyve template execute prod-template prod-cluster-01
     Define and deploy your first Kubernetes cluster
 
     ```bash
-    hyve cluster add my-cluster --provider gcp --gcp-project my-project --region us-central1
+    hyve cluster add my-cluster --provider gcp --project-name my-project --region us-central1
     ```
   </Step>
 </Steps>

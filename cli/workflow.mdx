@@ -23,15 +23,15 @@ hyve workflow create [workflow-name] [flags]
   Name of the workflow to create (required when using --template)
 </ParamField>
 
-<ParamField path="--template" type="boolean" default="false">
+<ParamField path="--template, -t" type="boolean" default="false">
   Create from default template
 </ParamField>
 
-<ParamField path="--description" type="string">
+<ParamField path="--description, -d" type="string">
   Workflow description
 </ParamField>
 
-<ParamField path="--file" type="string">
+<ParamField path="--file, -f" type="string">
   Create workflow from existing YAML file
 </ParamField>
 
@@ -163,15 +163,15 @@ hyve workflow run [workflow-name] [flags]
   Name of the workflow to run
 </ParamField>
 
-<ParamField path="--cluster" type="string">
+<ParamField path="--cluster, -c" type="string">
   Cluster to run workflow on. If not specified, runs locally without cluster context.
 </ParamField>
 
-<ParamField path="--logs" type="boolean" default="true">
+<ParamField path="--logs, -l" type="boolean" default="true">
   Show execution logs
 </ParamField>
 
-<ParamField path="--output" type="boolean" default="false">
+<ParamField path="--output, -o" type="boolean" default="false">
   Show step outputs
 </ParamField>
 
@@ -245,7 +245,7 @@ hyve workflow delete [workflow-name] [flags]
   Name of the workflow to delete
 </ParamField>
 
-<ParamField path="--force" type="boolean" default="false">
+<ParamField path="--force, -f" type="boolean" default="false">
   Delete without confirmation
 </ParamField>
 

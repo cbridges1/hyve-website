@@ -7,6 +7,10 @@ description: "Get up and running with Hyve in 5 minutes"
 
 This guide will help you set up Hyve and create your first Kubernetes cluster using GitOps principles.
 
+<Tip>
+  **Prefer a guided experience?** After installing, run `hyve interactive` (alias: `hyve tui`). It walks you through every step below — provider setup, git configuration, cluster creation, and more — using interactive menus with no flags required.
+</Tip>
+
 ## Prerequisites
 
 Before you begin, ensure you have:
@@ -118,15 +122,15 @@ Before you begin, ensure you have:
       <Tab title="AWS">
         ```bash
         # Register a VPC alias (required for EKS)
-        hyve config aws vpc-add --account prod --name prod-vpc --id vpc-0abc123456789
+        hyve config aws vpc add --account prod --name prod-vpc --id vpc-0abc123456789
 
         # Register an EKS IAM role alias (required for EKS)
-        hyve config aws eks-role-add --account prod --name eks-role \
+        hyve config aws eks-role add --account prod --name eks-role \
           --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
 
         # Or let Hyve create them for you
-        hyve config aws vpc-create --account prod --name prod-vpc --region us-east-1
-        hyve config aws eks-role-create --account prod --name eks-role \
+        hyve config aws vpc create --account prod --name prod-vpc --region us-east-1
+        hyve config aws eks-role create --account prod --name eks-role \
           --role-name hyve-eks-role --region us-east-1
         ```
       </Tab>
@@ -134,18 +138,18 @@ Before you begin, ensure you have:
       <Tab title="GCP">
         ```bash
         # Register a GCP project alias (required for GKE)
-        hyve config gcp add-project --project prod --name prod --id my-gcp-project-123
+        hyve config gcp project add --name prod --id my-gcp-project-123
         ```
       </Tab>
 
       <Tab title="Azure">
         ```bash
         # Register a subscription alias
-        hyve config azure add-subscription-ids --name prod-sub \
+        hyve config azure subscription add --name prod-sub \
           --id xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
         # Create a resource group in Azure and register it locally
-        hyve config azure add-resource-group --subscription prod-sub \
+        hyve config azure resource-group add --subscription prod-sub \
           --name hyve-rg --location eastus
         ```
       </Tab>
@@ -202,7 +206,7 @@ Before you begin, ensure you have:
         ```bash
         hyve cluster add my-cluster \
           --provider gcp \
-          --gcp-project prod \
+          --project-name prod \
           --region us-central1 \
           --node-group "name=workers,type=e2-standard-4,count=2"
         ```
@@ -251,16 +255,16 @@ Before you begin, ensure you have:
 ## Next Steps
 
 <CardGroup cols={2}>
+  <Card title="Interactive Mode" icon="terminal" href="/cli/interactive" color="#eab308">
+    Explore all commands through a guided TUI — no flags required
+  </Card>
+
   <Card title="Workflow Automation" icon="diagram-project" href="/guides/workflow-management" color="#22c55e">
     Learn how to automate deployments with workflows
   </Card>
 
   <Card title="Cluster Templates" icon="file-code" href="/guides/template-management" color="#06b6d4">
     Create reusable cluster templates
-  </Card>
-
-  <Card title="Git Management" icon="git" href="/guides/git-management" color="#8b5cf6">
-    Master multi-repository workflows
   </Card>
 
   <Card title="CLI Reference" icon="terminal" href="/cli/overview" color="#10b981">
@@ -341,8 +345,8 @@ Before you begin, ensure you have:
   <Accordion title="AWS: missing VPC or EKS role">
     ```bash
     # List registered VPCs and roles
-    hyve config aws vpc-list --account prod
-    hyve config aws eks-role-list --account prod
+    hyve config aws vpc list --account prod
+    hyve config aws eks-role list --account prod
     ```
   </Accordion>
 

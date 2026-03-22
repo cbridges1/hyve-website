@@ -63,7 +63,7 @@ Clusters are defined using YAML files following a standard structure. The requir
       region: eastus
     spec:
       provider: azure
-      azureSubscription: prod-sub    # alias from hyve config azure add-subscription-ids
+      azureSubscription: prod-sub    # alias from hyve config azure subscription add
       nodeGroups:
         - name: system               # first pool must be System mode
           instanceType: Standard_DS2_v2
@@ -95,9 +95,9 @@ Clusters are defined using YAML files following a standard structure. The requir
       region: us-east-1
     spec:
       provider: aws
-      awsAccount: prod             # alias from hyve config aws account-add
-      awsVpcName: prod-vpc         # alias from hyve config aws vpc-add
-      awsEksRole: eks-role         # alias from hyve config aws eks-role-add
+      awsAccount: prod             # alias from hyve config aws account add
+      awsVpcName: prod-vpc         # alias from hyve config aws vpc add
+      awsEksRole: eks-role         # alias from hyve config aws eks-role add
       nodeGroups:
         - name: system
           instanceType: t3.medium
@@ -126,7 +126,7 @@ Clusters are defined using YAML files following a standard structure. The requir
       region: us-central1
     spec:
       provider: gcp
-      gcpProject: prod             # alias from hyve config gcp add-project
+      gcpProject: prod             # alias from hyve config gcp project add
       nodeGroups:
         - name: workers
           instanceType: e2-standard-4
