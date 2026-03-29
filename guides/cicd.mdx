@@ -251,6 +251,148 @@ jobs:
 
 Hyve finds zero cluster definitions in `clusters/`, discovers all existing clusters in your cloud provider, and deletes every cluster because none have a corresponding YAML definition (`strictDelete: true`). To limit teardown to specific providers or environments, keep the cluster definitions you want to preserve in `clusters/` and let `strictDelete` remove the rest.
 
+## Deleting Clusters with onDestroy Workflows
+
+Deleting the YAML file for a cluster directly means the reconciler never sees the cluster definition — and therefore cannot run any `onDestroy` workflows before the cluster is removed. To safely delete a cluster and have its lifecycle workflows execute, use the **mark-for-deletion** pattern instead.
+
+### How It Works
+
+Set `spec.delete: true` in the cluster YAML **without removing the file**:
+
+```yaml
+# clusters/staging.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+spec:
+  delete: true          # <-- marks this cluster for deletion
+  provider: aws
+  awsAccount: prod-us
+  region: us-east-1
+  clusterType: eks
+  workflows:
+    onDestroy:
+      - cleanup-namespaces
+      - drain-nodes
+```
+
+When the reconciler processes this file it will:
+
+<Steps>
+  <Step title="Detect the deletion marker">
+    `DetermineAction` returns `ActionDelete` as soon as it sees `spec.delete: true` — no cloud API call is needed to make this decision.
+  </Step>
+
+  <Step title="Run onDestroy workflows">
+    All workflows listed under `spec.workflows.onDestroy` are executed against the cluster before any cloud resources are touched.
+  </Step>
+
+  <Step title="Delete the cluster">
+    The cluster is removed from the cloud provider.
+  </Step>
+
+  <Step title="Delete the cluster">
+    The cluster is removed from the cloud provider.
+  </Step>
+
+  <Step title="Remove the YAML file and push">
+    The reconciler removes the cluster definition file from the repository, commits the change, and pushes it back to the remote. The deletion marker is never left behind.
+  </Step>
+</Steps>
+
+<Warning>
+  Do not delete the YAML file directly if you need `onDestroy` workflows to run. The reconciler must be able to read the file — including the workflow list — before it can execute lifecycle hooks.
+</Warning>
+
+### Required GitHub Actions Configuration
+
+Because the reconciler removes the cluster file and pushes back to the repository after deletion, the GitHub Actions workflow needs write access to the repository and a valid git committer identity.
+
+#### 1. Contents write permission
+
+```yaml
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+```
+
+#### 2. Git committer identity
+
+GitHub Actions runners do not configure a git identity by default. Add this step before running Hyve:
+
+```yaml
+- name: Configure git identity
+  run: |
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+```
+
+#### 3. Branch protection rules
+
+If your default branch requires pull request reviews or passing checks before merging, the reconciler's direct push will be rejected.
+
+Choose one of:
+
+- **Exempt the Actions bot** — add `github-actions[bot]` to the bypass list in your branch protection settings.
+- **Use a Personal Access Token (PAT)** — pass it to the checkout step so the push is made as a user with bypass permissions.
+
+  ```yaml
+  - uses: actions/checkout@v4
+    with:
+      token: ${{ secrets.HYVE_PAT }}
+  ```
+
+#### Complete example
+
+```yaml
+name: Hyve Reconcile
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clusters/**'
+      - 'provider-configs/**'
+      - 'hyve.yaml'
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout state repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Hyve
+        run: |
+          curl -sSL https://github.com/your-org/hyve/releases/latest/download/hyve-linux-amd64 \
+            -o /usr/local/bin/hyve
+          chmod +x /usr/local/bin/hyve
+
+      - name: Reconcile clusters
+        env:
+          PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
+          PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          hyve reconcile --path .
+```
+
+<Info>
+  The `Configure git identity` step and `contents: write` permission are only exercised when a cluster marked `spec.delete: true` is processed. They have no effect on normal create or update reconciliations.
+</Info>
+
 ## End-to-End Workflow
 
 Here is the complete flow from developer change to provisioned cluster:
@@ -444,6 +586,31 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
   <Accordion title="Local hyve reconcile provisions instead of pushing">
     Check that `hyve.yaml` is committed to the root of your state repository with `reconcile.mode: cicd`. If the file is absent, Hyve defaults to `local` mode.
+  </Accordion>
+
+  <Accordion title="onDestroy workflows did not run before cluster was deleted">
+    This happens when the cluster YAML file was deleted directly from the repository instead of using the `spec.delete: true` marker. The reconciler never saw the file, so it had no workflow list to execute — the cluster appeared as an unmanaged orphan and was removed without running lifecycle hooks.
+
+    **Prevention:** Always set `spec.delete: true` in the YAML file and let the reconciler handle the deletion. Do not `git rm` or manually delete cluster files when `onDestroy` workflows need to run.
+  </Accordion>
+
+  <Accordion title="Pipeline fails: permission denied pushing cluster file removal">
+    The reconciler needs write access to commit the cluster file deletion after `spec.delete: true` is processed.
+
+    Ensure the workflow has `contents: write` permission and a git identity is configured:
+
+    ```yaml
+    permissions:
+      contents: write
+
+    steps:
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+    ```
+
+    If branch protection rules block direct pushes, see [Branch protection rules](#3-branch-protection-rules).
   </Accordion>
 
   <Accordion title="hyve reconcile --path . fails: no clusters found">
