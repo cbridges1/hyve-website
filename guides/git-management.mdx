@@ -3,6 +3,28 @@ title: "Git Management"
 description: "Manage Git repositories for GitOps state management"
 ---
 
+## Prerequisites
+
+Hyve uses your system's `git` binary for all repository operations. **Git must be installed and available in your `PATH`** before using any `hyve git` commands.
+
+```bash
+# Verify git is installed
+git --version
+```
+
+If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
+
+```bash
+# macOS
+brew install git
+
+# Ubuntu / Debian
+sudo apt install git
+
+# Windows
+winget install Git.Git
+```
+
 ## Overview
 
 Hyve uses Git repositories to store all cluster state, workflows, and templates. This guide covers repository management, branching, synchronization, and multi-environment workflows.
@@ -17,10 +39,10 @@ Add a Git repository to store your infrastructure state:
 # Add a repository
 hyve git add production --repo-url https://github.com/company/hyve-prod.git
 
-# Add with custom local path
+# Add and set as the active repository immediately
 hyve git add staging \
   --repo-url https://github.com/company/hyve-staging.git \
-  --local-path ~/hyve/staging
+  --set-current
 ```
 
 <Note>
@@ -35,22 +57,22 @@ hyve git list
 
 **Output:**
 ```
-📁 Configured repositories (3):
+📁 Configured Git repositories (3):
 
-  production (active)
+  production (current) ⭐
     URL: https://github.com/company/hyve-prod.git
-    Path: /Users/username/.hyve/repositories/production
-    Branch: main
+    Local: /Users/username/.hyve/repositories/production
+    Added: 2026-01-15 09:30
 
   staging
     URL: https://github.com/company/hyve-staging.git
-    Path: /Users/username/.hyve/repositories/staging
-    Branch: main
+    Local: /Users/username/.hyve/repositories/staging
+    Added: 2026-01-15 09:32
 
   development
     URL: https://github.com/company/hyve-dev.git
-    Path: /Users/username/.hyve/repositories/development
-    Branch: develop
+    Local: /Users/username/.hyve/repositories/development
+    Added: 2026-01-15 09:34
 ```
 
 ### Switching Repositories
@@ -88,11 +110,11 @@ hyve git branch list
 
 **Output:**
 ```
-📋 Branches in repository 'production':
+🌿 Branches in repository 'production':
 
-  feature/add-staging-cluster (abc1234)
-* main (def5678)
-  feature/update-workflows (ghi9012)
+  feature/add-staging-cluster (abc12345)
+* main (def56789)
+  feature/update-workflows (ghi90123)
 ```
 
 ### Creating Branches
@@ -172,60 +194,64 @@ Synchronize both ways:
 
 ```bash
 # Sync with custom message
-hyve git sync "Synced infrastructure changes"
+hyve git sync --message "Synced infrastructure changes"
 
-# Sync with prompts
+# Sync (pull only, no local changes to push)
 hyve git sync
 ```
 
 **Workflow:**
 1. Pulls latest changes from remote
-2. Shows local changes detected
-3. Commits local changes with your message
-4. Pushes to remote
+2. If local changes exist, commits them with your message
+3. Pushes to remote
 
 ## Authentication
 
-### Global Credentials
+Hyve delegates all git operations to the system `git` binary. Authentication is handled by git itself — configure it the same way you would for any other git workflow.
 
-Store encrypted credentials for all repositories:
-
-```bash
-# Store credentials
-hyve git credentials --username your-username --password your_token
-
-# Update password only
-hyve git credentials --password new_token
-
-# Update username only
-hyve git credentials --username new_username
-
-# View current credentials
-hyve git credentials
-
-# Clear credentials
-hyve git credentials --clear
-```
-
-<Info>
-  Credentials are encrypted using AES-GCM and stored in `~/.hyve/credentials.db`
-</Info>
-
-### Environment Variable Fallback
+### Recommended: Personal Access Token via Environment Variable
 
 ```bash
-# Set environment variable
+# Set for the current session
 export HYVE_GIT_TOKEN=your_personal_access_token
 
-# Add to shell profile
+# Persist in your shell profile
 echo 'export HYVE_GIT_TOKEN=your_token' >> ~/.bashrc
 ```
 
-### Credential Priority
+Hyve reads `HYVE_GIT_TOKEN` and passes it to git when cloning and pushing.
 
-1. **Global credentials** (encrypted database)
-2. **Environment variable** (`HYVE_GIT_TOKEN`)
-3. **Per-repository username** (if configured)
+### Alternative: Git Credential Manager
+
+Use git's built-in credential storage so you don't need to set environment variables:
+
+```bash
+# macOS — Keychain (usually preconfigured)
+git config --global credential.helper osxkeychain
+
+# Windows — Git Credential Manager (included with Git for Windows)
+git config --global credential.helper manager
+
+# Linux
+git config --global credential.helper store
+```
+
+Once configured, git will prompt for credentials on first use and cache them automatically.
+
+### Alternative: SSH Keys
+
+Use SSH URLs instead of HTTPS to authenticate with SSH keys:
+
+```bash
+hyve git add production --repo-url git@github.com:company/hyve-prod.git
+```
+
+Ensure your SSH key is added to your git host and loaded into `ssh-agent`:
+
+```bash
+ssh-add ~/.ssh/id_ed25519
+```
+
 
 ## Multi-Environment Workflows
 
@@ -343,7 +369,7 @@ repository/
     hyve git push "Your changes description"
 
     # Or use sync for both
-    hyve git sync "Daily sync"
+    hyve git sync --message "Daily sync"
     ```
   </Accordion>
 
@@ -389,22 +415,40 @@ repository/
 ## Troubleshooting
 
 <AccordionGroup>
+  <Accordion title="git: command not found">
+    **Problem:** Hyve cannot find the git binary
+
+    **Solution:** Install git and ensure it is in your `PATH`:
+    ```bash
+    # Verify installation
+    git --version
+
+    # macOS
+    brew install git
+
+    # Ubuntu / Debian
+    sudo apt install git
+
+    # Windows
+    winget install Git.Git
+    ```
+  </Accordion>
+
   <Accordion title="Authentication Failed">
     **Problem:** Git operations fail with authentication error
 
     **Solutions:**
     ```bash
-    # Check credentials
-    hyve git credentials
+    # Set token via environment variable
+    export HYVE_GIT_TOKEN=your_personal_access_token
 
-    # Update credentials
-    hyve git credentials --username user --password new_token
+    # Or configure git credential manager
+    git config --global credential.helper osxkeychain  # macOS
+    git config --global credential.helper manager      # Windows
 
-    # Use environment variable
-    export HYVE_GIT_TOKEN=your_token
-
-    # For private repos, ensure you have access
-    # Check SSH keys if using SSH URLs
+    # For SSH: verify your key is loaded
+    ssh-add -l
+    ssh -T git@github.com
     ```
   </Accordion>
 
@@ -452,7 +496,7 @@ repository/
 
     **Solutions:**
     ```bash
-    # Option 1: Commit changes
+    # Option 1: Commit and push changes
     hyve git push "WIP: In progress work"
 
     # Option 2: Stash changes manually
