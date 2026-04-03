@@ -24,9 +24,7 @@ description: "Install and set up Hyve on your system"
 </Note>
 
 <Note>
-  **Git Requirement:** Hyve uses your system's git command by default for all repository operations. This provides better compatibility and easier onboarding since you don't need to configure additional libraries.
-
-  If you prefer, you can optionally switch to the built-in go-git library using `hyve config set-git-backend builtin`.
+  **Git Requirement:** Hyve uses your system's `git` binary for all repository operations. Git must be installed and available in your `PATH` before using any `hyve git` commands.
 </Note>
 
 ## Install
@@ -57,50 +55,27 @@ description: "Install and set up Hyve on your system"
   </Step>
 </Steps>
 
-## Git Backend Configuration
+## Git Requirement
 
-Hyve supports two Git backends:
+Hyve delegates all git operations to the system `git` binary.
 
-<Tabs>
-  <Tab title="System Git (Default)">
-    Uses your system's installed git command. This is the default and recommended option.
+```bash
+# Verify git is installed
+git --version
+```
 
-    **Advantages:**
-    - No additional setup required
-    - Works with your existing git configuration
-    - Better compatibility with various authentication methods
-    - Familiar behavior for git users
+If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
 
-    **Requirements:**
-    - Git must be installed and available in your PATH
-    - Verify with: `git --version`
-  </Tab>
+```bash
+# macOS
+brew install git
 
-  <Tab title="Built-in Git">
-    Uses the go-git library embedded in Hyve.
+# Ubuntu / Debian
+sudo apt install git
 
-    **Advantages:**
-    - Works without system git installed
-    - Portable across different environments
-
-    **Enable:**
-    ```bash
-    # Set to built-in git (persisted in config)
-    hyve config set-git-backend builtin
-
-    # Verify the setting
-    hyve config get-git-backend
-    ```
-
-    The preference is stored in `~/.hyve/config.yaml` and persists across sessions.
-
-    **Temporary Override:**
-    You can temporarily override the config with an environment variable:
-    ```bash
-    export GIT_BACKEND=builtin
-    ```
-  </Tab>
-</Tabs>
+# Windows
+winget install Git.Git
+```
 
 ## Configuration
 
@@ -145,6 +120,14 @@ Hyve uses each provider's native authentication. Only Civo tokens are stored enc
     export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
     ```
 
+    You must also set your GCP project ID:
+
+    ```bash
+    export GCP_PROJECT_ID=my-gcp-project-123
+    # or
+    export GOOGLE_CLOUD_PROJECT=my-gcp-project-123
+    ```
+
     GCP credentials are **not** stored in Hyve — Application Default Credentials are used directly.
   </Tab>
 
@@ -173,15 +156,18 @@ Hyve resolves credentials in this order for each provider:
 
 ### Git Credentials (Optional)
 
-For private Git repositories:
+For private Git repositories, set your token via environment variable or configure git's credential manager:
 
 ```bash
-# Store globally encrypted credentials
-hyve git credentials --username your-username --password your_token
-
-# Or use environment variable as fallback
+# Environment variable
 export HYVE_GIT_TOKEN=your_personal_access_token
+
+# Or configure git's credential manager (credentials persist across sessions)
+git config --global credential.helper osxkeychain  # macOS
+git config --global credential.helper manager      # Windows
 ```
+
+See the [Git Management guide](/guides/git-management) for full authentication options.
 
 ## Directory Structure
 
@@ -250,6 +236,15 @@ The flag and environment variable are equivalent; the `--home` flag takes preced
     Variable substitution in workflows uses:
     - Windows: `cmd /C "command"`
     - Use `%VAR%` for environment variables alongside `${VAR}` for workflow variables
+
+    **GCP on Windows:** `gcloud auth application-default login` stores credentials at `%APPDATA%\gcloud\application_default_credentials.json`. The Google SDK picks this up automatically.
+
+    Set your project ID in PowerShell:
+    ```powershell
+    $env:GCP_PROJECT_ID = "my-gcp-project-123"
+    ```
+
+    To persist it across sessions, add it to your PowerShell profile or set it as a system environment variable via System Properties.
   </Accordion>
 </AccordionGroup>
 
@@ -270,8 +265,8 @@ hyve config get-token civo
 # List stored tokens
 hyve config list-tokens
 
-# Check Git credentials (if configured)
-hyve git credentials
+# List configured git repositories
+hyve git list
 ```
 
 ## Troubleshooting
