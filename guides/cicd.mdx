@@ -89,10 +89,10 @@ hyve-state/                    # Your Hyve state repository
     └── azure.yaml
 ```
 
-### Example Cluster Definition
+### Example Cluster Definitions
 
 ```yaml
-# clusters/production.yaml
+# clusters/production.yaml — long-lived cluster
 apiVersion: v1
 kind: Cluster
 metadata:
@@ -106,6 +106,35 @@ spec:
     - size: e2-standard-4
     - size: e2-standard-4
   clusterType: gke
+```
+
+```yaml
+# clusters/dev-sprint-47.yaml — ephemeral cluster with automatic expiry
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: dev-sprint-47
+spec:
+  provider: civo
+  region: PHX1
+  nodes: [g4s.kube.small]
+  expiresAt: "2026-05-01T00:00:00Z"   # auto-deleted after this time
+  workflows:
+    onDestroy: [notify-team]
+```
+
+```yaml
+# clusters/staging.yaml — temporarily paused during migration
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+spec:
+  pause: true     # reconciler skips this cluster until removed
+  provider: aws
+  awsAccount: dev
+  region: us-east-1
+  clusterType: eks
 ```
 
 ## GitHub Actions Workflows
@@ -143,6 +172,11 @@ on:
       - 'provider-configs/**'
       - 'hyve.yaml'
 
+  schedule:
+    - cron: '0 20 * * *'   # Every day at 8:00 PM UTC
+
+  workflow_dispatch:
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest
@@ -154,6 +188,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Hyve
         run: |
@@ -180,38 +219,66 @@ jobs:
 
           # Civo (provider-configs/civo.yaml → organizations[*].token)
           MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
-        run: |
-          hyve reconcile --path .
+        run: hyve reconcile --path .
 ```
 
 Credentials are resolved from the `${ENV_VAR}` references in your provider config files — the secret names are whatever you choose when writing those files. See [Provider Config Secret Mapping](#provider-config-secret-mapping) for the full reference.
 
-### Scheduled Teardown
+### Scheduled Reconcile
 
-Use a scheduled workflow to automatically delete all clusters on a cron schedule — useful for ephemeral environments, cost-saving overnight teardowns, or end-of-sprint cleanup.
-
-<Warning>
-  This workflow **permanently deletes all clusters** managed by the state repository. Ensure `strictDelete: true` is set in `hyve.yaml` and that you intend to destroy all running clusters before scheduling this workflow.
-</Warning>
-
-Requires `strictDelete: true` in `hyve.yaml`:
+Add a `schedule` trigger directly to your existing reconcile workflow. This is the backbone for all time-based cluster automation — expiry-based deletion (`expiresAt`), normal drift correction, and paused-cluster awareness all happen through the same reconcile path.
 
 ```yaml
-# hyve.yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clusters/**'
+      - 'provider-configs/**'
+      - 'hyve.yaml'
+
+  schedule:
+    - cron: '0 20 * * *'   # Every day at 8:00 PM UTC
+
+  workflow_dispatch:
+```
+
+Adjust the cron expression to match your preferred cadence. Common schedules:
+
+| Cron | Description |
+|------|-------------|
+| `0 20 * * *` | Daily at 8:00 PM UTC |
+| `0 * * * *` | Hourly — tightest expiry window |
+| `0 0 * * *` | Daily at midnight UTC |
+| `0 8,20 * * *` | Twice daily at 8 AM and 8 PM UTC |
+
+<Info>
+  The git identity and `contents: write` permission are only exercised when a cluster is deleted (via `spec.delete: true` or an expired `spec.expiresAt`). They have no effect on create, update, or paused-cluster runs.
+</Info>
+
+### Full Teardown
+
+To destroy **every** cluster in the state repository on a schedule (e.g. overnight cost savings), use `strictDelete: true` and remove all cluster definitions before reconciling:
+
+<Warning>
+  This workflow permanently deletes all clusters managed by the state repository.
+</Warning>
+
+```yaml
+# hyve.yaml — enable strict delete
 reconcile:
   mode: cicd
   strictDelete: true
 ```
 
-**`.github/workflows/scheduled-teardown.yml`:**
-
 ```yaml
-name: Scheduled Cluster Teardown
+# .github/workflows/nightly-teardown.yml
+name: Nightly Teardown
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # Every day at midnight UTC
-  workflow_dispatch:        # Allow manual triggering
+    - cron: '0 0 * * *'   # Midnight UTC
+  workflow_dispatch:
 
 jobs:
   teardown:
@@ -220,10 +287,14 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout state repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Hyve
         run: |
@@ -232,24 +303,16 @@ jobs:
           chmod +x /usr/local/bin/hyve
 
       - name: Remove all cluster definitions
-        run: find clusters/ -name '*.yaml' -o -name '*.yml' | xargs rm -f
+        run: find clusters/ \( -name '*.yaml' -o -name '*.yml' \) -delete
 
-      - name: Reconcile (tears down all clusters via strictDelete)
+      - name: Reconcile (strict-delete removes all cloud clusters)
         env:
-          # Same secrets as your regular reconcile workflow —
-          # names match the ${...} references in provider-configs/*.yaml
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
-          PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
-          PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
-          PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
           MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
-        run: |
-          hyve reconcile --path .
+        run: hyve reconcile --path .
 ```
-
-Hyve finds zero cluster definitions in `clusters/`, discovers all existing clusters in your cloud provider, and deletes every cluster because none have a corresponding YAML definition (`strictDelete: true`). To limit teardown to specific providers or environments, keep the cluster definitions you want to preserve in `clusters/` and let `strictDelete` remove the rest.
 
 ## Deleting Clusters with onDestroy Workflows
 
@@ -358,6 +421,11 @@ on:
       - 'provider-configs/**'
       - 'hyve.yaml'
 
+  schedule:
+    - cron: '0 20 * * *'   # Every day at 8:00 PM UTC
+
+  workflow_dispatch:
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest
@@ -385,13 +453,104 @@ jobs:
         env:
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
-        run: |
-          hyve reconcile --path .
+        run: hyve reconcile --path .
 ```
 
 <Info>
   The `Configure git identity` step and `contents: write` permission are only exercised when a cluster marked `spec.delete: true` is processed. They have no effect on normal create or update reconciliations.
 </Info>
+
+## Pausing Reconciliation
+
+Set `spec.pause: true` to keep a cluster's definition in the repository while telling the reconciler to skip it entirely. The cluster continues running in the cloud — Hyve simply does not compare desired state or make any changes until `pause` is removed.
+
+```yaml
+# clusters/staging.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+spec:
+  pause: true       # reconciler skips this cluster on every run
+  provider: civo
+  region: NYC1
+  nodes: [g4s.kube.medium]
+```
+
+**Common use cases:**
+
+- **Maintenance windows** — prevent Hyve from touching a cluster while you perform manual operations
+- **Cost investigation** — keep the definition versioned while you decide whether to delete or resize
+- **Temporary divergence** — allow a cluster to drift from its YAML definition without triggering an update
+
+To resume normal reconciliation, remove the `pause: true` line (or set it to `false`) and commit.
+
+<Warning>
+  A paused cluster still counts toward the active cluster set, so orphan cleanup (`strictDelete`) will not delete it. Pause does not affect cloud resources — it only affects Hyve's behavior.
+</Warning>
+
+---
+
+## Scheduled Cluster Expiry
+
+Set `spec.expiresAt` to an RFC 3339 timestamp to have the reconciler automatically delete a cluster when that time passes. When the scheduled reconcile runs after the expiry time, the reconciler treats the cluster exactly as if `spec.delete: true` had been set — running `onDestroy` workflows, deleting from the cloud provider, and removing the YAML file.
+
+```yaml
+# clusters/dev-sprint-47.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: dev-sprint-47
+spec:
+  provider: civo
+  region: PHX1
+  nodes: [g4s.kube.small]
+  expiresAt: "2026-05-01T00:00:00Z"   # deleted automatically after this time
+  workflows:
+    onDestroy:
+      - notify-team
+      - cleanup-namespaces
+```
+
+The expiry is checked on every reconcile run. With an hourly scheduled reconcile, clusters are cleaned up within ~1 hour of their deadline.
+
+**Combining pause and expiresAt:**
+
+A paused cluster is always skipped — the expiry check is never reached. If you pause a cluster that has an `expiresAt` set, it will not be deleted until `pause` is removed.
+
+### Scheduled Reconcile Workflow
+
+No special pipeline logic is needed. The `schedule` trigger on your existing reconcile workflow handles drift correction, expirations, and deletions in a single run — no separate workflow file required.
+
+The expiry check runs on every reconcile. With a daily schedule at 8 PM, expired clusters are cleaned up within 24 hours of their deadline. Use an hourly schedule (`0 * * * *`) if you need tighter expiry windows.
+
+### Ephemeral Environment Pattern
+
+A common pattern for feature-branch or sprint clusters:
+
+```yaml
+# clusters/feature-login-redesign.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: feature-login-redesign
+spec:
+  provider: aws
+  awsAccount: dev
+  region: us-east-1
+  clusterType: eks
+  expiresAt: "2026-04-25T18:00:00Z"   # end of sprint
+  workflows:
+    onCreated:
+      - deploy-feature-branch
+    onDestroy:
+      - export-test-results
+      - notify-slack
+```
+
+When the sprint ends, the cluster tears itself down automatically — no manual cleanup required.
+
+---
 
 ## End-to-End Workflow
 
@@ -615,6 +774,19 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
   <Accordion title="hyve reconcile --path . fails: no clusters found">
     Verify that cluster YAML files exist under a `clusters/` directory at the path you provided. The `--path` flag should point to the root of the repository, not the `clusters/` subdirectory.
+  </Accordion>
+
+  <Accordion title="Cluster with expiresAt was not deleted on schedule">
+    The expiry check runs on every reconcile. Verify:
+
+    1. The scheduled reconcile workflow is running — check the Actions tab in GitHub.
+    2. The `expiresAt` value is a valid RFC 3339 timestamp: `"2026-05-01T00:00:00Z"`. An invalid format logs a warning and skips the expiry check.
+    3. The cluster does not also have `pause: true` set — a paused cluster is skipped entirely before the expiry check is reached.
+    4. The workflow has `contents: write` permission and a git identity configured, since the reconciler needs to commit the YAML file removal after deletion.
+  </Accordion>
+
+  <Accordion title="Paused cluster is being modified by the reconciler">
+    If a cluster with `pause: true` is still being reconciled, verify that the change has been committed and pushed to the branch the pipeline checks out. The reconciler reads the YAML files from the checked-out repository — a local change that has not been pushed will not take effect in the pipeline.
   </Accordion>
 </AccordionGroup>
 

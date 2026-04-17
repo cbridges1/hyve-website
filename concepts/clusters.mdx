@@ -193,6 +193,18 @@ Clusters are defined using YAML files following a standard structure. The requir
   List of workflow names to execute before cluster deletion during reconcile
 </ParamField>
 
+<ParamField path="spec.delete" type="boolean" default="false">
+  When `true`, the reconciler runs any `onDestroy` workflows, deletes the cluster from the cloud provider, and removes this YAML file from the repository. Do not delete the file directly if you need `onDestroy` workflows to run — set this flag instead.
+</ParamField>
+
+<ParamField path="spec.pause" type="boolean" default="false">
+  When `true`, the reconciler skips this cluster entirely on every run. The cluster continues to run in the cloud; Hyve does not compare or modify it until `pause` is removed. Useful for maintenance windows or temporary divergence. A paused cluster is not affected by orphan cleanup or `strictDelete`.
+</ParamField>
+
+<ParamField path="spec.expiresAt" type="string">
+  An RFC 3339 timestamp (e.g. `"2026-05-01T00:00:00Z"`). When the current time passes this value the reconciler automatically treats the cluster as if `spec.delete: true` is set — running `onDestroy` workflows, deleting from the cloud provider, and removing the YAML file. With an hourly scheduled reconcile, clusters are cleaned up within ~1 hour of their deadline. A paused cluster (`spec.pause: true`) is never checked for expiry.
+</ParamField>
+
 ## Creating Clusters
 
 ### Using CLI
