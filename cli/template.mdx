@@ -59,6 +59,22 @@ hyve template create [template-name] [flags]
   Workflows to run before cluster destruction (comma-separated)
 </ParamField>
 
+<ParamField path="--schedule" type="string">
+  A 5-field cron expression (e.g. `0 20 * * 5`) that sets an automatic expiry on every cluster created from this template. When the template is executed, the next occurrence of the schedule is evaluated and written to the cluster's `spec.expiresAt` field as an RFC 3339 timestamp. Leave blank for clusters that should not expire automatically.
+
+  Standard cron field order: `<minute> <hour> <day-of-month> <month> <day-of-week>`
+
+  | Field | Range | Special values |
+  |-------|-------|----------------|
+  | Minute | 0–59 | `*` = any |
+  | Hour | 0–23 | `*` = any |
+  | Day of month | 1–31 | `*` = any |
+  | Month | 1–12 | `*` = any |
+  | Day of week | 0–6 (Sun=0) | `*` = any; ranges (`1-5`) and lists (`1,3,5`) supported |
+
+  Examples: `0 20 * * 5` (every Friday at 20:00), `0 0 * * *` (daily at midnight)
+</ParamField>
+
 **Example:**
 
 ```bash
@@ -69,6 +85,12 @@ hyve template create prod-template \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
   --on-created setup-monitoring,deploy-app \
   --on-destroy backup-data,cleanup
+
+# Create a template with an automatic weekly Friday expiry
+hyve template create dev-weekly \
+  --region PHX1 \
+  --nodes g4s.kube.small \
+  --schedule "0 20 * * 5"
 
 # Create minimal template
 hyve template create dev-template \
@@ -409,6 +431,7 @@ spec:
     - g4s.kube.large
     - g4s.kube.large
   clusterType: k3s
+  schedule: "0 20 * * 5"    # optional: auto-expire clusters at next Friday 20:00
   ingress:
     enabled: true
     loadBalancer: true
@@ -485,6 +508,10 @@ spec:
 
 <ParamField path="spec.workflows.onDestroy" type="string[]">
   Names of workflows to execute before cluster destruction
+</ParamField>
+
+<ParamField path="spec.schedule" type="string">
+  A 5-field cron expression (e.g. `0 20 * * 5`). When the template is executed, the next occurrence after the current time is computed and written to the generated cluster's `spec.expiresAt` as an RFC 3339 timestamp. The cluster is then automatically deleted when that deadline passes. Omit this field for clusters that should run indefinitely.
 </ParamField>
 
 ### AWS-Specific Fields

@@ -36,13 +36,13 @@ metadata:
   name: prod-template
   description: Production cluster template with monitoring
 spec:
-  cluster:
-    region: NYC1
-    provider: civo
-    nodes:
-      - g4s.kube.large
-      - g4s.kube.large
-      - g4s.kube.large
+  provider: civo
+  region: NYC1
+  nodes:
+    - g4s.kube.large
+    - g4s.kube.large
+    - g4s.kube.large
+  schedule: "0 20 * * 5"   # optional: auto-expire clusters every Friday at 20:00
   workflows:
     onCreated:
       - setup-monitoring
@@ -76,6 +76,10 @@ spec:
   List of workflow names to execute before cluster destruction
 </ParamField>
 
+<ParamField path="spec.schedule" type="string">
+  A 5-field cron expression (e.g. `0 20 * * 5`). When the template is executed, the next scheduled occurrence is computed and set as `spec.expiresAt` on the generated cluster definition, causing it to be automatically deleted at that time. Useful for short-lived environments that should expire on a predictable schedule.
+</ParamField>
+
 ## Creating Templates
 
 ### Using CLI
@@ -92,6 +96,12 @@ hyve template create prod-template \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
   --on-created setup-monitoring,deploy-apps \
   --on-destroy backup-data,cleanup
+
+# Create a dev template that auto-expires clusters every Friday at 20:00
+hyve template create dev-weekly \
+  --region PHX1 \
+  --nodes g4s.kube.small \
+  --schedule "0 20 * * 5"
 ```
 
 ### Manual YAML Creation

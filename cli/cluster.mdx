@@ -110,6 +110,14 @@ hyve cluster add [cluster-name] [flags]
   ```
 </ParamField>
 
+<ParamField path="--pause" type="boolean" default="false">
+  Create the cluster in a paused state. The YAML file is written and committed but the reconciler skips this cluster until the pause is lifted with `hyve cluster modify <name> --unpause`.
+</ParamField>
+
+<ParamField path="--expires-at" type="string">
+  RFC 3339 timestamp after which the reconciler automatically deletes the cluster (e.g. `2026-05-01T00:00:00Z`). When the deadline passes the reconciler runs any `onDestroy` workflows, deletes the cluster, and removes the YAML file. Clusters created from templates with a `schedule` field have this value computed automatically at execute time.
+</ParamField>
+
 **Examples by Provider:**
 
 <Tabs>
@@ -328,6 +336,18 @@ hyve cluster modify [cluster-name] [flags]
   Update the cluster type (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
 </ParamField>
 
+<ParamField path="--pause" type="boolean">
+  Pause reconciliation for this cluster. The cluster keeps running in the cloud; Hyve stops comparing or modifying it until `--unpause` is set.
+</ParamField>
+
+<ParamField path="--unpause" type="boolean">
+  Resume reconciliation for a previously paused cluster. Clears the `spec.pause` flag.
+</ParamField>
+
+<ParamField path="--expires-at" type="string">
+  Update the expiry timestamp (RFC 3339, e.g. `2026-05-01T00:00:00Z`). Set to `none` to clear an existing expiry.
+</ParamField>
+
 **Example:**
 
 ```bash
@@ -337,6 +357,18 @@ hyve cluster modify my-cluster \
 
 # Change region (requires recreation)
 hyve cluster modify staging-cluster --region FRA1
+
+# Pause reconciliation during a maintenance window
+hyve cluster modify production --pause
+
+# Resume reconciliation after maintenance
+hyve cluster modify production --unpause
+
+# Set an expiry on a temporary cluster
+hyve cluster modify dev-feature-x --expires-at 2026-05-01T00:00:00Z
+
+# Clear an existing expiry
+hyve cluster modify dev-feature-x --expires-at none
 ```
 
 **Output:**

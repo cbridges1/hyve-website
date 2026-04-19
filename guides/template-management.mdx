@@ -41,7 +41,8 @@ Templates combine:
       --ingress \
       --load-balancer \
       --on-created setup-monitoring,deploy-app,configure-backups \
-      --on-destroy backup-data,cleanup
+      --on-destroy backup-data,cleanup \
+      --schedule "0 20 * * 5"
     ```
   </Tab>
 
@@ -187,6 +188,11 @@ spec:
       - workflow-name-2
     onDestroy:                     # Run before cluster deletion
       - cleanup-workflow
+  schedule: "0 20 * * 5"          # Optional: cron expression — auto-expire each cluster
+                                   #   created from this template at the next occurrence
+                                   #   (e.g. every Friday at 20:00). The next occurrence
+                                   #   is computed at execute time and written to
+                                   #   spec.expiresAt on the generated cluster.
 
   # AWS-specific fields (only when provider: aws)
   awsAccount: main-account         # Account alias from provider-configs/aws.yaml

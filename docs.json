@@ -29,7 +29,8 @@
           "guides/workflow-management",
           "guides/template-management",
           "guides/kubeconfig-management",
-          "guides/credentials"
+          "guides/credentials",
+          "guides/access-control"
         ]
       },
       {
