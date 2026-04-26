@@ -749,8 +749,8 @@ hyve cluster add prod-eu \
 
     **Solutions:**
     ```bash
-    # 1. Verify API token is set
-    hyve config list-tokens
+    # 1. Verify Civo CLI authentication
+    civo apikey list
 
     # 2. Check region is valid
     hyve cluster add test-cluster --provider civo --region PHX1 --nodes g4s.kube.small
@@ -813,8 +813,8 @@ hyve cluster add prod-eu \
     hyve git pull
     hyve git status
 
-    # 4. Verify provider API access
-    hyve config get-token civo
+    # 4. Verify Civo CLI auth
+    civo apikey list
     ```
   </Accordion>
 

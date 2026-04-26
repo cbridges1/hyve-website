@@ -81,20 +81,20 @@ winget install Git.Git
 
 ### Provider Authentication
 
-Hyve uses each provider's native authentication. Only Civo tokens are stored encrypted in Hyve.
+Hyve uses each provider's native authentication — no credentials are stored in Hyve.
 
 <Tabs>
   <Tab title="Civo">
     ```bash
-    # Store token encrypted in ~/.hyve (recommended)
-    hyve config set-token civo --org my-org
-    # Enter token when prompted
+    # Authenticate with the Civo CLI (writes ~/.civo.json)
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
 
     # Or via environment variable
     export CIVO_TOKEN=your_civo_api_token
     ```
 
-    Tokens are encrypted with AES-256-GCM and stored in `~/.hyve/credentials.db`.
+    Hyve reads the active token from `~/.civo.json` automatically.
   </Tab>
 
   <Tab title="AWS">
@@ -175,7 +175,7 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── credentials.db      # Civo tokens and Git credentials (AES-256-GCM encrypted)
+├── credentials.db      # Git credentials (AES-256-GCM encrypted)
 ├── kubeconfigs.db      # Cluster kubeconfigs (encrypted)
 ├── repositories.db     # Repository configurations
 ├── temp/               # Temporary kubeconfig files
@@ -259,11 +259,8 @@ hyve --help
 # Verify system git is available (required for default backend)
 git --version
 
-# Verify API token
-hyve config get-token civo
-
-# List stored tokens
-hyve config list-tokens
+# Verify Civo CLI authentication
+civo apikey list
 
 # List configured git repositories
 hyve git list

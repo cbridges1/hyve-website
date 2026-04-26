@@ -436,7 +436,8 @@ With GitOps, recovering from disasters is straightforward:
   <Step title="Configure Hyve">
     ```bash
     hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    hyve config set-token civo --org my-org
+    # Authenticate with the Civo CLI (writes ~/.civo.json)
+    civo apikey save my-token YOUR_CIVO_TOKEN && civo apikey use my-token
     ```
   </Step>
 

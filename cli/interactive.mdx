@@ -93,18 +93,13 @@ Selecting any section drills down into a sub-menu for that command group. Select
 
 ### config
 
-**Civo** — set, get, clear, and list tokens. Org aliases populated from configured list.
+**Civo** — list org aliases. Authentication is handled via `~/.civo.json` (set with `civo apikey use`).
 
 **GCP** — add, list, get, and remove project aliases.
 
-**AWS** — three sub-sections:
-- **Account aliases** — add, list, get, remove.
-- **EKS role aliases** — add (register ARN), create (provisions in AWS), list, get, remove. Account selected from list before role.
-- **VPC aliases** — add, create, list, get, remove. Account selected from list before VPC.
+**AWS** — Account aliases: add, list, get, remove.
 
-**Azure** — two sub-sections:
-- **Subscription aliases** — add, list, remove.
-- **Resource groups** — add (creates in Azure), list, delete. Subscription selected from list before resource group.
+**Azure** — Subscription aliases: add, list, remove.
 
 ### workflow
 
@@ -151,13 +146,10 @@ Wherever possible, the TUI populates select menus from live data rather than req
 | Template name | `templates/` directory in current repository |
 | Git repository | Local repository database |
 | Kubeconfig cluster | Stored kubeconfig database |
-| AWS account alias | `provider-configs/aws.yaml` |
-| AWS EKS role alias | `provider-configs/aws.yaml` (scoped to selected account) |
-| AWS VPC alias | `provider-configs/aws.yaml` (scoped to selected account) |
-| GCP project alias | `provider-configs/gcp.yaml` |
-| Azure subscription alias | `provider-configs/azure.yaml` |
-| Azure resource group | `provider-configs/azure.yaml` (scoped to selected subscription) |
-| Civo org alias | `provider-configs/civo.yaml` |
+| AWS account alias | `provider-configs/aws/<alias>.yaml` |
+| GCP project alias | `provider-configs/gcp/<alias>.yaml` |
+| Azure subscription alias | `provider-configs/azure/<alias>.yaml` |
+| Civo org alias | `provider-configs/civo/<alias>.yaml` |
 
 If no items are configured for a field (e.g. no AWS accounts added yet), the TUI falls back to a free-text input automatically.
 

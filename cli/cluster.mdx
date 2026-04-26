@@ -60,11 +60,11 @@ hyve cluster add [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--vpc-name, -v" type="string">
-  AWS VPC alias (required for AWS provider). Configure aliases with `hyve config aws vpc add` or create with `hyve config aws vpc create`.
+  AWS VPC alias (required for AWS provider). The alias must be present in `provider-configs/aws/<account>.yaml` — run `hyve sync` to auto-populate from the cloud, or add it manually.
 </ParamField>
 
 <ParamField path="--eks-role-name, -e" type="string">
-  AWS EKS IAM role alias (required for AWS provider). Configure aliases with `hyve config aws eks-role add` or create with `hyve config aws eks-role create`.
+  AWS EKS IAM role alias (required for AWS provider). The alias must be present in `provider-configs/aws/<account>.yaml` — run `hyve sync` to auto-populate from the cloud, or add it manually.
 </ParamField>
 
 <ParamField path="--node-group, -g" type="string (repeatable)">
@@ -86,6 +86,16 @@ hyve cluster add [cluster-name] [flags]
   <Info>
     **AWS EKS only:** avoid `nano` and `micro` instance types. These expose only 4 pods per node — insufficient for EKS system daemonsets plus workloads. Minimum: `t3.small`. Recommended: `t3.medium`.
   </Info>
+</ParamField>
+
+<ParamField path="--before-create" type="string (repeatable)">
+  Name of a workflow to run before the cluster is created (pre-provision hook). Can be specified multiple times. Workflow names must match an existing workflow defined with `hyve workflow add`.
+
+  ```bash
+  hyve cluster add my-cluster --provider civo --region PHX1 \
+    --nodes g4s.kube.medium --org-name my-org \
+    --before-create pre-flight-checks
+  ```
 </ParamField>
 
 <ParamField path="--on-created" type="string (repeatable)">
@@ -110,6 +120,16 @@ hyve cluster add [cluster-name] [flags]
   ```
 </ParamField>
 
+<ParamField path="--after-delete" type="string (repeatable)">
+  Name of a workflow to run after the cluster has been deleted (post-teardown hook). Can be specified multiple times. Workflow names must match an existing workflow defined with `hyve workflow add`.
+
+  ```bash
+  hyve cluster add my-cluster --provider civo --region PHX1 \
+    --nodes g4s.kube.medium --org-name my-org \
+    --after-delete cleanup-dns
+  ```
+</ParamField>
+
 <ParamField path="--pause" type="boolean" default="false">
   Create the cluster in a paused state. The YAML file is written and committed but the reconciler skips this cluster until the pause is lifted with `hyve cluster modify <name> --unpause`.
 </ParamField>
@@ -123,12 +143,8 @@ hyve cluster add [cluster-name] [flags]
 <Tabs>
   <Tab title="AWS">
     ```bash
-    # First, configure AWS resources (-a/--account required)
-    hyve config aws vpc add --account prod --name prod-vpc --id vpc-12345678
-    hyve config aws eks-role add --account prod --name eks-cluster-role \
-      --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
-
     # Single node group (AWS EKS)
+    # Requires: vpc-name and eks-role-name aliases present in provider-configs/aws/<account>.yaml
     hyve cluster add aws-prod \
       --provider aws \
       --region us-east-1 \
@@ -235,9 +251,7 @@ hyve cluster add [cluster-name] [flags]
 </Info>
 
 <Info>
-  **AWS Clusters**: The `--vpc-name` and `--eks-role-name` flags are required for AWS EKS clusters. Configure these first:
-  - VPC: `hyve config aws vpc add --name <alias> --id <vpc-id>` or `hyve config aws vpc create --name <alias> --region <region>`
-  - EKS Role: `hyve config aws eks-role add --name <alias> --role-arn <arn>` or `hyve config aws eks-role create --name <alias> --role-name <name>`
+  **AWS Clusters**: The `--vpc-name` and `--eks-role-name` flags are required for AWS EKS clusters. Run `hyve sync` to auto-populate VPC and role entries from the cloud, or add them manually to `provider-configs/aws/<account>.yaml` before creating the cluster.
 </Info>
 
 **Output:**
@@ -272,10 +286,14 @@ spec:
     - g4s.kube.medium
   clusterType: k3s
   workflows:
+    beforeCreate:
+      - pre-flight-checks
     onCreated:
       - setup-monitoring
     onDestroy:
       - backup-data
+    afterDelete:
+      - cleanup-dns
   ingress:
     enabled: true
     loadBalancer: true
@@ -334,6 +352,22 @@ hyve cluster modify [cluster-name] [flags]
 
 <ParamField path="--cluster-type" type="string">
   Update the cluster type (`k3s`, `talos`). **Civo only** — ignored for AWS, GCP, and Azure providers.
+</ParamField>
+
+<ParamField path="--before-create" type="string (repeatable)">
+  Replace the `beforeCreate` workflow list. Pass an empty value to clear: `--before-create ""`.
+</ParamField>
+
+<ParamField path="--on-created" type="string (repeatable)">
+  Replace the `onCreated` workflow list.
+</ParamField>
+
+<ParamField path="--on-destroy" type="string (repeatable)">
+  Replace the `onDestroy` workflow list.
+</ParamField>
+
+<ParamField path="--after-delete" type="string (repeatable)">
+  Replace the `afterDelete` workflow list.
 </ParamField>
 
 <ParamField path="--pause" type="boolean">
@@ -677,7 +711,7 @@ metadata:
   region: PHX1               # PHX1 | NYC1 | LON1 | FRA1
 spec:
   provider: civo
-  civoOrganization: my-org   # org alias — must match --org used in hyve config civo token set
+  civoOrganization: my-org   # org alias — registered with hyve config civo org add
   nodes:
     - g4s.kube.medium        # one entry per node
     - g4s.kube.medium
@@ -686,10 +720,14 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
+    beforeCreate:
+      - pre-flight-checks
     onCreated:
       - setup-monitoring
     onDestroy:
       - backup-data
+    afterDelete:
+      - cleanup-dns
 ```
 
 <Info>
@@ -726,14 +764,18 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
+    beforeCreate:
+      - pre-flight-checks
     onCreated:
       - setup-monitoring
     onDestroy:
       - backup-data
+    afterDelete:
+      - cleanup-dns
 ```
 
 <Info>
-  The `azureSubscription` alias must be registered with `hyve config azure subscription add --name <alias> --id <subscription-id>` and a resource group must exist in Azure before cluster creation (`hyve config azure resource-group add --subscription <alias> --name <rg> --location <region>`).
+  The `azureSubscription` alias must be registered with `hyve config azure subscription add --name <alias> --id <subscription-id>` before cluster creation.
 </Info>
 
 ### GCP Cluster Structure
@@ -776,9 +818,9 @@ spec:
   provider: aws
   awsAccount: prod                 # alias from hyve config aws account add
   awsAccountId: "123456789012"     # resolved account ID (auto-populated)
-  awsVpcName: prod-vpc             # alias from hyve config aws vpc add (required)
+  awsVpcName: prod-vpc             # alias from provider-configs/aws/prod.yaml (required)
   awsVpcId: vpc-12345678           # resolved VPC ID (auto-populated)
-  awsEksRole: eks-cluster-role     # alias from hyve config aws eks-role add (required)
+  awsEksRole: eks-cluster-role     # alias from provider-configs/aws/prod.yaml (required)
   awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # resolved (auto-populated)
   nodeGroups:
     - name: system
@@ -857,12 +899,20 @@ spec:
   Enable load balancer for ingress controller
 </ParamField>
 
+<ParamField path="spec.workflows.beforeCreate" type="string[]">
+  List of workflow names to run before the cluster is provisioned (pre-create hook). Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--before-create` flag or the interactive TUI.
+</ParamField>
+
 <ParamField path="spec.workflows.onCreated" type="string[]">
   List of workflow names to run after the cluster is successfully created. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-created` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.onDestroy" type="string[]">
   List of workflow names to run before the cluster is destroyed. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-destroy` flag or the interactive TUI.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="string[]">
+  List of workflow names to run after the cluster has been deleted (post-teardown hook). Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--after-delete` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.gcpProject" type="string">
@@ -956,21 +1006,19 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     hyve cluster add secure --provider civo --region FRA1 \
       --nodes g4s.kube.medium --cluster-type talos --org-name my-org
 
-    # Cluster with lifecycle workflows
+    # Cluster with all four lifecycle hooks
     hyve cluster add managed --provider civo --region PHX1 \
       --nodes g4s.kube.medium --org-name my-org \
+      --before-create pre-flight-checks \
       --on-created setup-monitoring --on-created notify-slack \
-      --on-destroy backup-data
+      --on-destroy backup-data \
+      --after-delete cleanup-dns
     ```
   </Accordion>
 
   <Accordion title="AWS Examples">
     ```bash
-    # First, configure AWS VPC and EKS role aliases (--account required)
-    hyve config aws vpc add --account prod --name prod-vpc --id vpc-87654321
-    hyve config aws vpc add --account prod --name eu-vpc --id vpc-12345678
-    hyve config aws eks-role add --account prod --name eks-role \
-      --role-arn arn:aws:iam::123456789012:role/EKSClusterRole
+    # Requires vpc-name and eks-role-name aliases present in provider-configs/aws/<account>.yaml
 
     # Production cluster with a single named node group (preferred for EKS)
     hyve cluster add prod \
@@ -1278,16 +1326,18 @@ hyve cluster add eu-central --provider civo --region FRA1 --nodes g4s.kube.mediu
 ### Attach Lifecycle Workflows
 
 ```bash
-# Run a monitoring setup workflow after creation and a backup workflow before destruction
+# All four lifecycle hooks on a Civo cluster
 hyve cluster add production \
   --provider civo \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large \
   --org-name my-org \
+  --before-create pre-flight-checks \
   --on-created setup-monitoring \
-  --on-destroy backup-data
+  --on-destroy backup-data \
+  --after-delete cleanup-dns
 
-# Multiple workflows per lifecycle event
+# Multiple workflows per lifecycle event on AWS
 hyve cluster add production \
   --provider aws \
   --region us-east-1 \
@@ -1295,10 +1345,12 @@ hyve cluster add production \
   --vpc-name prod-vpc \
   --eks-role-name eks-role \
   --node-group "name=workers,type=m5.large,count=3" \
+  --before-create pre-flight-checks \
   --on-created setup-monitoring \
   --on-created notify-slack \
   --on-destroy backup-data \
-  --on-destroy notify-slack
+  --on-destroy notify-slack \
+  --after-delete cleanup-dns
 ```
 
 ### Cleanup Orphaned Clusters

@@ -39,7 +39,7 @@ Clusters are defined using YAML files following a standard structure. The requir
       region: PHX1           # PHX1, NYC1, LON1, FRA1
     spec:
       provider: civo
-      civoOrganization: my-org   # matches --org name in hyve config set-token
+      civoOrganization: my-org   # alias registered with hyve config civo org add
       nodes:
         - g4s.kube.large
         - g4s.kube.large
@@ -96,8 +96,8 @@ Clusters are defined using YAML files following a standard structure. The requir
     spec:
       provider: aws
       awsAccount: prod             # alias from hyve config aws account add
-      awsVpcName: prod-vpc         # alias from hyve config aws vpc add
-      awsEksRole: eks-role         # alias from hyve config aws eks-role add
+      awsVpcName: prod-vpc         # alias from provider-configs/aws/<account>.yaml
+      awsEksRole: eks-role         # alias from provider-configs/aws/<account>.yaml
       nodeGroups:
         - name: system
           instanceType: t3.medium
@@ -888,8 +888,8 @@ spec:
 
     **Solution:**
     ```bash
-    # Verify token
-    hyve config get-token civo
+    # Verify Civo CLI authentication
+    civo apikey list
 
     # Check Civo dashboard for quota
     # Verify region and node sizes are valid

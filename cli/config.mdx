@@ -1,15 +1,15 @@
 ---
 title: 'hyve config'
-description: 'Reference for configuration and provider credential management commands'
+description: 'Reference for provider configuration management commands'
 ---
 
-The `hyve config` command group manages provider-specific configuration (GCP projects, AWS accounts/roles/VPCs, Azure subscriptions and resource groups) and Civo API tokens. Provider configs are stored as YAML in your state repository under `provider-configs/` and are shared with your team.
+The `hyve config` command group manages provider-specific configuration (GCP projects, AWS accounts, Azure subscriptions, Civo organizations). Provider configs are stored as YAML in your state repository under `provider-configs/` and are shared with your team.
 
 Authentication by provider:
 
 | Provider | Local dev | CI/CD |
 |----------|-----------|-------|
-| **Civo** | `hyve config civo token set --org <name>` or `CIVO_TOKEN` | `CIVO_TOKEN` or named account `{ORG}_CIVO_TOKEN` |
+| **Civo** | Civo CLI (`civo apikey`) — token read from `~/.civo.json` | `CIVO_TOKEN` or named account `{ORG}_CIVO_TOKEN` |
 | **AWS** | `aws configure` | `AWS_*` env vars, OIDC, or named account `{ACCOUNT}_AWS_*` |
 | **GCP** | `gcloud auth application-default login` | `GOOGLE_APPLICATION_CREDENTIALS` or named `{PROJECT}_GCP_CREDENTIALS_JSON` |
 | **Azure** | `az login` | `AZURE_*` env vars or named `{SUB}_AZURE_*` |
@@ -18,54 +18,9 @@ See the [CI/CD guide](/guides/cicd#named-account-secrets) for the full named acc
 
 ---
 
-## Civo Token Management
-
-Civo is the only provider whose credentials are stored encrypted in Hyve (`~/.hyve/credentials.db`, AES-256-GCM). Multiple organizations are supported via the required `--org` flag.
-
-### hyve config civo token set
-
-```bash
-hyve config civo token set --org/-o <name> [--token/-t <token>]
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--org` | `-o` | **Required.** Organization alias to store the token under |
-| `--token` | `-t` | Token value. Omit to be prompted securely (recommended) |
-
-```bash
-# Interactive (recommended — input is hidden)
-hyve config civo token set --org my-org
-
-# Non-interactive
-hyve config civo token set --org my-org --token YOUR_TOKEN
-
-# Multiple organizations
-hyve config civo token set --org production
-hyve config civo token set --org development
-```
-
-### hyve config civo token get
-
-```bash
-hyve config civo token get --org <name>
-```
-
-Displays the stored token in plaintext. Use with caution.
-
-### hyve config civo token clear
-
-```bash
-hyve config civo token clear --org <name>
-```
-
-Removes the stored token for the specified organization.
-
----
-
 ## Civo Organization Management
 
-Civo organization aliases map a friendly name to a Civo organization ID. They are stored in `provider-configs/civo.yaml` in your state repository and are referenced by the `--org-name` flag when creating clusters.
+Civo organization aliases map a friendly name to a Civo organization ID. They are stored as individual YAML files under `provider-configs/civo/` in your state repository and are referenced by the `--org-name` flag when creating clusters.
 
 ```bash
 # Add an organization alias
@@ -91,11 +46,13 @@ hyve config civo org add --name staging-org --id xyz789uvw012
 hyve cluster add civo-cluster --provider civo --org-name my-org --region PHX1 --nodes g4s.kube.medium
 ```
 
+For authentication, Hyve reads your active token from `~/.civo.json` (set via `civo apikey save <name> <token>`) or falls back to the `CIVO_TOKEN` environment variable.
+
 ---
 
 ## GCP Project Management
 
-GCP project aliases map a friendly name to a project ID. They are stored in `provider-configs/gcp.yaml` in your state repository.
+GCP project aliases map a friendly name to a project ID. They are stored as individual YAML files under `provider-configs/gcp/` in your state repository.
 
 ```bash
 # Add a project alias
@@ -121,21 +78,18 @@ hyve config gcp project add --name prod --id my-prod-project-456
 hyve cluster add gcp-cluster --provider gcp --project-name dev --region us-central1
 ```
 
-**`provider-configs/gcp.yaml`:**
+Each project is stored in its own file. **`provider-configs/gcp/dev.yaml`:**
 
 ```yaml
-projects:
-  - name: dev
-    project_id: my-dev-project-123
-  - name: prod
-    project_id: my-prod-project-456
+name: dev
+project_id: my-dev-project-123
 ```
 
 ---
 
 ## AWS Configuration
 
-AWS resources (accounts, EKS roles, VPCs) are stored as aliases in `provider-configs/aws.yaml`. All sub-commands require `--account <name>` to scope operations to a specific account.
+AWS account aliases are stored as individual YAML files under `provider-configs/aws/`.
 
 ### Account Aliases
 
@@ -146,80 +100,10 @@ hyve config aws account get <alias>
 hyve config aws account remove <alias>
 ```
 
-### EKS Role Aliases
-
-Register an existing role or create one in AWS:
-
-```bash
-# Register existing role
-hyve config aws eks-role add --account/-a <name> --name/-n <alias> --role-arn/-r <arn>
-
-# Create role in AWS and register alias
-hyve config aws eks-role create --account/-a <name> --name/-n <alias> --role-name <aws-name> [--region/-r <region>]
-
-# Delete role from AWS
-hyve config aws eks-role delete --account/-a <name> --name/-n <alias> [--region/-r <region>] [--config-only]
-
-# List / get / remove aliases
-hyve config aws eks-role list          --account/-a <name>
-hyve config aws eks-role get    <alias> --account/-a <name>
-hyve config aws eks-role remove <alias> --account/-a <name>
-```
-
-`eks-role create` creates an IAM role with the EKS assume-role policy and attaches `AmazonEKSClusterPolicy`.
-
-### Node Role Aliases
-
-Register an existing IAM node role or create one in AWS:
-
-```bash
-# Register existing node role
-hyve config aws node-role add --account/-a <name> --name/-n <alias> --role-arn/-r <arn>
-
-# Create node role in AWS and register alias
-hyve config aws node-role create --account/-a <name> --name/-n <alias> --role-name <aws-name> [--region/-r <region>]
-
-# Delete node role from AWS
-hyve config aws node-role delete <alias> --account/-a <name> [--region/-r <region>] [--config-only]
-
-# List / get / remove aliases
-hyve config aws node-role list   --account/-a <name>
-hyve config aws node-role get    <alias> --account/-a <name>
-hyve config aws node-role remove <alias> --account/-a <name>
-```
-
-`node-role create` creates an IAM role with the EC2 assume-role policy and attaches the policies required for EKS worker nodes (`AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`, `AmazonEC2ContainerRegistryReadOnly`).
-
-### VPC Aliases
-
-Register an existing VPC or create one in AWS:
-
-```bash
-# Register existing VPC
-hyve config aws vpc add --account/-a <name> --name/-n <alias> --id/-i <vpc-id>
-
-# Create VPC in AWS and register alias
-hyve config aws vpc create --account/-a <name> --name/-n <alias> [--region/-r <region>] [--cidr/-c <cidr>] [--subnets/-s <cidrs>]
-
-# Delete VPC from AWS (--config-only to keep the AWS resource)
-hyve config aws vpc delete --account/-a <name> --name/-n <alias> [--region/-r <region>] [--config-only]
-
-# List / get / remove aliases
-hyve config aws vpc list          --account/-a <name>
-hyve config aws vpc get    <alias> --account/-a <name>
-hyve config aws vpc remove <alias> --account/-a <name>
-```
-
-<Warning>
-  `vpc delete` also removes all associated subnets and detaches internet gateways.
-</Warning>
-
 **Example setup:**
 
 ```bash
 hyve config aws account add --name prod --id 123456789012
-hyve config aws eks-role create --account prod --name eks-role --role-name hyve-eks-role --region us-east-1
-hyve config aws vpc create --account prod --name eks-vpc --region us-east-1 --subnets 10.0.1.0/24,10.0.2.0/24
 
 hyve cluster add aws-prod \
   --provider aws \
@@ -229,25 +113,18 @@ hyve cluster add aws-prod \
   --region us-east-1
 ```
 
-**`provider-configs/aws.yaml`:**
+Each account is stored in its own file. **`provider-configs/aws/prod.yaml`:**
 
 ```yaml
-accounts:
-  - name: prod
-    account_id: "123456789012"
-eks_roles:
-  - name: eks-role
-    role_arn: arn:aws:iam::123456789012:role/hyve-eks-role
-vpcs:
-  - name: eks-vpc
-    vpc_id: vpc-0123456789abcdef0
+name: prod
+account_id: "123456789012"
 ```
 
 ---
 
 ## Azure Subscription Management
 
-Azure subscriptions are stored with aliases and resource groups in `provider-configs/azure.yaml`. The subscription ID is resolved automatically from the alias — it does not need to be supplied as an environment variable.
+Azure subscriptions are stored as individual YAML files under `provider-configs/azure/`. The subscription ID is resolved automatically from the alias — it does not need to be supplied as an environment variable.
 
 ### Subscriptions
 
@@ -269,37 +146,11 @@ hyve config azure subscription add --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-
 hyve config azure subscription add --name dev-sub  --id yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
 ```
 
-### Resource Groups
-
-Resource groups are registered under a subscription alias. `resource-group add` creates the resource group in Azure **and** saves the entry to `provider-configs/azure.yaml`.
-
-```bash
-# Create resource group in Azure and register locally
-hyve config azure resource-group add --subscription/-s <alias> --name/-n <rg-name> --location/-l <region>
-
-# Delete resource group from Azure and remove from local config
-hyve config azure resource-group delete --subscription/-s <alias> --name/-n <rg-name>
-
-# List resource groups for a subscription
-hyve config azure resource-group list --subscription/-s <alias>
-```
-
-**Example:**
-
-```bash
-hyve config azure resource-group add --subscription prod-sub --name hyve-rg --location eastus
-hyve config azure resource-group list --subscription prod-sub
-```
-
-**`provider-configs/azure.yaml`:**
+Each subscription is stored in its own file. **`provider-configs/azure/prod-sub.yaml`:**
 
 ```yaml
-subscriptions:
-  - name: prod-sub
-    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    resource_groups:
-      - name: hyve-rg
-        location: eastus
+name: prod-sub
+subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 For CI/CD, credentials are supplied via named env vars (`PROD_SUB_AZURE_TENANT_ID`, etc.) — no subscription ID secret needed. See the [CI/CD guide](/guides/cicd#named-account-secrets).
@@ -322,7 +173,7 @@ Hyve falls back to environment variables when no stored/named credentials are fo
 
 1. Named account env var — `{ACCOUNT_NAME}_{PROVIDER}_{CREDENTIAL}`
 2. Standard env var — `CIVO_TOKEN`, `AWS_ACCESS_KEY_ID`, etc.
-3. Provider SDK default chain — AWS credential chain, GCP ADC, `az login` session
+3. Provider local credential file — `~/.civo.json` (Civo), AWS credential chain, GCP ADC, `az login` session
 
 ---
 
@@ -330,9 +181,16 @@ Hyve falls back to environment variables when no stored/named credentials are fo
 
 <AccordionGroup>
   <Accordion title="Civo: token not found">
+    Hyve reads your active token from `~/.civo.json`. Authenticate with the Civo CLI:
+
     ```bash
-    hyve config civo token set --org my-org
-    # or
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+    ```
+
+    Or set the environment variable directly:
+
+    ```bash
     export CIVO_TOKEN=your_token
     ```
   </Accordion>

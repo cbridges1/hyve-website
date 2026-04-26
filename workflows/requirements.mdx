@@ -131,58 +131,34 @@ spec:
 
 ## Setting Up Secrets
 
-<Tabs>
-  <Tab title="Via Database (Recommended)">
-    Store secrets in the encrypted database:
+Set secrets via environment variables before running the workflow:
 
-    ```bash
-    # Store secret interactively
-    hyve config set-token docker
-    # Enter token when prompted
+```bash
+# Set the required secret in your shell
+export DOCKER_TOKEN=my-docker-token
 
-    # Or provide directly
-    hyve config set-token github --token ghp_xxxxxxxxxxxx
+# For Civo, use the Civo CLI (writes ~/.civo.json)
+civo apikey save my-token YOUR_TOKEN
+civo apikey use my-token
+# Hyve reads it automatically when provider is "civo"
 
-    # List stored tokens
-    hyve config list-tokens
+# Run workflow
+hyve workflow run docker-build
+```
 
-    # View specific token
-    hyve config get-token docker
-    ```
-
-    <Note>
-      Secrets are encrypted using AES-GCM and stored in `~/.hyve/credentials.db`
-    </Note>
-  </Tab>
-
-  <Tab title="Via Environment Variable">
-    Set environment variables directly:
-
-    ```bash
-    # Set environment variable
-    export DOCKER_TOKEN=my-docker-token
-
-    # Run workflow (uses environment variable)
-    hyve workflow run docker-build
-    ```
-
-    <Warning>
-      Environment variables are not encrypted and may be visible in process listings
-    </Warning>
-  </Tab>
-</Tabs>
+For CI/CD, set secrets as pipeline secrets (e.g., GitHub Actions secrets).
 
 ## Secret Loading Priority
 
 When a workflow requires a secret:
 
 <Steps>
-  <Step title="Check environment">
+  <Step title="Check environment variable">
     If `$SECRET_NAME` is already set, use it
   </Step>
 
-  <Step title="Load from database">
-    If `provider` is specified, load from encrypted credentials database
+  <Step title="Check provider credential file">
+    For `provider: civo`, reads from `~/.civo.json`. For AWS/GCP/Azure, their native credential chains are used.
   </Step>
 
   <Step title="Fail if required">
@@ -211,7 +187,7 @@ Requirements validation failed:
 ```
 Requirements validation failed:
   - Required secret 'DOCKER_TOKEN' not found (Docker Hub authentication token)
-    Set via: hyve config set-token docker OR export DOCKER_TOKEN=your-secret
+    Set via: export DOCKER_TOKEN=your-secret
 ```
 
 ### Multiple Errors
@@ -220,9 +196,9 @@ Requirements validation failed:
 Requirements validation failed:
   - Required tool 'helm' not found in PATH (Helm package manager)
   - Required secret 'DOCKER_TOKEN' not found (Docker Hub authentication token)
-    Set via: hyve config set-token docker OR export DOCKER_TOKEN=your-secret
+    Set via: export DOCKER_TOKEN=your-secret
   - Required secret 'GITHUB_TOKEN' not found (GitHub API token)
-    Set via: hyve config set-token github OR export GITHUB_TOKEN=your-secret
+    Set via: export GITHUB_TOKEN=your-secret
 ```
 
 ## Successful Validation
@@ -385,8 +361,8 @@ hyve workflow run docker-build
 ### Test With Requirements Met
 
 ```bash
-# Set required secret
-hyve config set-token docker
+# Set required secret via environment variable
+export DOCKER_TOKEN=your-docker-token
 
 # Run workflow successfully
 hyve workflow run docker-build

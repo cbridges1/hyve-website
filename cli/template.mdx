@@ -516,26 +516,26 @@ spec:
 
 ### AWS-Specific Fields
 
-These fields apply when `spec.provider` is `aws`. They reference alias names defined in `provider-configs/aws.yaml` and are resolved to actual IDs and ARNs at execution time.
+These fields apply when `spec.provider` is `aws`. They reference alias names defined in `provider-configs/aws/<account>.yaml` and are resolved to actual IDs and ARNs at execution time.
 
 <ParamField path="spec.awsAccount" type="string">
-  AWS account alias name as defined under `accounts[*].name` in `provider-configs/aws.yaml`
+  AWS account alias name as registered via `hyve config aws account add`. Corresponds to the `name` field in `provider-configs/aws/<account>.yaml`.
 </ParamField>
 
 <ParamField path="spec.awsVpcName" type="string">
-  VPC alias name as defined under `accounts[*].vpcs[*].name` in `provider-configs/aws.yaml`. Resolved to a VPC ID at execution time.
+  VPC alias name from the `vpcs[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a VPC ID at execution time. Run `hyve sync` to auto-populate VPC entries.
 </ParamField>
 
 <ParamField path="spec.awsEksRole" type="string">
-  EKS cluster IAM role alias as defined under `accounts[*].roles[*].name` in `provider-configs/aws.yaml`. Resolved to a role ARN at execution time.
+  EKS cluster IAM role alias from the `eks_roles[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a role ARN at execution time.
 </ParamField>
 
 <ParamField path="spec.awsNodeRole" type="string">
-  EKS node IAM role alias as defined under `accounts[*].roles[*].name` in `provider-configs/aws.yaml`. Resolved to a role ARN at execution time.
+  EKS node IAM role alias from the `node_roles[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a role ARN at execution time.
 </ParamField>
 
 <Info>
-  AWS alias fields cannot be set via `hyve template create` flags — add them manually to the template YAML after creation. Aliases are resolved from `provider-configs/aws.yaml` when `hyve template execute` runs.
+  AWS alias fields cannot be set via `hyve template create` flags — add them manually to the template YAML after creation. Aliases are resolved from `provider-configs/aws/<account>.yaml` when `hyve template execute` runs.
 </Info>
 
 <Info>
@@ -790,7 +790,7 @@ apiVersion: v1
 kind: Template
 metadata:
   name: aws-eks-standard
-  description: Standard AWS EKS cluster using named node groups and aliases from provider-configs/aws.yaml
+  description: Standard AWS EKS cluster using named node groups and aliases from provider-configs/aws/
 spec:
   provider: aws
   region: us-east-1
@@ -809,7 +809,7 @@ spec:
       labels:
         role: worker
   clusterType: eks
-  awsAccount: main-account    # alias from provider-configs/aws.yaml accounts[*].name
+  awsAccount: main-account    # alias from provider-configs/aws/main-account.yaml
   awsVpcName: k8svpc          # alias from accounts[*].vpcs[*].name
   awsEksRole: k8srole         # alias from accounts[*].roles[*].name (EKS cluster role)
   awsNodeRole: k8snoderole    # alias from accounts[*].roles[*].name (EKS node role)
@@ -827,7 +827,7 @@ spec:
 hyve template execute aws-eks-standard eks-prod-01
 ```
 
-At execution time Hyve resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` to their actual IDs and ARNs from `provider-configs/aws.yaml` before creating the cluster.
+At execution time Hyve resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` to their actual IDs and ARNs from `provider-configs/aws/<account>.yaml` before creating the cluster.
 
 ---
 

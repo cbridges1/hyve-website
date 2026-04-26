@@ -287,7 +287,7 @@ requirements:
 ```
 [ERROR] Requirements validation failed:
   - Required secret 'DOCKER_TOKEN' not found
-    Set via: hyve config set-token docker OR export DOCKER_TOKEN=your-secret
+    Set via: export DOCKER_TOKEN=your-secret
 
 [WARN] Optional secret 'GITHUB_TOKEN' not found
 ```
@@ -418,10 +418,6 @@ Job: deploy
 
     **Solution:**
     ```bash
-    # Set secret in database
-    hyve config set-token docker
-
-    # Or use environment variable
     export DOCKER_TOKEN=your-token
     ```
   </Accordion>
