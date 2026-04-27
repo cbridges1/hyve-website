@@ -11,7 +11,7 @@ Hyve requires configuration for cloud provider authentication, Git credentials, 
 - **AWS, GCP, Azure**: Native CLI authentication (no credentials stored in Hyve)
 
 <Tip>
-  **Prefer menus over flags?** Run `hyve interactive` and select **config** from the root menu. All provider setup — tokens, org aliases, accounts, VPCs, EKS roles, subscriptions, and resource groups — is available through guided prompts with live-populated select lists.
+  **Prefer menus over flags?** Run `hyve interactive` and select **config** from the root menu. All provider setup — tokens, org aliases, accounts, and subscriptions — is available through guided prompts.
 </Tip>
 
 ## Storage Location
@@ -27,14 +27,10 @@ All configuration data is stored in the `~/.hyve/` directory:
 └── repositories/      # Cloned repository storage
     └── <repo-name>/
         └── provider-configs/  # Provider-specific configuration
-            ├── aws/           # One file per AWS account
-            │   └── prod.yaml
-            ├── gcp/           # One file per GCP project
-            │   └── analytics.yaml
-            ├── azure/         # One file per Azure subscription
-            │   └── prod-sub.yaml
-            └── civo/          # One file per Civo organization
-                └── my-org.yaml
+            ├── aws.yaml       # All AWS accounts
+            ├── gcp.yaml       # All GCP projects
+            ├── azure.yaml     # All Azure subscriptions
+            └── civo.yaml      # All Civo organizations
 ```
 
 <Note>
@@ -287,67 +283,39 @@ hyve config azure subscription remove prod-sub
 
 ### Provider Config Files
 
-Each account, project, subscription, or organization is stored in its own YAML file under a per-provider subdirectory:
+All accounts, projects, subscriptions, and organizations for each provider are stored in a single flat file per provider:
 
-**provider-configs/gcp/dev.yaml:**
+**provider-configs/gcp.yaml:**
 ```yaml
-name: dev
-project_id: my-dev-project-123
+projects:
+  - name: dev
+    project_id: my-dev-project-123
+  - name: prod
+    project_id: my-prod-project-456
 ```
 
-**provider-configs/aws/prod.yaml:**
+**provider-configs/aws.yaml:**
 ```yaml
-name: prod
-account_id: "123456789012"
-access_key_id: ${AWS_ACCESS_KEY_ID}
-secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-vpcs:
-  - name: prod-vpc
-    vpc_id: vpc-0abc123456789
-eks_roles:
-  - name: eks-cluster-role
-    role_arn: arn:aws:iam::123456789012:role/eks-cluster-role
+accounts:
+  - name: prod
+    account_id: "123456789012"
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+  - name: dev
+    account_id: "987654321098"
+    access_key_id: ${DEV_AWS_ACCESS_KEY_ID}
+    secret_access_key: ${DEV_AWS_SECRET_ACCESS_KEY}
 ```
 
-**provider-configs/azure/prod-sub.yaml:**
+**provider-configs/azure.yaml:**
 ```yaml
-name: prod-sub
-subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-tenant_id: ${AZURE_TENANT_ID}
-client_id: ${AZURE_CLIENT_ID}
-client_secret: ${AZURE_CLIENT_SECRET}
-resource_groups:
-  - name: my-rg
-    location: eastus
+subscriptions:
+  - name: prod-sub
+    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    tenant_id: ${AZURE_TENANT_ID}
+    client_id: ${AZURE_CLIENT_ID}
+    client_secret: ${AZURE_CLIENT_SECRET}
 ```
-
-Resource entries (VPCs, IAM roles, resource groups, networks) are kept in sync automatically — see [Provider Config Sync](#provider-config-sync) below.
-
-## Provider Config Sync
-
-Hyve automatically reconciles provider config resource entries on every `hyve reconcile` run and whenever you run `hyve sync`. It queries the cloud for the actual resources associated with each configured account and updates the YAML files accordingly:
-
-- **Added** — resources that exist in the cloud but are absent from the YAML are written in.
-- **Removed** — entries for resources that no longer exist in the cloud are deleted.
-
-| Provider | Resources reconciled |
-|----------|---------------------|
-| AWS | VPCs (non-default), EKS control plane roles, node roles |
-| Azure | Resource groups (all groups in the subscription) |
-| Civo | Networks |
-| GCP | No sub-resources (projects are registered manually) |
-
-This means you generally don't need to manually add VPCs or resource groups to these files — run `hyve sync` after provisioning supporting infrastructure and the config is updated automatically.
-
-```bash
-# Reconcile runs passive sync automatically
-hyve reconcile
-
-# Or trigger the sync explicitly
-hyve sync
-```
-
-See [hyve sync](/cli/sync) for the full reference.
 
 ## Git Credentials
 
@@ -557,13 +525,12 @@ hyve config aws account add --name prod --id 123456789012
 # Register account alias, then create cluster
 hyve config aws account add --name prod --id 123456789012
 
-# Run hyve sync to populate VPCs and roles automatically from the cloud,
-# then reference them by name when creating clusters:
+# Provide VPC ID and EKS role name directly (or select via TUI live lookup):
 hyve cluster add my-eks-cluster \
   --provider aws \
   --account-name prod \
   --eks-role-name eks-cluster-role \
-  --vpc-name prod-vpc \
+  --vpc-id vpc-0abc123456789 \
   --region us-east-1
 ```
 

@@ -256,9 +256,9 @@ hyve template execute [template-name] [cluster-name]
 |------|-------|----------|-------------|
 | `--org` | `-o` | Civo | Civo organization alias |
 | `--account` | `-a` | AWS | AWS account alias |
-| `--vpc-name` | `-v` | AWS | AWS VPC alias |
-| `--eks-role` | `-e` | AWS | AWS EKS cluster role alias |
-| `--node-role` | `-n` | AWS | AWS node role alias |
+| `--vpc-id` | `-v` | AWS | AWS VPC ID |
+| `--eks-role-name` | `-e` | AWS | AWS EKS cluster role name |
+| `--node-role-name` | `-n` | AWS | AWS node role name |
 | `--subscription` | `-s` | Azure | Azure subscription alias |
 | `--resource-group` | `-g` | Azure | Azure resource group name |
 | `--project` | `-p` | GCP | GCP project alias |
@@ -275,9 +275,9 @@ hyve template execute prod-template prod-cluster-01 --org my-org
 # AWS template with all required flags
 hyve template execute aws-template eks-prod-01 \
   --account prod \
-  --vpc-name prod-vpc \
-  --eks-role eks-role \
-  --node-role node-role
+  --vpc-id vpc-0abc123456789 \
+  --eks-role-name eks-role \
+  --node-role-name node-role
 
 # Azure template with overrides
 hyve template execute azure-template aks-prod-01 \
@@ -516,26 +516,26 @@ spec:
 
 ### AWS-Specific Fields
 
-These fields apply when `spec.provider` is `aws`. They reference alias names defined in `provider-configs/aws/<account>.yaml` and are resolved to actual IDs and ARNs at execution time.
+These fields apply when `spec.provider` is `aws`.
 
 <ParamField path="spec.awsAccount" type="string">
-  AWS account alias name as registered via `hyve config aws account add`. Corresponds to the `name` field in `provider-configs/aws/<account>.yaml`.
+  AWS account alias name as registered via `hyve config aws account add`.
 </ParamField>
 
-<ParamField path="spec.awsVpcName" type="string">
-  VPC alias name from the `vpcs[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a VPC ID at execution time. Run `hyve sync` to auto-populate VPC entries.
+<ParamField path="spec.awsVpcId" type="string">
+  AWS VPC ID. Set via `--vpc-id/-v` at execute time or in the template YAML directly. The interactive TUI offers a live cloud lookup to select from available VPCs.
 </ParamField>
 
-<ParamField path="spec.awsEksRole" type="string">
-  EKS cluster IAM role alias from the `eks_roles[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a role ARN at execution time.
+<ParamField path="spec.awsEksRoleName" type="string">
+  IAM role name for the EKS control plane. Set via `--eks-role-name/-e` at execute time or in the template YAML. The role ARN is constructed at reconcile time from this name and the account ID.
 </ParamField>
 
-<ParamField path="spec.awsNodeRole" type="string">
-  EKS node IAM role alias from the `node_roles[*].name` list in `provider-configs/aws/<account>.yaml`. Resolved to a role ARN at execution time.
+<ParamField path="spec.awsNodeRoleName" type="string">
+  IAM role name for EKS node groups. Set via `--node-role-name/-n` at execute time or in the template YAML.
 </ParamField>
 
 <Info>
-  AWS alias fields cannot be set via `hyve template create` flags — add them manually to the template YAML after creation. Aliases are resolved from `provider-configs/aws/<account>.yaml` when `hyve template execute` runs.
+  AWS VPC and role fields can be set in the template YAML or overridden at execute time via flags. The interactive TUI provides live cloud lookup for VPCs and IAM roles.
 </Info>
 
 <Info>
@@ -790,7 +790,7 @@ apiVersion: v1
 kind: Template
 metadata:
   name: aws-eks-standard
-  description: Standard AWS EKS cluster using named node groups and aliases from provider-configs/aws/
+  description: Standard AWS EKS cluster with named node groups
 spec:
   provider: aws
   region: us-east-1
@@ -809,10 +809,10 @@ spec:
       labels:
         role: worker
   clusterType: eks
-  awsAccount: main-account    # alias from provider-configs/aws/main-account.yaml
-  awsVpcName: k8svpc          # alias from accounts[*].vpcs[*].name
-  awsEksRole: k8srole         # alias from accounts[*].roles[*].name (EKS cluster role)
-  awsNodeRole: k8snoderole    # alias from accounts[*].roles[*].name (EKS node role)
+  awsAccount: main-account      # alias from hyve config aws account add
+  awsVpcId: vpc-0abc123456789   # VPC ID (or override at execute time with --vpc-id)
+  awsEksRoleName: k8srole       # EKS cluster role name (ARN constructed at reconcile time)
+  awsNodeRoleName: k8snoderole  # EKS node role name
   ingress:
     enabled: false
     loadBalancer: false
@@ -825,9 +825,12 @@ spec:
 
 ```bash
 hyve template execute aws-eks-standard eks-prod-01
-```
 
-At execution time Hyve resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` to their actual IDs and ARNs from `provider-configs/aws/<account>.yaml` before creating the cluster.
+# Or override VPC and roles at execution time:
+hyve template execute aws-eks-standard eks-prod-01 \
+  --vpc-id vpc-0def987654321 \
+  --eks-role-name prod-eks-role
+```
 
 ---
 

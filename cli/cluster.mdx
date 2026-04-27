@@ -59,12 +59,16 @@ hyve cluster add [cluster-name] [flags]
   Civo organization alias (required for Civo provider). Configure aliases with `hyve config civo org add`.
 </ParamField>
 
-<ParamField path="--vpc-name, -v" type="string">
-  AWS VPC alias (required for AWS provider). The alias must be present in `provider-configs/aws/<account>.yaml` — run `hyve sync` to auto-populate from the cloud, or add it manually.
+<ParamField path="--vpc-id, -v" type="string">
+  AWS VPC ID (required for AWS provider). Enter directly or select from live cloud lookup in the interactive TUI.
 </ParamField>
 
 <ParamField path="--eks-role-name, -e" type="string">
-  AWS EKS IAM role alias (required for AWS provider). The alias must be present in `provider-configs/aws/<account>.yaml` — run `hyve sync` to auto-populate from the cloud, or add it manually.
+  AWS EKS IAM role name for the EKS control plane (required for AWS provider). The role ARN is constructed automatically from the role name and account ID. Enter directly or select via live IAM lookup in the interactive TUI.
+</ParamField>
+
+<ParamField path="--resource-group, -G" type="string">
+  Azure resource group name (required for Azure provider). Enter directly or select from live cloud lookup in the interactive TUI.
 </ParamField>
 
 <ParamField path="--node-group, -g" type="string (repeatable)">
@@ -144,12 +148,11 @@ hyve cluster add [cluster-name] [flags]
   <Tab title="AWS">
     ```bash
     # Single node group (AWS EKS)
-    # Requires: vpc-name and eks-role-name aliases present in provider-configs/aws/<account>.yaml
     hyve cluster add aws-prod \
       --provider aws \
       --region us-east-1 \
       --account-name production \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-cluster-role \
       --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
 
@@ -158,7 +161,7 @@ hyve cluster add [cluster-name] [flags]
       --provider aws \
       --region us-east-1 \
       --account-name production \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-cluster-role \
       --node-group "name=system,type=t3.medium,count=2" \
       --node-group "name=workers,type=m5.xlarge,count=4,min=2,max=10,spot=true"
@@ -168,7 +171,7 @@ hyve cluster add [cluster-name] [flags]
       --provider aws \
       --region us-east-1 \
       --account-name production \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-cluster-role \
       --nodes t3.medium
     ```
@@ -251,7 +254,7 @@ hyve cluster add [cluster-name] [flags]
 </Info>
 
 <Info>
-  **AWS Clusters**: The `--vpc-name` and `--eks-role-name` flags are required for AWS EKS clusters. Run `hyve sync` to auto-populate VPC and role entries from the cloud, or add them manually to `provider-configs/aws/<account>.yaml` before creating the cluster.
+  **AWS Clusters**: The `--vpc-id` and `--eks-role-name` flags are required for AWS EKS clusters. Use the interactive TUI (`hyve interactive`) to select VPCs and IAM roles from a live cloud lookup, or provide them directly via flags.
 </Info>
 
 **Output:**
@@ -523,12 +526,12 @@ hyve cluster import <name> [flags]
   Civo organization alias (required for Civo)
 </ParamField>
 
-<ParamField path="--vpc-name, -v" type="string">
-  AWS VPC alias (required for AWS)
+<ParamField path="--vpc-id, -v" type="string">
+  AWS VPC ID (required for AWS)
 </ParamField>
 
 <ParamField path="--eks-role-name, -e" type="string">
-  AWS EKS IAM role alias (required for AWS)
+  AWS EKS IAM role name (required for AWS)
 </ParamField>
 
 <ParamField path="--nodes, -n" type="string[]">
@@ -556,7 +559,7 @@ hyve cluster import my-eks-cluster \
   --provider aws \
   --region us-east-1 \
   --account-name production \
-  --vpc-name prod-vpc \
+  --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-cluster-role
 ```
 
@@ -695,6 +698,42 @@ hyve cluster list
 
 ---
 
+### hyve cluster sync
+
+Discover unmanaged clusters across all configured cloud accounts and import selected ones into Hyve.
+
+```bash
+hyve cluster sync [flags]
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--provider` | `-p` | _(all)_ | Limit to a specific provider: `civo`, `aws`, `gcp`, `azure` |
+| `--account` | `-a` | _(all)_ | Limit to a specific account/subscription/project alias |
+| `--dry-run` | | `false` | Print what would be imported without writing anything |
+
+For each configured cloud account, `hyve cluster sync` lists all running clusters and compares them against the cluster YAML files in your repo. Clusters that exist in the cloud but have no matching definition are listed as **unmanaged**. You select which to import, and Hyve writes a `ClusterDefinition` YAML to `clusters/` and commits the result.
+
+```bash
+# Sync across all providers
+hyve cluster sync
+
+# Preview without writing anything
+hyve cluster sync --dry-run
+
+# Limit to a specific provider
+hyve cluster sync --provider aws
+
+# Limit to a specific account
+hyve cluster sync --provider aws --account prod
+```
+
+<Warning>
+  `hyve cluster sync` is disabled when `strictDelete: true` is set in `hyve.yaml`. In strict-delete mode, Hyve owns the full desired state — importing an unmanaged cluster would cause it to be deleted on the next reconciliation.
+</Warning>
+
+---
+
 ## Cluster Definition Format
 
 Clusters are defined in YAML format and stored in the `clusters/` directory of your Git repository. Provider-specific fields are required for each cloud provider.
@@ -806,7 +845,7 @@ spec:
 
 ### AWS Cluster Structure
 
-AWS EKS clusters require VPC and IAM role aliases and a `nodeGroups` definition:
+AWS EKS clusters require a VPC ID, IAM role names, and a `nodeGroups` definition:
 
 ```yaml
 apiVersion: v1
@@ -818,10 +857,9 @@ spec:
   provider: aws
   awsAccount: prod                 # alias from hyve config aws account add
   awsAccountId: "123456789012"     # resolved account ID (auto-populated)
-  awsVpcName: prod-vpc             # alias from provider-configs/aws/prod.yaml (required)
-  awsVpcId: vpc-12345678           # resolved VPC ID (auto-populated)
-  awsEksRole: eks-cluster-role     # alias from provider-configs/aws/prod.yaml (required)
-  awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # resolved (auto-populated)
+  awsVpcId: vpc-12345678           # VPC ID (set via --vpc-id or TUI)
+  awsEksRoleName: eks-cluster-role # IAM role name for EKS control plane
+  awsEksRoleArn: arn:aws:iam::123456789012:role/EKSClusterRole  # constructed at reconcile time
   nodeGroups:
     - name: system
       instanceType: t3.medium
@@ -842,7 +880,7 @@ spec:
   When creating an AWS EKS cluster, Hyve automatically:
   - Discovers subnets from the specified VPC
   - Creates a security group for the cluster with appropriate rules
-  - Uses the specified IAM role for the EKS control plane
+  - Constructs the EKS role ARN from `awsEksRoleName` and `awsAccountId`
 </Note>
 
 ### Field Reference
@@ -931,20 +969,16 @@ spec:
   AWS account ID (auto-populated from alias). Do not set manually.
 </ParamField>
 
-<ParamField path="spec.awsVpcName" type="string">
-  AWS VPC alias (required for AWS provider). Set via `--vpc-name/-v` flag.
-</ParamField>
-
 <ParamField path="spec.awsVpcId" type="string">
-  AWS VPC ID (auto-populated from alias). Do not set manually.
+  AWS VPC ID (required for AWS provider). Set via `--vpc-id/-v` flag or the interactive TUI.
 </ParamField>
 
-<ParamField path="spec.awsEksRole" type="string">
-  AWS EKS IAM role alias (required for AWS provider). Set via `--eks-role-name/-e` flag.
+<ParamField path="spec.awsEksRoleName" type="string">
+  AWS EKS IAM role name for the EKS control plane (required for AWS provider). Set via `--eks-role-name/-e` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.awsEksRoleArn" type="string">
-  AWS EKS IAM role ARN (auto-populated from alias). Do not set manually.
+  AWS EKS IAM role ARN. Constructed automatically at reconcile time from `awsEksRoleName` and `awsAccountId`. Do not set manually.
 </ParamField>
 
 ---
@@ -1018,14 +1052,12 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
 
   <Accordion title="AWS Examples">
     ```bash
-    # Requires vpc-name and eks-role-name aliases present in provider-configs/aws/<account>.yaml
-
     # Production cluster with a single named node group (preferred for EKS)
     hyve cluster add prod \
       --provider aws \
       --region us-west-2 \
       --account-name prod \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-role \
       --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
 
@@ -1034,7 +1066,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
       --provider aws \
       --region eu-west-1 \
       --account-name prod \
-      --vpc-name eu-vpc \
+      --vpc-id vpc-0def987654321 \
       --eks-role-name eks-role \
       --node-group "name=system,type=t3.medium,count=2" \
       --node-group "name=workers,type=c5.2xlarge,count=4,min=2,max=10,spot=true"
@@ -1044,7 +1076,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
       --provider aws \
       --region us-east-1 \
       --account-name prod \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-role \
       --nodes t3.medium
     ```
@@ -1342,7 +1374,7 @@ hyve cluster add production \
   --provider aws \
   --region us-east-1 \
   --account-name prod \
-  --vpc-name prod-vpc \
+  --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-role \
   --node-group "name=workers,type=m5.large,count=3" \
   --before-create pre-flight-checks \

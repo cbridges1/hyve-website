@@ -5,7 +5,7 @@ description: "Use GitHub rulesets and CODEOWNERS to enforce role-based access ac
 
 ## Overview
 
-A Hyve state repository contains files with very different blast radii. A misconfigured `provider-configs/aws/<account>.yaml` can affect every cluster in an account. A misconfigured `clusters/production.yaml` can destroy a single cluster. A kubeconfig fetch has no write side-effects at all.
+A Hyve state repository contains files with very different blast radii. A misconfigured `provider-configs/aws.yaml` can affect every cluster in every AWS account. A misconfigured `clusters/production.yaml` can destroy a single cluster. A kubeconfig fetch has no write side-effects at all.
 
 GitHub rulesets and `CODEOWNERS` let you map those risk levels to team roles without building any custom access infrastructure.
 
@@ -210,7 +210,7 @@ Platform engineers work entirely through pull requests. The reconcile pipeline h
 hyve cluster add staging \
   --provider aws \
   --account-name prod \
-  --vpc-name prod-vpc \
+  --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-role \
   --node-role-name node-role \
   --region us-east-1
@@ -222,7 +222,7 @@ hyve cluster add staging \
 
 Because `clusters/**` is owned by `@your-org/platform-engineers` in `CODEOWNERS`, engineers can both open _and_ approve cluster PRs. They do not need architect involvement for normal cluster changes.
 
-If an engineer tries to modify `provider-configs/aws/prod.yaml`, their push is blocked by the push ruleset before the branch is even created.
+If an engineer tries to modify `provider-configs/aws.yaml`, their push is blocked by the push ruleset before the branch is even created.
 
 ---
 
@@ -232,9 +232,9 @@ Architects are the only team that can land changes to `provider-configs/**` or `
 
 ```bash
 # Add a new GCP project to provider config
-# Edit provider-configs/gcp/analytics-prod.yaml locally, then:
+# Edit provider-configs/gcp.yaml locally (or run hyve config gcp project add), then:
 git checkout -b add-gcp-project
-git add provider-configs/gcp/analytics-prod.yaml
+git add provider-configs/gcp.yaml
 git commit -m "Add gcp project: analytics-prod"
 git push origin add-gcp-project
 # Open a PR — only architects can approve and merge
@@ -248,7 +248,7 @@ Architects can also use the `--bypass` capability to merge directly in an emerge
 # Emergency: fix a broken provider config directly on main
 git checkout main
 git pull
-# ... edit provider-configs/aws/prod.yaml ...
+# ... edit provider-configs/aws.yaml ...
 git commit -m "hotfix: restore correct AWS access key reference"
 git push origin main   # bypass list allows this for architects
 ```
@@ -314,7 +314,7 @@ templates/                  @your-org/platform-engineers @your-org/platform-arch
   </Accordion>
 
   <Accordion title="A PR touching both clusters/ and provider-configs/ is blocked unexpectedly">
-    When a PR modifies files owned by multiple CODEOWNERS entries, **all** matching owners must approve. A PR that changes both `clusters/staging.yaml` and `provider-configs/aws/prod.yaml` requires approval from both `@your-org/platform-engineers` (or architects) _and_ `@your-org/platform-architects`. Split the changes into separate PRs to avoid coupling the review gates.
+    When a PR modifies files owned by multiple CODEOWNERS entries, **all** matching owners must approve. A PR that changes both `clusters/staging.yaml` and `provider-configs/aws.yaml` requires approval from both `@your-org/platform-engineers` (or architects) _and_ `@your-org/platform-architects`. Split the changes into separate PRs to avoid coupling the review gates.
   </Accordion>
 
   <Accordion title="App users can see kubeconfigs they shouldn't">

@@ -28,7 +28,7 @@ Create a new cluster definition and provision it to your cloud provider:
       --provider aws \
       --region us-east-1 \
       --account-name production \
-      --vpc-name prod-vpc \
+      --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-cluster-role \
       --node-role-name node-role \
       --node-group "name=system,type=t3.medium,count=2" \
@@ -208,7 +208,7 @@ Node groups let you define named pools of nodes with independent instance types,
 hyve cluster add prod \
   --provider aws \
   --region us-east-1 \
-  --account-name main --vpc-name prod-vpc \
+  --account-name main --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-role --node-role-name node-role \
   --node-group "name=workers,type=m5.large,count=3,min=2,max=6"
 
@@ -216,7 +216,7 @@ hyve cluster add prod \
 hyve cluster add prod \
   --provider aws \
   --region us-east-1 \
-  --account-name main --vpc-name prod-vpc \
+  --account-name main --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-role --node-role-name node-role \
   --node-group "name=system,type=t3.medium,count=2" \
   --node-group "name=workers,type=m5.large,count=4,min=2,max=10" \
@@ -241,9 +241,9 @@ metadata:
 spec:
   provider: aws
   awsAccount: main-account
-  awsVpcName: prod-vpc
-  awsEksRole: eks-cluster-role
-  awsNodeRole: node-role
+  awsVpcId: vpc-0abc123456789
+  awsEksRoleName: eks-cluster-role
+  awsNodeRoleName: node-role
   nodeGroups:
     - name: system
       instanceType: t3.medium
@@ -452,7 +452,7 @@ hyve cluster import my-eks-cluster \
   --provider aws \
   --region us-east-1 \
   --account-name production \
-  --vpc-name prod-vpc \
+  --vpc-id vpc-0abc123456789 \
   --eks-role-name eks-cluster-role
 ```
 
@@ -708,7 +708,7 @@ hyve cluster add prod-eu \
     # Use --node-group instead of --nodes for named cloud providers
     hyve cluster add prod-eks \
       --provider aws --region us-east-1 \
-      --account-name main --vpc-name prod-vpc \
+      --account-name main --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-role --node-role-name node-role \
       --node-group "name=system,type=t3.medium,count=2" \
       --node-group "name=workers,type=m5.large,count=4,min=2,max=10"

@@ -130,7 +130,7 @@ Before you begin, ensure you have:
         hyve config aws account add --name prod --id 123456789012
         ```
 
-        VPC and EKS role entries are populated automatically — run `hyve sync` to discover them from the cloud, or add them manually to `provider-configs/aws/prod.yaml`.
+        VPC ID and EKS role name can be entered directly via `--vpc-id` and `--eks-role-name`, or selected interactively via the TUI's live cloud lookup.
       </Tab>
 
       <Tab title="GCP">
@@ -189,8 +189,8 @@ Before you begin, ensure you have:
         hyve cluster add my-cluster \
           --provider aws \
           --region us-east-1 \
-          --aws-account prod \
-          --vpc-name prod-vpc \
+          --account-name prod \
+          --vpc-id vpc-0abc123456789 \
           --eks-role-name eks-role \
           --node-group "name=workers,type=t3.medium,count=2"
         ```
@@ -340,7 +340,7 @@ Before you begin, ensure you have:
   </Accordion>
 
   <Accordion title="AWS: missing VPC or EKS role">
-    Run `hyve sync` to auto-populate VPC and role entries from the cloud. Alternatively, add them manually to `provider-configs/aws/<account>.yaml` under `vpcs` and `eks_roles`.
+    Pass the VPC ID directly with `--vpc-id` and the EKS role name with `--eks-role-name`. In the interactive TUI (`hyve interactive`), select "Fetch from cloud" to browse live VPCs and IAM roles.
   </Accordion>
 
   <Accordion title="No repository configured">

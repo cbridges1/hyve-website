@@ -205,19 +205,19 @@ jobs:
           # Secret names match the ${...} references in your provider-configs/**/*.yaml files.
           # You choose the names — Hyve reads whatever variable each YAML field points to.
 
-          # AWS (provider-configs/aws/<account>.yaml → access_key_id / secret_access_key)
+          # AWS (provider-configs/aws.yaml → access_key_id / secret_access_key per account)
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
 
-          # GCP (provider-configs/gcp/<project>.yaml → credentials_json)
+          # GCP (provider-configs/gcp.yaml → credentials_json per project)
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
 
-          # Azure (provider-configs/azure/<subscription>.yaml → tenant_id / client_id / client_secret)
+          # Azure (provider-configs/azure.yaml → tenant_id / client_id / client_secret per subscription)
           PROD_SUB_AZURE_TENANT_ID: ${{ secrets.PROD_SUB_AZURE_TENANT_ID }}
           PROD_SUB_AZURE_CLIENT_ID: ${{ secrets.PROD_SUB_AZURE_CLIENT_ID }}
           PROD_SUB_AZURE_CLIENT_SECRET: ${{ secrets.PROD_SUB_AZURE_CLIENT_SECRET }}
 
-          # Civo (provider-configs/civo/<org>.yaml → token)
+          # Civo (provider-configs/civo.yaml → token per organization)
           MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
         run: hyve reconcile --path .
 ```
@@ -590,12 +590,13 @@ You choose the secret names — Hyve has no naming requirements. The only rule i
 ### AWS
 
 ```yaml
-# provider-configs/aws/prod-us.yaml
-name: prod-us
-account_id: "123456789012"
-access_key_id: ${PROD_US_AWS_ACCESS_KEY_ID}
-secret_access_key: ${PROD_US_AWS_SECRET_ACCESS_KEY}
-session_token: ${PROD_US_AWS_SESSION_TOKEN}   # optional
+# provider-configs/aws.yaml
+accounts:
+  - name: prod-us
+    account_id: "123456789012"
+    access_key_id: ${PROD_US_AWS_ACCESS_KEY_ID}
+    secret_access_key: ${PROD_US_AWS_SECRET_ACCESS_KEY}
+    session_token: ${PROD_US_AWS_SESSION_TOKEN}   # optional
 ```
 
 ```yaml
@@ -609,10 +610,11 @@ When `access_key_id` and `secret_access_key` are empty (or resolve to empty stri
 ### GCP
 
 ```yaml
-# provider-configs/gcp/my-project.yaml
-name: my-project
-project_id: my-gcp-project-id
-credentials_json: ${MY_PROJECT_GCP_CREDENTIALS_JSON}
+# provider-configs/gcp.yaml
+projects:
+  - name: my-project
+    project_id: my-gcp-project-id
+    credentials_json: ${MY_PROJECT_GCP_CREDENTIALS_JSON}
 ```
 
 ```yaml
@@ -625,15 +627,13 @@ The value should be the full contents of a GCP service account JSON key file. Wh
 ### Azure
 
 ```yaml
-# provider-configs/azure/prod-sub.yaml
-name: prod-sub
-subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-tenant_id: ${PROD_SUB_AZURE_TENANT_ID}
-client_id: ${PROD_SUB_AZURE_CLIENT_ID}
-client_secret: ${PROD_SUB_AZURE_CLIENT_SECRET}
-resource_groups:
-  - name: prod-rg
-    location: eastus
+# provider-configs/azure.yaml
+subscriptions:
+  - name: prod-sub
+    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    tenant_id: ${PROD_SUB_AZURE_TENANT_ID}
+    client_id: ${PROD_SUB_AZURE_CLIENT_ID}
+    client_secret: ${PROD_SUB_AZURE_CLIENT_SECRET}
 ```
 
 ```yaml
@@ -648,10 +648,11 @@ When credentials are empty, Hyve uses the Azure SDK default chain (`az login`, m
 ### Civo
 
 ```yaml
-# provider-configs/civo/my-org.yaml
-name: my-org
-org_id: cbridges1-id
-token: ${MY_ORG_CIVO_TOKEN}   # name this whatever you like
+# provider-configs/civo.yaml
+organizations:
+  - name: my-org
+    org_id: cbridges1-id
+    token: ${MY_ORG_CIVO_TOKEN}   # name this whatever you like
 ```
 
 ```yaml
@@ -713,13 +714,14 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
 <AccordionGroup>
   <Accordion title="Pipeline fails: Civo API token not found">
-    Check that `provider-configs/civo/<org>.yaml` has a `token` field pointing to an env var reference, and that the corresponding secret is available in the workflow:
+    Check that `provider-configs/civo.yaml` has a `token` field pointing to an env var reference, and that the corresponding secret is available in the workflow:
 
     ```yaml
-    # provider-configs/civo/my-org.yaml
-    name: my-org
-    org_id: cbridges1-id
-    token: ${MY_ORG_CIVO_TOKEN}
+    # provider-configs/civo.yaml
+    organizations:
+      - name: my-org
+        org_id: cbridges1-id
+        token: ${MY_ORG_CIVO_TOKEN}
     ```
 
     ```yaml

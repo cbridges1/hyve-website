@@ -54,7 +54,7 @@ Selecting any section drills down into a sub-menu for that command group. Select
 
 | Action | Description |
 |--------|-------------|
-| Add a new cluster | Provider, region, node sizes, and account aliases collected via guided prompts. Account/VPC/role fields are populated from your configured aliases. |
+| Add a new cluster | Provider, region, node sizes, and account aliases collected via guided prompts. For AWS, VPC and IAM role can be fetched live from the cloud, entered manually, or skipped. For Azure, resource group can be fetched live or entered manually. |
 | Import an existing cluster | Provider and account selected from configured aliases; region populated from live data; cluster name selected from clusters discovered in the cloud or entered manually. Node groups are auto-detected from the running cluster. Disabled when `strictDelete: true`. |
 | Modify an existing cluster | Cluster selected from a live list. |
 | Release a cluster from management | Cluster selected from list; removes the definition from Git without deleting the cloud cluster. Disabled when `strictDelete: true`. |
@@ -117,7 +117,7 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | Action | Description |
 |--------|-------------|
 | Create | Provider, region, node sizes, and cluster type collected via form. |
-| Execute | Template selected from list; cluster name and provider-specific aliases collected. Account/VPC/role fields populated from configured aliases. |
+| Execute | Template selected from list; cluster name and provider-specific aliases collected. For AWS, VPC and IAM role selection offers live cloud lookup, manual entry, or skip. For Azure, resource group selection offers live cloud lookup or manual entry. |
 | List | Prints all templates. |
 | Show | Template selected from list. |
 | Validate | Template selected from list. |
@@ -146,10 +146,16 @@ Wherever possible, the TUI populates select menus from live data rather than req
 | Template name | `templates/` directory in current repository |
 | Git repository | Local repository database |
 | Kubeconfig cluster | Stored kubeconfig database |
-| AWS account alias | `provider-configs/aws/<alias>.yaml` |
-| GCP project alias | `provider-configs/gcp/<alias>.yaml` |
-| Azure subscription alias | `provider-configs/azure/<alias>.yaml` |
-| Civo org alias | `provider-configs/civo/<alias>.yaml` |
+| AWS account alias | `provider-configs/aws.yaml` |
+| GCP project alias | `provider-configs/gcp.yaml` |
+| Azure subscription alias | `provider-configs/azure.yaml` |
+| Civo org alias | `provider-configs/civo.yaml` |
+
+For cloud resources (VPCs, IAM roles, Azure resource groups), the TUI offers three options:
+
+1. **Fetch from cloud** — queries the live cloud API and presents a select list
+2. **Enter manually** — free-text input for direct entry
+3. **Skip** — omit the field (useful when the value will be set later or is not required)
 
 If no items are configured for a field (e.g. no AWS accounts added yet), the TUI falls back to a free-text input automatically.
 

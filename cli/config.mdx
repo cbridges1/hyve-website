@@ -20,7 +20,7 @@ See the [CI/CD guide](/guides/cicd#named-account-secrets) for the full named acc
 
 ## Civo Organization Management
 
-Civo organization aliases map a friendly name to a Civo organization ID. They are stored as individual YAML files under `provider-configs/civo/` in your state repository and are referenced by the `--org-name` flag when creating clusters.
+Civo organization aliases map a friendly name to a Civo organization ID. They are stored in `provider-configs/civo.yaml` in your state repository and are referenced by the `--org-name` flag when creating clusters.
 
 ```bash
 # Add an organization alias
@@ -52,7 +52,7 @@ For authentication, Hyve reads your active token from `~/.civo.json` (set via `c
 
 ## GCP Project Management
 
-GCP project aliases map a friendly name to a project ID. They are stored as individual YAML files under `provider-configs/gcp/` in your state repository.
+GCP project aliases map a friendly name to a project ID. They are stored in `provider-configs/gcp.yaml` in your state repository.
 
 ```bash
 # Add a project alias
@@ -78,18 +78,19 @@ hyve config gcp project add --name prod --id my-prod-project-456
 hyve cluster add gcp-cluster --provider gcp --project-name dev --region us-central1
 ```
 
-Each project is stored in its own file. **`provider-configs/gcp/dev.yaml`:**
+Projects are stored in **`provider-configs/gcp.yaml`:**
 
 ```yaml
-name: dev
-project_id: my-dev-project-123
+projects:
+  - name: dev
+    project_id: my-dev-project-123
 ```
 
 ---
 
 ## AWS Configuration
 
-AWS account aliases are stored as individual YAML files under `provider-configs/aws/`.
+AWS account aliases are stored in `provider-configs/aws.yaml`.
 
 ### Account Aliases
 
@@ -109,22 +110,23 @@ hyve cluster add aws-prod \
   --provider aws \
   --account-name prod \
   --eks-role-name eks-role \
-  --vpc-name eks-vpc \
+  --vpc-id vpc-0abc123456789 \
   --region us-east-1
 ```
 
-Each account is stored in its own file. **`provider-configs/aws/prod.yaml`:**
+Accounts are stored in **`provider-configs/aws.yaml`:**
 
 ```yaml
-name: prod
-account_id: "123456789012"
+accounts:
+  - name: prod
+    account_id: "123456789012"
 ```
 
 ---
 
 ## Azure Subscription Management
 
-Azure subscriptions are stored as individual YAML files under `provider-configs/azure/`. The subscription ID is resolved automatically from the alias — it does not need to be supplied as an environment variable.
+Azure subscriptions are stored in `provider-configs/azure.yaml`. The subscription ID is resolved automatically from the alias — it does not need to be supplied as an environment variable.
 
 ### Subscriptions
 
@@ -146,11 +148,12 @@ hyve config azure subscription add --name prod-sub --id xxxxxxxx-xxxx-xxxx-xxxx-
 hyve config azure subscription add --name dev-sub  --id yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
 ```
 
-Each subscription is stored in its own file. **`provider-configs/azure/prod-sub.yaml`:**
+Subscriptions are stored in **`provider-configs/azure.yaml`:**
 
 ```yaml
-name: prod-sub
-subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+subscriptions:
+  - name: prod-sub
+    subscription_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 For CI/CD, credentials are supplied via named env vars (`PROD_SUB_AZURE_TENANT_ID`, etc.) — no subscription ID secret needed. See the [CI/CD guide](/guides/cicd#named-account-secrets).

@@ -92,10 +92,10 @@ Templates combine:
           minCount: 1
           maxCount: 5
       clusterType: eks
-      awsAccount: main-account    # alias from provider-configs/aws/main-account.yaml
-      awsVpcName: k8svpc          # VPC alias → resolved to VPC ID at execution
-      awsEksRole: k8srole         # EKS cluster role alias → resolved to ARN
-      awsNodeRole: k8snoderole    # EKS node role alias → resolved to ARN
+      awsAccount: main-account    # alias from hyve config aws account add
+      awsVpcId: vpc-0abc123456789 # VPC ID (set in template or override at execute time)
+      awsEksRoleName: k8srole     # EKS cluster role name
+      awsNodeRoleName: k8snoderole # EKS node role name
       ingress:
         enabled: false
         loadBalancer: false
@@ -195,10 +195,10 @@ spec:
                                    #   spec.expiresAt on the generated cluster.
 
   # AWS-specific fields (only when provider: aws)
-  awsAccount: main-account         # Account alias from provider-configs/aws/main-account.yaml
-  awsVpcName: k8svpc               # VPC alias → resolved to VPC ID at execution time
-  awsEksRole: k8srole              # EKS cluster role alias → resolved to role ARN
-  awsNodeRole: k8snoderole         # EKS node role alias → resolved to role ARN
+  awsAccount: main-account         # Account alias from hyve config aws account add
+  awsVpcId: vpc-0abc123456789      # VPC ID (set here or override at execute time)
+  awsEksRoleName: k8srole          # EKS cluster role name (ARN constructed at reconcile time)
+  awsNodeRoleName: k8snoderole     # EKS node role name
 ```
 
 ## Executing Templates
@@ -213,7 +213,7 @@ hyve template execute prod-template prod-cluster-01
 
 **This command:**
 1. Creates cluster definition from template
-2. **For AWS**: resolves `awsVpcName`, `awsEksRole`, and `awsNodeRole` aliases to VPC IDs and role ARNs from `provider-configs/aws/<account>.yaml`
+2. **For AWS**: constructs role ARNs from `awsEksRoleName`/`awsNodeRoleName` and the account ID
 3. Provisions cluster in cloud provider
 4. Waits for cluster to be ready
 5. Syncs kubeconfig
@@ -545,10 +545,10 @@ spec:
       labels:
         role: worker
   clusterType: eks
-  awsAccount: main-account    # matches the filename in provider-configs/aws/main-account.yaml
-  awsVpcName: k8svpc          # matches vpcs[*].name in that account file
-  awsEksRole: k8srole         # matches roles[*].name (EKS cluster role)
-  awsNodeRole: k8snoderole    # matches roles[*].name (EKS node role)
+  awsAccount: main-account    # account alias from hyve config aws account add
+  awsVpcId: vpc-0abc123456789 # VPC ID (set in template or override at execute time)
+  awsEksRoleName: k8srole     # EKS cluster role name
+  awsNodeRoleName: k8snoderole # EKS node role name
   ingress:
     enabled: false
     loadBalancer: false
@@ -558,7 +558,7 @@ spec:
 ```
 
 <Info>
-  AWS alias names (`awsAccount`, `awsVpcName`, `awsEksRole`, `awsNodeRole`) are resolved to actual IDs and ARNs from `provider-configs/aws/<account>.yaml` when `hyve template execute` runs. See the [AWS provider config](/configuration) for how to define these aliases.
+  `awsVpcId` and role names can be set directly in the template YAML or overridden at execute time via `--vpc-id`, `--eks-role-name`, and `--node-role-name` flags. Role ARNs are constructed automatically from the role name and account ID at reconcile time.
 </Info>
 
 <Info>
@@ -1046,25 +1046,18 @@ hyve cluster modify prod-green --name prod-blue
     ```
   </Accordion>
 
-  <Accordion title="AWS Alias Not Found">
-    **Problem:** `hyve template execute` fails with "AWS VPC 'k8svpc' not found in account 'main-account'"
+  <Accordion title="AWS VPC or Role Not Set">
+    **Problem:** `hyve template execute` fails because `awsVpcId` or `awsEksRoleName` is empty.
 
-    **Cause:** The alias name in the template doesn't match any entry in `provider-configs/aws/<account>.yaml`.
-
-    **Solution:** Verify your provider config contains matching alias names:
-    ```yaml
-    # provider-configs/aws/main-account.yaml
-    name: main-account               # must match awsAccount in template
-    account_id: "123456789012"
-    vpcs:
-      - name: k8svpc                 # must match awsVpcName in template
-        vpc_id: vpc-0abc123
-    roles:
-      - name: k8srole                # must match awsEksRole in template
-        role_arn: arn:aws:iam::123456789012:role/EKSClusterRole
-      - name: k8snoderole            # must match awsNodeRole in template
-        role_arn: arn:aws:iam::123456789012:role/EKSNodeRole
+    **Solution:** Set the values in the template YAML directly or override at execute time:
+    ```bash
+    hyve template execute aws-template eks-prod-01 \
+      --vpc-id vpc-0abc123456789 \
+      --eks-role-name eks-cluster-role \
+      --node-role-name eks-node-role
     ```
+
+    Alternatively, use `hyve interactive` to execute the template — the TUI offers live cloud lookup for VPCs and IAM roles.
   </Accordion>
 
   <Accordion title="Workflows Fail During Execution">
