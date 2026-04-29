@@ -541,7 +541,7 @@ spec:
   clusterType: eks
   expiresAt: "2026-04-25T18:00:00Z"   # end of sprint
   workflows:
-    onCreated:
+    onCreate:
       - deploy-feature-branch
     onDestroy:
       - export-test-results

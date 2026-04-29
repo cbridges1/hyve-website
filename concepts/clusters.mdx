@@ -46,7 +46,7 @@ Clusters are defined using YAML files following a standard structure. The requir
         - g4s.kube.large
       clusterType: k3s
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring
           - deploy-app
         onDestroy:
@@ -78,7 +78,7 @@ Clusters are defined using YAML files following a standard structure. The requir
           spot: true
       clusterType: k3s
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring
           - deploy-app
         onDestroy:
@@ -110,7 +110,7 @@ Clusters are defined using YAML files following a standard structure. The requir
           spot: true
       clusterType: k3s
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring
         onDestroy:
           - backup-data
@@ -135,7 +135,7 @@ Clusters are defined using YAML files following a standard structure. The requir
           maxCount: 8
       clusterType: k3s
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring
         onDestroy:
           - backup-data
@@ -185,7 +185,7 @@ Clusters are defined using YAML files following a standard structure. The requir
   - `spot` (bool) — Use spot/preemptible instances
 </ParamField>
 
-<ParamField path="spec.workflows.onCreated" type="array">
+<ParamField path="spec.workflows.onCreate" type="array">
   List of workflow names to execute after cluster creation during reconcile
 </ParamField>
 
@@ -537,14 +537,14 @@ hyve reconcile
 
 Clusters can define workflows that run automatically during reconciliation:
 
-### onCreated Workflows
+### onCreate Workflows
 
 Run after a cluster is created and becomes ready:
 
 ```yaml
 spec:
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring      # Install Prometheus/Grafana
       - configure-networking  # Set up network policies
       - deploy-app           # Deploy application
@@ -705,7 +705,7 @@ spec:
     - g4s.kube.large
     - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
     onDestroy:

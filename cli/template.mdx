@@ -51,7 +51,7 @@ hyve template create [template-name] [flags]
   Enable load balancer for ingress
 </ParamField>
 
-<ParamField path="--on-created, -c" type="string">
+<ParamField path="--on-create, -c" type="string">
   Workflows to run after cluster creation (comma-separated)
 </ParamField>
 
@@ -83,7 +83,7 @@ hyve template create prod-template \
   --description "Production cluster template" \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --on-created setup-monitoring,deploy-app \
+  --on-create setup-monitoring,deploy-app \
   --on-destroy backup-data,cleanup
 
 # Create a template with an automatic weekly Friday expiry
@@ -111,7 +111,7 @@ Template path: /Users/username/.hyve/repositories/production/templates/prod-temp
   Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
   Cluster Type: k3s
   Ingress: true
-  OnCreated Workflows: setup-monitoring, deploy-app
+  OnCreate Workflows: setup-monitoring, deploy-app
   OnDestroy Workflows: backup-data, cleanup
 
 💡 Execute this template with:
@@ -142,13 +142,13 @@ hyve template list
   prod-template
     Description: Production cluster template
     Region: NYC1 | Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large | Type: k3s
-    OnCreated Workflows: setup-monitoring, deploy-app
+    OnCreate Workflows: setup-monitoring, deploy-app
     OnDestroy Workflows: backup-data, cleanup
 
   staging-template
     Description: Staging environment template
     Region: PHX1 | Nodes: g4s.kube.medium, g4s.kube.medium | Type: k3s
-    OnCreated Workflows: setup-monitoring
+    OnCreate Workflows: setup-monitoring
 
   dev-template
     Region: PHX1 | Nodes: g4s.kube.small | Type: k3s
@@ -199,7 +199,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
     onDestroy:
@@ -295,7 +295,7 @@ hyve template execute azure-template aks-prod-01 \
   Region: NYC1
   Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
   Cluster Type: k3s
-  OnCreated Workflows: setup-monitoring, deploy-app
+  OnCreate Workflows: setup-monitoring, deploy-app
   OnDestroy Workflows: backup-data
 
 ✅ Cluster definition created: /Users/username/.hyve/repositories/production/clusters/prod-cluster-01.yaml
@@ -310,7 +310,7 @@ Polling cluster status (this may take several minutes)...
 3️⃣ Syncing kubeconfig...
 ✅ Kubeconfig synced and stored for cluster 'prod-cluster-01'
 
-4️⃣ Executing 2 onCreated workflow(s)...
+4️⃣ Executing 2 onCreate workflow(s)...
 
 [1/2] Running workflow: setup-monitoring
 [10:30:45][INFO][install-prometheus] Starting job 'install-prometheus'
@@ -376,7 +376,7 @@ hyve template validate prod-template
 📋 Nodes: 3 (g4s.kube.large, g4s.kube.large, g4s.kube.large)
 📋 Cluster Type: k3s
 📋 Ingress: true
-📋 OnCreated Workflows: 2 (setup-monitoring, deploy-app)
+📋 OnCreate Workflows: 2 (setup-monitoring, deploy-app)
 📋 OnDestroy Workflows: 1 (backup-data)
 ✨ No warnings
 ```
@@ -397,7 +397,7 @@ Errors:
 ⚠️  Warnings:
   • Region 'INVALID' may not be valid for Civo. Valid regions: PHX1, NYC1, FRA1, LON1
   • Node size 'g4s.kube.huge' may not be valid for Civo
-  • OnCreated workflow 'missing-workflow' not found in repository
+  • OnCreate workflow 'missing-workflow' not found in repository
 ```
 
 **Validation Checks:**
@@ -436,7 +436,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
     onDestroy:
@@ -502,12 +502,20 @@ spec:
   Enable load balancer for ingress
 </ParamField>
 
-<ParamField path="spec.workflows.onCreated" type="string[]">
-  Names of workflows to execute after cluster creation
+<ParamField path="spec.workflows.beforeCreate" type="string[]">
+  Names of workflows to run before the cluster is provisioned. **No kubeconfig is injected** — the cluster does not exist yet. Set via `--before-create` flag or the interactive TUI.
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="string[]">
+  Names of workflows to execute after cluster creation. Kubeconfig is injected automatically. Set via `--on-create` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.onDestroy" type="string[]">
-  Names of workflows to execute before cluster destruction
+  Names of workflows to execute before cluster destruction. Kubeconfig is injected automatically. Set via `--on-destroy` flag or the interactive TUI.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="string[]">
+  Names of workflows to run after the cluster is deleted. **No kubeconfig is injected** — the cluster no longer exists. Set via `--after-delete` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.schedule" type="string">
@@ -566,7 +574,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - install-cert-manager
       - configure-backups
@@ -602,7 +610,7 @@ spec:
     enabled: false
     loadBalancer: false
   workflows:
-    onCreated:
+    onCreate:
       - setup-dev-tools
 ```
 
@@ -621,17 +629,17 @@ hyve template execute dev-minimal dev-feature-auth
 hyve template create us-east \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large \
-  --on-created setup-monitoring
+  --on-create setup-monitoring
 
 hyve template create us-west \
   --region PHX1 \
   --nodes g4s.kube.large,g4s.kube.large \
-  --on-created setup-monitoring
+  --on-create setup-monitoring
 
 hyve template create eu-central \
   --region FRA1 \
   --nodes g4s.kube.large,g4s.kube.large \
-  --on-created setup-monitoring
+  --on-create setup-monitoring
 
 # Deploy clusters from templates
 hyve template execute us-east prod-us-east-01
@@ -660,7 +668,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - configure-staging
       - deploy-app
@@ -688,7 +696,7 @@ Order workflows from infrastructure to application:
 
 ```yaml
 workflows:
-  onCreated:
+  onCreate:
     - setup-networking      # Network policies, CNI config
     - install-cert-manager  # Certificate management
     - setup-monitoring      # Prometheus, Grafana
@@ -729,7 +737,7 @@ Create base templates and extend them:
 hyve template create base-cluster \
   --region PHX1 \
   --nodes g4s.kube.medium \
-  --on-created setup-base
+  --on-create setup-base
 
 # Extended for specific use case
 # Copy and modify base-cluster.yaml to add specific workflows
@@ -777,7 +785,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
 ```
 
@@ -817,7 +825,7 @@ spec:
     enabled: false
     loadBalancer: false
   workflows:
-    onCreated:
+    onCreate:
       - deploy-app
 ```
 
@@ -863,7 +871,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
 ```
@@ -907,7 +915,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
 ```
@@ -939,7 +947,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - install-cert-manager
       - configure-backups

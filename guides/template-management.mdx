@@ -14,7 +14,7 @@ Templates in Hyve enable reusable cluster configurations with automated workflow
 Templates combine:
 - Cluster specifications (provider, region, nodes or node groups)
 - Ingress configuration
-- Lifecycle workflows (onCreated runs after cluster creation, onDestroy runs before deletion)
+- Lifecycle workflows (onCreate runs after cluster creation, onDestroy runs before deletion)
 - Node group definitions for multi-pool AWS EKS, GCP GKE, and Azure AKS clusters
 - Reusable patterns for consistent deployments
 
@@ -26,7 +26,7 @@ Templates combine:
     hyve template create prod-template \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --on-created setup-monitoring,deploy-app
+      --on-create setup-monitoring,deploy-app
     ```
   </Tab>
 
@@ -40,7 +40,7 @@ Templates combine:
       --cluster-type k3s \
       --ingress \
       --load-balancer \
-      --on-created setup-monitoring,deploy-app,configure-backups \
+      --on-create setup-monitoring,deploy-app,configure-backups \
       --on-destroy backup-data,cleanup \
       --schedule "0 20 * * 5"
     ```
@@ -66,7 +66,7 @@ Templates combine:
         enabled: true
         loadBalancer: true
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring
           - deploy-app
         onDestroy:
@@ -100,7 +100,7 @@ Templates combine:
         enabled: false
         loadBalancer: false
       workflows:
-        onCreated:
+        onCreate:
           - deploy-app
     ```
   </Tab>
@@ -131,7 +131,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - configure-logging
       - deploy-observability
@@ -183,7 +183,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:                       # Optional: Lifecycle workflows
-    onCreated:                     # Run after cluster is ready
+    onCreate:                     # Run after cluster is ready
       - workflow-name-1
       - workflow-name-2
     onDestroy:                     # Run before cluster deletion
@@ -217,7 +217,7 @@ hyve template execute prod-template prod-cluster-01
 3. Provisions cluster in cloud provider
 4. Waits for cluster to be ready
 5. Syncs kubeconfig
-6. Executes all `onCreated` workflows in order
+6. Executes all `onCreate` workflows in order
 7. Note: `onDestroy` workflows run when the cluster is deleted
 
 ### Execution Output
@@ -230,7 +230,7 @@ hyve template execute prod-template prod-cluster-01
   Region: NYC1
   Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
   Cluster Type: k3s
-  OnCreated Workflows: setup-monitoring, deploy-app
+  OnCreate Workflows: setup-monitoring, deploy-app
   OnDestroy Workflows: backup-data
 
 ✅ Cluster definition created: /Users/user/.hyve/repositories/production/clusters/prod-cluster-01.yaml
@@ -245,7 +245,7 @@ Polling cluster status (this may take several minutes)...
 3️⃣ Syncing kubeconfig...
 ✅ Kubeconfig synced and stored for cluster 'prod-cluster-01'
 
-4️⃣ Executing 2 onCreated workflow(s)...
+4️⃣ Executing 2 onCreate workflow(s)...
 
 [1/2] Running workflow: setup-monitoring
 ✅ Workflow 'setup-monitoring' completed successfully
@@ -275,13 +275,13 @@ hyve template list
   production-standard
     Description: Standard production cluster with 3 large nodes
     Region: NYC1 | Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large | Type: k3s
-    OnCreated Workflows: setup-monitoring, deploy-app, configure-backups
+    OnCreate Workflows: setup-monitoring, deploy-app, configure-backups
     OnDestroy Workflows: backup-data
 
   staging-template
     Description: Staging environment cluster
     Region: PHX1 | Nodes: g4s.kube.medium, g4s.kube.medium | Type: k3s
-    OnCreated Workflows: deploy-app
+    OnCreate Workflows: deploy-app
 
   dev-template
     Description: Development cluster template
@@ -290,7 +290,7 @@ hyve template list
   edge-template
     Description: Edge computing cluster
     Region: LON1 | Nodes: g4s.kube.medium | Type: k3s
-    OnCreated Workflows: edge-setup
+    OnCreate Workflows: edge-setup
 
 💡 Execute a template with:
   hyve template execute <template-name> <cluster-name>
@@ -323,7 +323,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
       - configure-backups
@@ -371,7 +371,7 @@ hyve template validate production-standard
     📋 Nodes: 3 (g4s.kube.large, g4s.kube.large, g4s.kube.large)
     📋 Cluster Type: k3s
     📋 Ingress: true
-    📋 OnCreated Workflows: 2 (setup-monitoring, deploy-app)
+    📋 OnCreate Workflows: 2 (setup-monitoring, deploy-app)
     📋 OnDestroy Workflows: 1 (backup-data)
     ✨ No warnings
     ```
@@ -397,7 +397,7 @@ hyve template validate production-standard
 
     ⚠️  Warnings:
       • Node size 'g4s.kube.custom' may not be valid for Civo
-      • OnCreated workflow 'deploy-app' not found in repository
+      • OnCreate workflow 'deploy-app' not found in repository
       • Unexpected apiVersion 'v2', expected 'v1'
 
     ✅ Template is valid
@@ -406,7 +406,7 @@ hyve template validate production-standard
     📋 Nodes: 2 (g4s.kube.custom, g4s.kube.medium)
     📋 Cluster Type: k3s
     📋 Ingress: true
-    📋 OnCreated Workflows: 1 (deploy-app)
+    📋 OnCreate Workflows: 1 (deploy-app)
     📋 OnDestroy Workflows: none
     ```
   </Tab>
@@ -462,7 +462,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
       - seed-test-data
@@ -498,7 +498,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - configure-logging
       - deploy-observability
@@ -553,7 +553,7 @@ spec:
     enabled: false
     loadBalancer: false
   workflows:
-    onCreated:
+    onCreate:
       - deploy-app
 ```
 
@@ -603,7 +603,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
 ```
@@ -648,7 +648,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
 ```
@@ -680,7 +680,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - edge-setup
       - deploy-iot-gateway
 ```
@@ -710,7 +710,7 @@ spec:
     - g4s.kube.large
   clusterType: k3s
   workflows:
-    onCreated:
+    onCreate:
       - deploy-regional-app
 ---
 # EU template
@@ -727,7 +727,7 @@ spec:
     - g4s.kube.large
   clusterType: k3s
   workflows:
-    onCreated:
+    onCreate:
       - deploy-regional-app
 ```
 
@@ -747,7 +747,7 @@ hyve template execute eu-template prod-eu-api
     hyve template create feature-env \
       --region PHX1 \
       --nodes g4s.kube.small \
-      --on-created deploy-app,seed-data
+      --on-create deploy-app,seed-data
     ```
   </Step>
 
@@ -791,7 +791,7 @@ hyve template execute production-template prod-worker-01
 hyve template create customer-template \
   --region NYC1 \
   --nodes g4s.kube.medium,g4s.kube.medium \
-  --on-created setup-tenant,deploy-app,configure-isolation \
+  --on-create setup-tenant,deploy-app,configure-isolation \
   --on-destroy cleanup-tenant-data
 
 # Deploy for each customer
@@ -852,7 +852,7 @@ hyve template execute test-talos test-talos-cluster
     ```yaml
     spec:
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring      # Always monitor
           - configure-logging     # Always log
           - setup-backups        # Always backup
@@ -904,7 +904,7 @@ hyve template execute test-talos test-talos-cluster
     ```yaml
     spec:
       workflows:
-        onCreated:
+        onCreate:
           - setup-monitoring      # Installs Prometheus + Grafana
           - deploy-app           # Deploys main application
           - configure-backups    # Sets up Velero for backups
@@ -936,7 +936,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
 EOF
 
@@ -956,7 +956,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
 EOF
 
@@ -978,7 +978,7 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - setup-backups
       - configure-alerting

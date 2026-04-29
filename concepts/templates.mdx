@@ -44,7 +44,7 @@ spec:
     - g4s.kube.large
   schedule: "0 20 * * 5"   # optional: auto-expire clusters every Friday at 20:00
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-base-apps
     onDestroy:
@@ -68,7 +68,7 @@ spec:
   Cluster configuration (region, provider, nodes)
 </ParamField>
 
-<ParamField path="spec.workflows.onCreated" type="array">
+<ParamField path="spec.workflows.onCreate" type="array">
   List of workflow names to execute after cluster creation
 </ParamField>
 
@@ -94,7 +94,7 @@ hyve template create prod-template \
 hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-  --on-created setup-monitoring,deploy-apps \
+  --on-create setup-monitoring,deploy-apps \
   --on-destroy backup-data,cleanup
 
 # Create a dev template that auto-expires clusters every Friday at 20:00
@@ -128,7 +128,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-base-apps
     onDestroy:
@@ -151,7 +151,7 @@ hyve template execute prod-template my-prod-cluster
 # This will:
 # 1. Create cluster 'my-prod-cluster' using template specs
 # 2. Wait for cluster to be ready
-# 3. Run 'onCreated' workflows (setup-monitoring, deploy-base-apps)
+# 3. Run 'onCreate' workflows (setup-monitoring, deploy-base-apps)
 # Note: 'onDestroy' workflows run when the cluster is deleted
 ```
 
@@ -185,13 +185,13 @@ hyve template execute prod-template my-prod-cluster
     ```
   </Step>
 
-  <Step title="Execute onCreated Workflows">
-    Run each onCreated workflow in sequence
+  <Step title="Execute onCreate Workflows">
+    Run each onCreate workflow in sequence
 
     ```
-    [INFO] Running onCreated workflow 'setup-monitoring'
+    [INFO] Running onCreate workflow 'setup-monitoring'
     [INFO] Workflow 'setup-monitoring' completed
-    [INFO] Running onCreated workflow 'deploy-base-apps'
+    [INFO] Running onCreate workflow 'deploy-base-apps'
     [INFO] Workflow 'deploy-base-apps' completed
     ```
   </Step>
@@ -227,7 +227,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - setup-logging
       - deploy-ingress-controller
@@ -255,7 +255,7 @@ spec:
       - g4s.kube.medium
       - g4s.kube.medium
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-test-apps
 ```
@@ -277,7 +277,7 @@ spec:
     nodes:
       - g4s.kube.small
   workflows:
-    onCreated:
+    onCreate:
       - setup-dev-tools
 ```
 
@@ -300,7 +300,7 @@ spec:
       - g4s.kube.xlarge
       - g4s.kube.xlarge
   workflows:
-    onCreated:
+    onCreate:
       - install-cuda-drivers
       - setup-jupyter
       - deploy-ml-platform
@@ -321,7 +321,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:              # Run after cluster is ready
+    onCreate:              # Run after cluster is ready
       - setup-monitoring
       - deploy-apps
       - configure-ingress
@@ -334,7 +334,7 @@ spec:
 
 | Event | When It Runs | Use Cases |
 |-------|--------------|-----------|
-| `onCreated` | After cluster is ready | Setup monitoring, deploy apps, configure ingress |
+| `onCreate` | After cluster is ready | Setup monitoring, deploy apps, configure ingress |
 | `onDestroy` | Before cluster deletion | Backup data, cleanup DNS, notify teams |
 
 ### Workflow Requirements
@@ -430,7 +430,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - install-security-policies
       - setup-monitoring
       - configure-networking
@@ -510,7 +510,7 @@ hyve template execute prod-template prod-new-cluster
 
     ```yaml
     workflows:
-      onCreated:
+      onCreate:
         - setup-monitoring        # Always monitor
         - configure-security      # Security baseline
         - setup-backup           # Disaster recovery
@@ -568,7 +568,7 @@ spec:
     nodes:
       - g4s.kube.medium
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
 
 # Production variant (copy and modify)
@@ -586,7 +586,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - setup-logging
       - deploy-ingress
@@ -620,7 +620,7 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - setup-logging
       - install-security-policies
@@ -680,9 +680,9 @@ hyve template execute production-complete prod-app-01
 # Output:
 # [INFO] Creating cluster 'prod-app-01' from template 'production-complete'
 # [INFO] Cluster created successfully
-# [INFO] Running onCreated workflow 'setup-monitoring'
+# [INFO] Running onCreate workflow 'setup-monitoring'
 # [INFO] Workflow 'setup-monitoring' completed
-# [INFO] Running onCreated workflow 'setup-logging'
+# [INFO] Running onCreate workflow 'setup-logging'
 # [INFO] Workflow 'setup-logging' completed
 # ...
 # [INFO] Template execution completed successfully

@@ -102,14 +102,14 @@ hyve cluster add [cluster-name] [flags]
   ```
 </ParamField>
 
-<ParamField path="--on-created" type="string (repeatable)">
+<ParamField path="--on-create" type="string (repeatable)">
   Name of a workflow to run after the cluster is successfully created. Can be specified multiple times to attach several workflows. Workflow names must match an existing workflow defined with `hyve workflow add`.
 
   ```bash
   hyve cluster add my-cluster --provider civo --region PHX1 \
     --nodes g4s.kube.medium --org-name my-org \
-    --on-created setup-monitoring \
-    --on-created notify-slack
+    --on-create setup-monitoring \
+    --on-create notify-slack
   ```
 </ParamField>
 
@@ -291,7 +291,7 @@ spec:
   workflows:
     beforeCreate:
       - pre-flight-checks
-    onCreated:
+    onCreate:
       - setup-monitoring
     onDestroy:
       - backup-data
@@ -361,8 +361,8 @@ hyve cluster modify [cluster-name] [flags]
   Replace the `beforeCreate` workflow list. Pass an empty value to clear: `--before-create ""`.
 </ParamField>
 
-<ParamField path="--on-created" type="string (repeatable)">
-  Replace the `onCreated` workflow list.
+<ParamField path="--on-create" type="string (repeatable)">
+  Replace the `onCreate` workflow list.
 </ParamField>
 
 <ParamField path="--on-destroy" type="string (repeatable)">
@@ -761,7 +761,7 @@ spec:
   workflows:
     beforeCreate:
       - pre-flight-checks
-    onCreated:
+    onCreate:
       - setup-monitoring
     onDestroy:
       - backup-data
@@ -805,7 +805,7 @@ spec:
   workflows:
     beforeCreate:
       - pre-flight-checks
-    onCreated:
+    onCreate:
       - setup-monitoring
     onDestroy:
       - backup-data
@@ -938,19 +938,19 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.beforeCreate" type="string[]">
-  List of workflow names to run before the cluster is provisioned (pre-create hook). Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--before-create` flag or the interactive TUI.
+  List of workflow names to run before the cluster is provisioned. **No kubeconfig is injected** — the cluster does not exist yet. Use this hook for infrastructure that must exist before the cluster (e.g. VPC, IAM roles). Set via `--before-create` flag or the interactive TUI.
 </ParamField>
 
-<ParamField path="spec.workflows.onCreated" type="string[]">
-  List of workflow names to run after the cluster is successfully created. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-created` flag or the interactive TUI.
+<ParamField path="spec.workflows.onCreate" type="string[]">
+  List of workflow names to run after the cluster is successfully created. Kubeconfig is injected automatically. Set via `--on-create` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.onDestroy" type="string[]">
-  List of workflow names to run before the cluster is destroyed. Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--on-destroy` flag or the interactive TUI.
+  List of workflow names to run before the cluster is destroyed. Kubeconfig is injected automatically. Set via `--on-destroy` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.afterDelete" type="string[]">
-  List of workflow names to run after the cluster has been deleted (post-teardown hook). Each entry must match an existing workflow registered with `hyve workflow add`. Set via `--after-delete` flag or the interactive TUI.
+  List of workflow names to run after the cluster has been deleted. **No kubeconfig is injected** — the cluster no longer exists. Use this hook for infrastructure cleanup (e.g. VPC, IAM roles). Set via `--after-delete` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.gcpProject" type="string">
@@ -1044,7 +1044,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
     hyve cluster add managed --provider civo --region PHX1 \
       --nodes g4s.kube.medium --org-name my-org \
       --before-create pre-flight-checks \
-      --on-created setup-monitoring --on-created notify-slack \
+      --on-create setup-monitoring --on-create notify-slack \
       --on-destroy backup-data \
       --after-delete cleanup-dns
     ```
@@ -1365,7 +1365,7 @@ hyve cluster add production \
   --nodes g4s.kube.large,g4s.kube.large \
   --org-name my-org \
   --before-create pre-flight-checks \
-  --on-created setup-monitoring \
+  --on-create setup-monitoring \
   --on-destroy backup-data \
   --after-delete cleanup-dns
 
@@ -1378,8 +1378,8 @@ hyve cluster add production \
   --eks-role-name eks-role \
   --node-group "name=workers,type=m5.large,count=3" \
   --before-create pre-flight-checks \
-  --on-created setup-monitoring \
-  --on-created notify-slack \
+  --on-create setup-monitoring \
+  --on-create notify-slack \
   --on-destroy backup-data \
   --on-destroy notify-slack \
   --after-delete cleanup-dns

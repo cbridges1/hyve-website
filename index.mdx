@@ -134,7 +134,7 @@ hyve template execute prod-template prod-cluster-01
   </Accordion>
 
   <Accordion title="Built-in post-deploy hooks — no extra orchestration">
-    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreated` and `onDestroy` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
+    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreate` and `onDestroy` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
   </Accordion>
 
   <Accordion title="Consistent multi-cloud without a plugin ecosystem">
@@ -146,7 +146,7 @@ hyve template execute prod-template prod-cluster-01
   </Accordion>
 
   <Accordion title="Native cluster templates — no Terragrunt required">
-    For teams provisioning clusters repeatedly to the same pattern, Terraform requires copy-pasted modules or Terragrunt. Hyve has native cluster templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreated` workflows run — all in one step.
+    For teams provisioning clusters repeatedly to the same pattern, Terraform requires copy-pasted modules or Terragrunt. Hyve has native cluster templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreate` workflows run — all in one step.
   </Accordion>
 </AccordionGroup>
 

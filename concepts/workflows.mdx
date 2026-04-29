@@ -244,7 +244,7 @@ metadata:
 spec:
   # ... cluster config
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
       - deploy-app
     onDestroy:
@@ -263,16 +263,22 @@ metadata:
 spec:
   # ... cluster config
   workflows:
-    onCreated:
+    onCreate:
       - setup-monitoring
     onDestroy:
       - backup-data
 ```
 
-| Event | When It Runs | Typical Use Cases |
-|-------|--------------|-------------------|
-| `onCreated` | After cluster is ready during reconcile | Setup monitoring, deploy apps, configure services |
-| `onDestroy` | Before cluster deletion during reconcile | Backup data, export logs, cleanup external resources |
+| Hook | When It Runs | Cluster Exists? | Kubeconfig Available? | Typical Use Cases |
+|------|--------------|-----------------|----------------------|-------------------|
+| `beforeCreate` | Before cluster is created | No | No | Provision VPC, create IAM roles, allocate IP ranges |
+| `onCreate` | After cluster is ready | Yes | Yes | Setup monitoring, deploy apps, configure services |
+| `onDestroy` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
+| `afterDelete` | After cluster is deleted | No | No | Destroy VPC, remove IAM roles, release IP ranges |
+
+<Note>
+`beforeCreate` and `afterDelete` run when no cluster exists, so kubeconfig injection is skipped. Workflows assigned to these hooks must not use `kubectl` or any tool that requires cluster access.
+</Note>
 
 ### Execution Flow
 

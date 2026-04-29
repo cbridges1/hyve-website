@@ -290,7 +290,7 @@ Before you begin, ensure you have:
     hyve template create prod-template \
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
-      --on-created setup-monitoring,deploy-app \
+      --on-create setup-monitoring,deploy-app \
       --on-destroy backup-data
 
     # Execute the template
