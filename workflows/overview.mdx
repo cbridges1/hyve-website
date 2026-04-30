@@ -105,6 +105,10 @@ spec:
     - name: HYVE_CLUSTER_PROVIDER
       description: "Cloud provider (azure, aws, gcp, civo)"
       default: azure
+    # Provider-specific account identifier — only the relevant one is set per cluster:
+    #   HYVE_AWS_ACCOUNT, HYVE_GCP_PROJECT, HYVE_AZURE_SUBSCRIPTION, HYVE_CIVO_ORG
+    - name: HYVE_AWS_ACCOUNT
+      description: "AWS account alias (AWS clusters only)"
 ```
 
 See [Workflow Concepts — Workflow Inputs](/concepts/workflows#workflow-inputs) for full details.

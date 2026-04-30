@@ -321,21 +321,27 @@ spec:
       - g4s.kube.large
       - g4s.kube.large
   workflows:
-    onCreate:              # Run after cluster is ready
+    beforeCreate:          # Run before the cluster is provisioned (no kubeconfig)
+      - provision-prereqs
+    onCreate:              # Run after cluster is ready (kubeconfig injected)
       - setup-monitoring
       - deploy-apps
       - configure-ingress
-    onDestroy:              # Run before cluster deletion
+    onDestroy:             # Run before cluster deletion (kubeconfig injected)
       - backup-data
       - cleanup-dns
+    afterDelete:           # Run after the cluster is deleted (no kubeconfig)
+      - teardown-prereqs
 ```
 
 ### Lifecycle Events
 
-| Event | When It Runs | Use Cases |
-|-------|--------------|-----------|
-| `onCreate` | After cluster is ready | Setup monitoring, deploy apps, configure ingress |
-| `onDestroy` | Before cluster deletion | Backup data, cleanup DNS, notify teams |
+| Event | When It Runs | Kubeconfig | Use Cases |
+|-------|--------------|------------|-----------|
+| `beforeCreate` | Before the cluster is provisioned | No | Provision VPC, IAM roles, DNS zones |
+| `onCreate` | After cluster is ready | Yes | Setup monitoring, deploy apps, configure ingress |
+| `onDestroy` | Before cluster deletion | Yes | Backup data, drain workloads, notify teams |
+| `afterDelete` | After the cluster is deleted | No | Tear down VPC, IAM roles, DNS zones |
 
 ### Workflow Requirements
 

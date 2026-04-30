@@ -64,6 +64,36 @@ steps:
     # Expands to: docker push docker.io/myuser/my-app:v1.0.0
 ```
 
+## Lifecycle Hook Variables
+
+When a workflow is assigned to a cluster lifecycle hook, Hyve automatically injects
+variables from the cluster definition before the workflow runs. These are available in
+every step without declaring them in `spec.inputs`:
+
+| Variable | Value | Available in |
+|----------|-------|--------------|
+| `HYVE_CLUSTER_NAME` | Cluster name | All hooks |
+| `HYVE_CLUSTER_REGION` | Cluster region | All hooks |
+| `HYVE_CLUSTER_PROVIDER` | Cloud provider (`aws`, `gcp`, `azure`, `civo`) | All hooks |
+| `HYVE_CLUSTER_TYPE` | Cluster type (`eks`, `gke`, `aks`, `k3s`) | All hooks |
+| `HYVE_AWS_ACCOUNT` | AWS account alias | All hooks (AWS clusters) |
+| `HYVE_GCP_PROJECT` | GCP project alias | All hooks (GCP clusters) |
+| `HYVE_AZURE_SUBSCRIPTION` | Azure subscription alias | All hooks (Azure clusters) |
+| `HYVE_CIVO_ORG` | Civo organization alias | All hooks (Civo clusters) |
+| `HYVE_CLUSTER_IP_ADDRESS` | Cluster IP address | `onCreate`, `onDestroy` |
+| `HYVE_CLUSTER_ID` | Cloud provider cluster ID | `onCreate`, `onDestroy` |
+| `HYVE_CLUSTER_STATUS` | Cluster status | `onCreate`, `onDestroy` |
+| `KUBECONFIG` | Path to cluster kubeconfig | `onCreate`, `onDestroy` |
+
+Provider credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) are also
+injected from `provider-configs/*.yaml` for the cluster's account so that CLI tools
+invoked by steps can authenticate without additional configuration.
+
+`beforeCreate` and `afterDelete` hooks receive the cluster definition variables but not
+live cluster data — the cluster does not exist at those points. Output variables printed
+by a `beforeCreate` step in `HYVE_VAR=value` format are captured by the reconciler and
+made available to subsequent steps and to the cluster definition.
+
 ## Variable Sources
 
 Variables can come from multiple sources, with a defined priority:

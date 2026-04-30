@@ -201,20 +201,29 @@ spec:
 
 ### Automatic injection by lifecycle hooks
 
-When a workflow is assigned to a `beforeCreate` or `afterDelete` hook, the reconciler
-automatically injects the following HYVE_* variables from the cluster definition before
-the workflow runs — even though no live cluster exists at that point:
+All four lifecycle hooks (`beforeCreate`, `onCreate`, `onDestroy`, `afterDelete`) receive
+the following HYVE_* variables from the cluster definition automatically:
 
-| Variable | Source |
-|----------|--------|
-| `HYVE_CLUSTER_NAME` | `metadata.name` |
-| `HYVE_CLUSTER_REGION` | `metadata.region` |
-| `HYVE_CLUSTER_PROVIDER` | `spec.provider` |
-| `HYVE_CLUSTER_TYPE` | `spec.clusterType` |
-| Provider credentials | From the matching `provider-configs/*.yaml` entry |
+| Variable | Source | Notes |
+|----------|--------|-------|
+| `HYVE_CLUSTER_NAME` | `metadata.name` | |
+| `HYVE_CLUSTER_REGION` | `metadata.region` | |
+| `HYVE_CLUSTER_PROVIDER` | `spec.provider` | e.g. `aws`, `gcp`, `azure`, `civo` |
+| `HYVE_CLUSTER_TYPE` | `spec.clusterType` | e.g. `eks`, `gke`, `aks`, `k3s` |
+| `HYVE_AWS_ACCOUNT` | `spec.awsAccount` | AWS only |
+| `HYVE_GCP_PROJECT` | `spec.gcpProject` | GCP only |
+| `HYVE_AZURE_SUBSCRIPTION` | `spec.azureSubscription` | Azure only |
+| `HYVE_CIVO_ORG` | `spec.civoOrganization` | Civo only |
+| Provider credentials | `provider-configs/*.yaml` | Standard CLI env vars (e.g. `AWS_ACCESS_KEY_ID`) |
 
-`onCreate` and `onDestroy` hooks additionally receive live cluster data
-(`HYVE_CLUSTER_IP_ADDRESS`, `HYVE_CLUSTER_ID`, `HYVE_CLUSTER_STATUS`, `KUBECONFIG`).
+Only the account variable that matches the cluster's provider is set — the others are left unset.
+
+`onCreate` and `onDestroy` hooks additionally receive live cluster data:
+`HYVE_CLUSTER_IP_ADDRESS`, `HYVE_CLUSTER_ID`, `HYVE_CLUSTER_STATUS`, and `KUBECONFIG`.
+
+`beforeCreate` and `afterDelete` hooks run without a live cluster. Any HYVE_* output
+variables printed by a `beforeCreate` workflow step (e.g. `HYVE_VPC_ID=vpc-xxx`) are
+captured and available to subsequent steps and to the reconciler via `resolveHookEnvVars`.
 
 ### Ad-hoc runs
 

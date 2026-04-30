@@ -522,6 +522,38 @@ spec:
   A 5-field cron expression (e.g. `0 20 * * 5`). When the template is executed, the next occurrence after the current time is computed and written to the generated cluster's `spec.expiresAt` as an RFC 3339 timestamp. The cluster is then automatically deleted when that deadline passes. Omit this field for clusters that should run indefinitely.
 </ParamField>
 
+<ParamField path="spec.dynamicFields" type="string[]">
+  A list of optional provider-specific field names whose values will be supplied at runtime by a `beforeCreate` workflow via `HYVE_*` output variables. When a field is listed here, the interactive TUI skips the prompt for it and the cluster definition is written with that field empty so the workflow can populate it.
+
+  Supported field names:
+
+  | Field name | Provider | Populated by |
+  |---|---|---|
+  | `awsVpcId` | AWS | `HYVE_VPC_ID` |
+  | `awsEksRoleName` | AWS | `HYVE_EKS_ROLE_NAME` |
+  | `awsNodeRoleName` | AWS | `HYVE_NODE_ROLE_NAME` |
+  | `azureResourceGroup` | Azure | `HYVE_RESOURCE_GROUP_NAME` |
+
+  Example — VPC and IAM roles created by a `beforeCreate` workflow:
+
+  ```yaml
+  spec:
+    provider: aws
+    awsAccount: my-account
+    dynamicFields:
+      - awsVpcId
+      - awsEksRoleName
+      - awsNodeRoleName
+    workflows:
+      beforeCreate:
+        - provision-eks-prereqs   # outputs HYVE_VPC_ID, HYVE_EKS_ROLE_ARN, HYVE_NODE_ROLE_ARN
+      onCreate:
+        - deploy-app
+      afterDelete:
+        - teardown-eks-prereqs
+  ```
+</ParamField>
+
 ### AWS-Specific Fields
 
 These fields apply when `spec.provider` is `aws`.
@@ -531,19 +563,19 @@ These fields apply when `spec.provider` is `aws`.
 </ParamField>
 
 <ParamField path="spec.awsVpcId" type="string">
-  AWS VPC ID. Set via `--vpc-id/-v` at execute time or in the template YAML directly. The interactive TUI offers a live cloud lookup to select from available VPCs.
+  AWS VPC ID. Set directly in the template YAML or override at execute time with `--vpc-id/-v`. The interactive TUI offers a live cloud lookup to select from available VPCs. Omit this field (or list it in `dynamicFields`) if a `beforeCreate` workflow creates the VPC and outputs `HYVE_VPC_ID`.
 </ParamField>
 
 <ParamField path="spec.awsEksRoleName" type="string">
-  IAM role name for the EKS control plane. Set via `--eks-role-name/-e` at execute time or in the template YAML. The role ARN is constructed at reconcile time from this name and the account ID.
+  IAM role name for the EKS control plane. Set in the template YAML or override with `--eks-role-name/-e`. Omit (or list in `dynamicFields`) if a `beforeCreate` workflow creates the role and outputs `HYVE_EKS_ROLE_NAME` / `HYVE_EKS_ROLE_ARN`.
 </ParamField>
 
 <ParamField path="spec.awsNodeRoleName" type="string">
-  IAM role name for EKS node groups. Set via `--node-role-name/-n` at execute time or in the template YAML.
+  IAM role name for EKS node groups. Set in the template YAML or override with `--node-role-name/-n`. Omit (or list in `dynamicFields`) if a `beforeCreate` workflow outputs `HYVE_NODE_ROLE_NAME` / `HYVE_NODE_ROLE_ARN`.
 </ParamField>
 
 <Info>
-  AWS VPC and role fields can be set in the template YAML or overridden at execute time via flags. The interactive TUI provides live cloud lookup for VPCs and IAM roles.
+  AWS VPC and role fields can be set in the template YAML, overridden at execute time via flags, or left to a `beforeCreate` workflow by listing them in `spec.dynamicFields`. When listed in `dynamicFields`, the TUI skips the prompt and the reconciler reads the values from workflow output variables instead.
 </Info>
 
 <Info>
@@ -791,7 +823,9 @@ spec:
 
 ---
 
-### AWS EKS Cluster
+### AWS EKS Cluster (static VPC and roles)
+
+For clusters where the VPC and IAM roles already exist:
 
 ```yaml
 apiVersion: v1
@@ -819,7 +853,7 @@ spec:
   clusterType: eks
   awsAccount: main-account      # alias from hyve config aws account add
   awsVpcId: vpc-0abc123456789   # VPC ID (or override at execute time with --vpc-id)
-  awsEksRoleName: k8srole       # EKS cluster role name (ARN constructed at reconcile time)
+  awsEksRoleName: k8srole       # EKS cluster role name
   awsNodeRoleName: k8snoderole  # EKS node role name
   ingress:
     enabled: false
@@ -834,10 +868,56 @@ spec:
 ```bash
 hyve template execute aws-eks-standard eks-prod-01
 
-# Or override VPC and roles at execution time:
+# Override VPC and roles at execution time:
 hyve template execute aws-eks-standard eks-prod-01 \
   --vpc-id vpc-0def987654321 \
   --eks-role-name prod-eks-role
+```
+
+---
+
+### AWS EKS Cluster (workflow-provisioned VPC and roles)
+
+For fully automated clusters where a `beforeCreate` workflow creates the VPC and IAM roles. Listing those fields in `dynamicFields` suppresses the interactive prompt — the reconciler reads the values from the workflow's `HYVE_*` output variables instead:
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: aws-eks-automated
+  description: EKS cluster with VPC and IAM roles created by a beforeCreate workflow
+spec:
+  provider: aws
+  region: us-east-1
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+      minCount: 1
+      maxCount: 4
+  clusterType: eks
+  awsAccount: main-account
+  dynamicFields:
+    - awsVpcId          # populated from HYVE_VPC_ID
+    - awsEksRoleName    # populated from HYVE_EKS_ROLE_NAME / HYVE_EKS_ROLE_ARN
+    - awsNodeRoleName   # populated from HYVE_NODE_ROLE_NAME / HYVE_NODE_ROLE_ARN
+  ingress:
+    enabled: false
+    loadBalancer: false
+  workflows:
+    beforeCreate:
+      - provision-eks-prereqs   # creates VPC and IAM roles, outputs HYVE_* vars
+    onCreate:
+      - deploy-app
+    afterDelete:
+      - teardown-eks-prereqs    # removes VPC and IAM roles after cluster is deleted
+```
+
+**Execute:**
+
+```bash
+hyve template execute aws-eks-automated eks-prod-01
+# No --vpc-id or role flags needed — the beforeCreate workflow provisions everything
 ```
 
 ---

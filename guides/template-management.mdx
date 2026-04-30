@@ -74,8 +74,8 @@ Templates combine:
     ```
   </Tab>
 
-  <Tab title="Manual YAML (AWS)">
-    Create `~/.hyve/repositories/<repo>/templates/aws-template.yaml`:
+  <Tab title="Manual YAML (AWS — static)">
+    VPC and IAM roles already exist — set them directly in the template:
     ```yaml
     apiVersion: v1
     kind: Template
@@ -92,16 +92,52 @@ Templates combine:
           minCount: 1
           maxCount: 5
       clusterType: eks
-      awsAccount: main-account    # alias from hyve config aws account add
-      awsVpcId: vpc-0abc123456789 # VPC ID (set in template or override at execute time)
-      awsEksRoleName: k8srole     # EKS cluster role name
-      awsNodeRoleName: k8snoderole # EKS node role name
+      awsAccount: main-account     # alias from hyve config aws account add
+      awsVpcId: vpc-0abc123456789  # existing VPC ID
+      awsEksRoleName: k8srole      # existing EKS cluster role name
+      awsNodeRoleName: k8snoderole # existing EKS node role name
       ingress:
         enabled: false
         loadBalancer: false
       workflows:
         onCreate:
           - deploy-app
+    ```
+  </Tab>
+
+  <Tab title="Manual YAML (AWS — dynamic)">
+    VPC and IAM roles created by a `beforeCreate` workflow. List them in `dynamicFields` so the TUI skips the prompts:
+    ```yaml
+    apiVersion: v1
+    kind: Template
+    metadata:
+      name: aws-eks-automated
+      description: EKS cluster with workflow-provisioned VPC and IAM roles
+    spec:
+      provider: aws
+      region: us-east-1
+      nodeGroups:
+        - name: system
+          instanceType: t3.medium
+          count: 2
+          minCount: 1
+          maxCount: 4
+      clusterType: eks
+      awsAccount: main-account
+      dynamicFields:
+        - awsVpcId        # set from HYVE_VPC_ID
+        - awsEksRoleName  # set from HYVE_EKS_ROLE_NAME / HYVE_EKS_ROLE_ARN
+        - awsNodeRoleName # set from HYVE_NODE_ROLE_NAME / HYVE_NODE_ROLE_ARN
+      ingress:
+        enabled: false
+        loadBalancer: false
+      workflows:
+        beforeCreate:
+          - provision-eks-prereqs
+        onCreate:
+          - deploy-app
+        afterDelete:
+          - teardown-eks-prereqs
     ```
   </Tab>
 </Tabs>
@@ -183,11 +219,15 @@ spec:
     enabled: true
     loadBalancer: true
   workflows:                       # Optional: Lifecycle workflows
-    onCreate:                     # Run after cluster is ready
+    beforeCreate:                  # Run before the cluster is provisioned (no kubeconfig)
+      - provision-prereqs
+    onCreate:                      # Run after cluster is ready (kubeconfig injected)
       - workflow-name-1
       - workflow-name-2
-    onDestroy:                     # Run before cluster deletion
+    onDestroy:                     # Run before cluster deletion (kubeconfig injected)
       - cleanup-workflow
+    afterDelete:                   # Run after the cluster is deleted (no kubeconfig)
+      - teardown-prereqs
   schedule: "0 20 * * 5"          # Optional: cron expression — auto-expire each cluster
                                    #   created from this template at the next occurrence
                                    #   (e.g. every Friday at 20:00). The next occurrence
@@ -197,8 +237,17 @@ spec:
   # AWS-specific fields (only when provider: aws)
   awsAccount: main-account         # Account alias from hyve config aws account add
   awsVpcId: vpc-0abc123456789      # VPC ID (set here or override at execute time)
-  awsEksRoleName: k8srole          # EKS cluster role name (ARN constructed at reconcile time)
+  awsEksRoleName: k8srole          # EKS cluster role name
   awsNodeRoleName: k8snoderole     # EKS node role name
+
+  # dynamicFields — list fields to be populated by a beforeCreate workflow.
+  # The TUI skips the prompt for each listed field; the reconciler reads the
+  # value from the workflow's HYVE_* output variable after the workflow runs.
+  dynamicFields:
+    - awsVpcId        # populated from HYVE_VPC_ID
+    - awsEksRoleName  # populated from HYVE_EKS_ROLE_NAME / HYVE_EKS_ROLE_ARN
+    - awsNodeRoleName # populated from HYVE_NODE_ROLE_NAME / HYVE_NODE_ROLE_ARN
+    # Azure: azureResourceGroup — populated from HYVE_RESOURCE_GROUP_NAME
 ```
 
 ## Executing Templates
@@ -213,12 +262,12 @@ hyve template execute prod-template prod-cluster-01
 
 **This command:**
 1. Creates cluster definition from template
-2. **For AWS**: constructs role ARNs from `awsEksRoleName`/`awsNodeRoleName` and the account ID
+2. Runs any `beforeCreate` workflows (before the cluster is provisioned)
 3. Provisions cluster in cloud provider
 4. Waits for cluster to be ready
 5. Syncs kubeconfig
 6. Executes all `onCreate` workflows in order
-7. Note: `onDestroy` workflows run when the cluster is deleted
+7. Note: `onDestroy` and `afterDelete` workflows run when the cluster is deleted
 
 ### Execution Output
 
