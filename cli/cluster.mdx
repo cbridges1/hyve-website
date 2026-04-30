@@ -442,11 +442,7 @@ hyve cluster delete [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--force" type="boolean" default="false">
-  Delete the cluster from the cloud provider immediately before removing the configuration file. Bypasses CI/CD — use this when you want to destroy the cluster right now rather than letting the pipeline handle it.
-</ParamField>
-
-<ParamField path="--force-cloud" type="boolean" default="false">
-  Used together with `--force`: delete from cloud even if no configuration file exists.
+  Delete the cluster from the cloud provider immediately, bypassing CI/CD. Also works when no configuration file exists (e.g. orphaned clusters).
 </ParamField>
 
 **Examples:**
@@ -458,8 +454,8 @@ hyve cluster delete my-cluster
 # Force: delete from cloud immediately, then remove configuration
 hyve cluster delete my-cluster --force
 
-# Force delete from cloud when no config file exists
-hyve cluster delete orphaned-cluster --force --force-cloud
+# Force delete an orphaned cluster with no configuration file
+hyve cluster delete orphaned-cluster --force
 ```
 
 **Default process:**

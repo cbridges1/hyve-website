@@ -88,6 +88,27 @@ metadata:
   description: Deploy app to Kubernetes # Human-readable description
 ```
 
+### Inputs
+
+`spec.inputs` declares the environment variables a workflow requires at runtime.
+When assigned to a lifecycle hook (`beforeCreate`, `onCreate`, `onDestroy`, `afterDelete`)
+these are injected automatically. When run ad-hoc via `hyve workflow run`, any missing
+inputs are prompted for in the TUI or must be provided via `--set KEY=VALUE`.
+
+```yaml
+spec:
+  inputs:
+    - name: HYVE_CLUSTER_NAME
+      description: "Cluster name (used to name cloud resources consistently)"
+    - name: HYVE_CLUSTER_REGION
+      description: "Cloud region to create resources in"
+    - name: HYVE_CLUSTER_PROVIDER
+      description: "Cloud provider (azure, aws, gcp, civo)"
+      default: azure
+```
+
+See [Workflow Concepts — Workflow Inputs](/concepts/workflows#workflow-inputs) for full details.
+
 ### Requirements
 
 Validates prerequisites before execution:

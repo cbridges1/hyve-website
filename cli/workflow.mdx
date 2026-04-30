@@ -175,6 +175,19 @@ hyve workflow run [workflow-name] [flags]
   Show step outputs
 </ParamField>
 
+<ParamField path="--set" type="string[]">
+  Set a workflow input variable in `KEY=VALUE` format. Repeatable. Use this to supply
+  values declared in the workflow's `spec.inputs` section when running ad-hoc (outside
+  a cluster lifecycle). Values set here take highest priority and override any
+  automatically derived variables.
+
+  ```bash
+  hyve workflow run provision-network \
+    --set HYVE_CLUSTER_NAME=my-cluster \
+    --set HYVE_CLUSTER_REGION=eastus
+  ```
+</ParamField>
+
 **Examples:**
 
 ```bash
@@ -186,6 +199,12 @@ hyve workflow run local-setup
 
 # Run with detailed output
 hyve workflow run deploy-app --cluster staging --output
+
+# Supply required inputs for an infrastructure workflow
+hyve workflow run provision-network \
+  --set HYVE_CLUSTER_NAME=my-cluster \
+  --set HYVE_CLUSTER_REGION=eastus \
+  --set HYVE_CLUSTER_PROVIDER=azure
 ```
 
 **Output:**

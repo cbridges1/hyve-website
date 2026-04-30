@@ -65,6 +65,14 @@ spec:
 
 ### Spec
 
+<ParamField path="spec.inputs" type="array">
+  Variables that must be present before the workflow runs. When the workflow is executed
+  as a lifecycle hook (e.g. `beforeCreate`, `afterDelete`), values are injected automatically
+  by the reconciler. When run ad-hoc via `hyve workflow run`, any missing inputs are
+  prompted for in the TUI or must be supplied with `--set KEY=VALUE` on the CLI.
+  See [Workflow Inputs](#workflow-inputs) for full details.
+</ParamField>
+
 <ParamField path="spec.requirements" type="object">
   Prerequisites for workflow execution (tools and secrets)
 </ParamField>
@@ -166,6 +174,75 @@ requirements:
 <Note>
   See [Workflow Requirements](/workflows/requirements) for detailed documentation.
 </Note>
+
+## Workflow Inputs
+
+`spec.inputs` declares the environment variables a workflow needs at runtime. This is distinct from `spec.requirements.secrets` (which loads secrets from storage) — inputs are values the **caller** must supply.
+
+```yaml
+spec:
+  inputs:
+    - name: HYVE_CLUSTER_NAME
+      description: "Name of the cluster to provision infrastructure for"
+    - name: HYVE_CLUSTER_REGION
+      description: "Cloud region to create resources in"
+    - name: HYVE_CLUSTER_PROVIDER
+      description: "Cloud provider (azure, aws, gcp, civo)"
+  jobs:
+    - name: provision-network
+      steps:
+        - name: create-vnet
+          command: |
+            az network vnet create \
+              --name ${HYVE_CLUSTER_NAME}-vnet \
+              --location ${HYVE_CLUSTER_REGION} \
+              --resource-group ${HYVE_CLUSTER_NAME}-rg
+```
+
+### Automatic injection by lifecycle hooks
+
+When a workflow is assigned to a `beforeCreate` or `afterDelete` hook, the reconciler
+automatically injects the following HYVE_* variables from the cluster definition before
+the workflow runs — even though no live cluster exists at that point:
+
+| Variable | Source |
+|----------|--------|
+| `HYVE_CLUSTER_NAME` | `metadata.name` |
+| `HYVE_CLUSTER_REGION` | `metadata.region` |
+| `HYVE_CLUSTER_PROVIDER` | `spec.provider` |
+| `HYVE_CLUSTER_TYPE` | `spec.clusterType` |
+| Provider credentials | From the matching `provider-configs/*.yaml` entry |
+
+`onCreate` and `onDestroy` hooks additionally receive live cluster data
+(`HYVE_CLUSTER_IP_ADDRESS`, `HYVE_CLUSTER_ID`, `HYVE_CLUSTER_STATUS`, `KUBECONFIG`).
+
+### Ad-hoc runs
+
+When the same workflow is run outside a cluster lifecycle (e.g., to manually provision
+infrastructure), missing inputs are handled as follows:
+
+**CLI** — supply with `--set`:
+```bash
+hyve workflow run provision-network \
+  --set HYVE_CLUSTER_NAME=my-cluster \
+  --set HYVE_CLUSTER_REGION=eastus \
+  --set HYVE_CLUSTER_PROVIDER=azure
+```
+
+**TUI** — missing inputs are prompted for interactively. Variables already present in the
+environment are skipped automatically.
+
+<ParamField path="inputs[].name" type="string" required>
+  Environment variable name (e.g. `HYVE_CLUSTER_NAME`)
+</ParamField>
+
+<ParamField path="inputs[].description" type="string">
+  Human-readable label shown in the TUI prompt and in `hyve workflow show` output
+</ParamField>
+
+<ParamField path="inputs[].default" type="string">
+  Default value used when no value is supplied. Shown as placeholder in the TUI prompt.
+</ParamField>
 
 ## Environment Variables
 
