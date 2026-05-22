@@ -291,7 +291,7 @@ Before you begin, ensure you have:
       --region NYC1 \
       --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
       --on-create setup-monitoring,deploy-app \
-      --on-destroy backup-data
+      --on-delete backup-data
 
     # Execute the template
     hyve template execute prod-template prod-cluster-01

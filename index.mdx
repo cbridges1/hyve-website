@@ -134,7 +134,7 @@ hyve template execute prod-template prod-cluster-01
   </Accordion>
 
   <Accordion title="Built-in post-deploy hooks — no extra orchestration">
-    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreate` and `onDestroy` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
+    After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer. In Hyve, `onCreate` and `onDelete` workflow hooks run automatically as part of the same reconcile cycle — define once, run every time.
   </Accordion>
 
   <Accordion title="Consistent multi-cloud without a plugin ecosystem">

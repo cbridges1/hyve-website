@@ -46,11 +46,15 @@ Clusters are defined using YAML files following a standard structure. The requir
         - g4s.kube.large
       clusterType: k3s
       workflows:
+        beforeCreate:
+          - provision-network
         onCreate:
           - setup-monitoring
           - deploy-app
-        onDestroy:
+        onDelete:
           - backup-data
+        afterDelete:
+          - cleanup-network
     ```
   </Tab>
 
@@ -81,7 +85,7 @@ Clusters are defined using YAML files following a standard structure. The requir
         onCreate:
           - setup-monitoring
           - deploy-app
-        onDestroy:
+        onDelete:
           - backup-data
     ```
   </Tab>
@@ -112,7 +116,7 @@ Clusters are defined using YAML files following a standard structure. The requir
       workflows:
         onCreate:
           - setup-monitoring
-        onDestroy:
+        onDelete:
           - backup-data
     ```
   </Tab>
@@ -137,7 +141,7 @@ Clusters are defined using YAML files following a standard structure. The requir
       workflows:
         onCreate:
           - setup-monitoring
-        onDestroy:
+        onDelete:
           - backup-data
     ```
   </Tab>
@@ -185,16 +189,48 @@ Clusters are defined using YAML files following a standard structure. The requir
   - `spot` (bool) — Use spot/preemptible instances
 </ParamField>
 
-<ParamField path="spec.workflows.onCreate" type="array">
-  List of workflow names to execute after cluster creation during reconcile
+<ParamField path="spec.kubernetesVersion" type="string">
+  Kubernetes version to use when creating the cluster (e.g. `"1.30"`). Supported by AWS (EKS), GCP (GKE), and Azure (AKS). Omit to use the cloud provider's current default.
 </ParamField>
 
-<ParamField path="spec.workflows.onDestroy" type="array">
-  List of workflow names to execute before cluster deletion during reconcile
+<ParamField path="spec.awsProfile" type="string">
+  Named AWS CLI profile to use for authentication (e.g. `"prod-admin"`). When set, Hyve uses `~/.aws/config` profile credentials instead of static key/secret. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsKmsKeyAlias" type="string">
+  AWS KMS key alias for encrypting Kubernetes secrets at rest (e.g. `"alias/my-eks-key"`). When set, EKS envelope encryption is enabled on cluster creation. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsClusterSgId" type="string">
+  Pre-existing EC2 security group ID to use as the EKS cluster security group. When omitted, EKS creates one automatically. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsWorkerSgId" type="string">
+  Pre-existing EC2 security group ID to attach to worker nodes via an EC2 launch template. AWS only.
+</ParamField>
+
+<ParamField path="spec.workflows.beforeCreate" type="array">
+  List of workflow names to execute before the cluster is created. The cluster does not yet exist when these run — do not use `kubectl` or any tool that requires cluster access. Output variables printed in `HYVE_KEY=value` format are captured and can influence the cluster definition (e.g. setting `HYVE_VPC_ID`, `HYVE_CLUSTER_SG_ID`, `HYVE_WORKER_SG_ID`).
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="array">
+  List of workflow names to execute after the cluster is created and ready during reconcile. Kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="array">
+  List of workflow names to execute before cluster deletion during reconcile. Cluster is still running; kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="array">
+  List of workflow names to execute after the cluster has been deleted from the cloud provider. The cluster no longer exists — do not use `kubectl` or any tool that requires cluster access. Useful for cleaning up cloud resources provisioned by `beforeCreate` workflows.
+</ParamField>
+
+<ParamField path="spec.workflows.preReconcile" type="array">
+  List of workflow names to execute at the start of every reconcile loop for this cluster, before any create/update/delete logic. Runs regardless of whether the cluster definition changed.
 </ParamField>
 
 <ParamField path="spec.delete" type="boolean" default="false">
-  When `true`, the reconciler runs any `onDestroy` workflows, deletes the cluster from the cloud provider, and removes this YAML file from the repository. Do not delete the file directly if you need `onDestroy` workflows to run — set this flag instead.
+  When `true`, the reconciler runs any `onDelete` workflows, deletes the cluster from the cloud provider, runs `afterDelete` workflows, and removes this YAML file from the repository. Do not delete the file directly if you need `onDelete` or `afterDelete` workflows to run — set this flag instead.
 </ParamField>
 
 <ParamField path="spec.pause" type="boolean" default="false">
@@ -202,7 +238,7 @@ Clusters are defined using YAML files following a standard structure. The requir
 </ParamField>
 
 <ParamField path="spec.expiresAt" type="string">
-  An RFC 3339 timestamp (e.g. `"2026-05-01T00:00:00Z"`). When the current time passes this value the reconciler automatically treats the cluster as if `spec.delete: true` is set — running `onDestroy` workflows, deleting from the cloud provider, and removing the YAML file. With an hourly scheduled reconcile, clusters are cleaned up within ~1 hour of their deadline. A paused cluster (`spec.pause: true`) is never checked for expiry.
+  An RFC 3339 timestamp (e.g. `"2026-05-01T00:00:00Z"`). When the current time passes this value the reconciler automatically treats the cluster as if `spec.delete: true` is set — running `onDelete` and `afterDelete` workflows, deleting from the cloud provider, and removing the YAML file. With an hourly scheduled reconcile, clusters are cleaned up within ~1 hour of their deadline. A paused cluster (`spec.pause: true`) is never checked for expiry.
 </ParamField>
 
 ## Creating Clusters
@@ -396,16 +432,12 @@ hyve cluster list
 # Remove cluster definition
 hyve cluster remove staging
 
-# Or delete manually
-rm clusters/staging.yaml
-git commit -am "Remove staging cluster"
-
-# Reconcile to delete from cloud
-hyve reconcile
+# Or set spec.delete: true to trigger lifecycle workflows before deletion
+# (do not rm the file directly if you need onDelete/afterDelete workflows to run)
 ```
 
 <Warning>
-  Deleting a cluster definition and reconciling will delete the cluster from the cloud provider. This action is irreversible.
+  Deleting a cluster definition and reconciling will delete the cluster from the cloud provider. To ensure `onDelete` and `afterDelete` lifecycle workflows run, set `spec.delete: true` rather than removing the YAML file directly.
 </Warning>
 
 ## Managing Clusters
@@ -537,9 +569,29 @@ hyve reconcile
 
 Clusters can define workflows that run automatically during reconciliation:
 
+| Hook | When It Runs | Cluster Exists? | Kubeconfig Available? |
+|------|--------------|-----------------|----------------------|
+| `beforeCreate` | Before cluster is created | No | No |
+| `onCreate` | After cluster is ready | Yes | Yes |
+| `onDelete` | Before cluster is deleted | Yes | Yes |
+| `afterDelete` | After cluster is deleted | No | No |
+| `preReconcile` | At the start of every reconcile for this cluster | Depends | Depends |
+
+### beforeCreate Workflows
+
+Run before the cluster is created. Use these to provision prerequisites like VPCs, IAM roles, or security groups. Output variables printed by steps in `HYVE_KEY=value` format are captured and applied to the cluster definition (e.g. `HYVE_VPC_ID`, `HYVE_CLUSTER_SG_ID`, `HYVE_WORKER_SG_ID`):
+
+```yaml
+spec:
+  workflows:
+    beforeCreate:
+      - provision-vpc         # Create VPC and subnets
+      - create-iam-roles      # Create EKS IAM roles
+```
+
 ### onCreate Workflows
 
-Run after a cluster is created and becomes ready:
+Run after a cluster is created and becomes ready. Kubeconfig is available:
 
 ```yaml
 spec:
@@ -550,22 +602,45 @@ spec:
       - deploy-app           # Deploy application
 ```
 
-### onDestroy Workflows
+### onDelete Workflows
 
-Run before a cluster is deleted:
+Run before a cluster is deleted. Cluster is still running and kubeconfig is available:
 
 ```yaml
 spec:
   workflows:
-    onDestroy:
+    onDelete:
       - backup-data          # Final backup
       - export-logs          # Export audit logs
       - cleanup-dns          # Remove DNS records
       - notify-team          # Send notifications
 ```
 
+### afterDelete Workflows
+
+Run after the cluster has been deleted from the cloud provider. Use these to tear down infrastructure provisioned by `beforeCreate` workflows:
+
+```yaml
+spec:
+  workflows:
+    afterDelete:
+      - destroy-vpc          # Remove VPC and subnets
+      - delete-iam-roles     # Clean up IAM roles
+```
+
+### preReconcile Workflows
+
+Run at the start of every reconcile loop for this cluster, before any create/update/delete logic:
+
+```yaml
+spec:
+  workflows:
+    preReconcile:
+      - refresh-credentials  # Refresh short-lived tokens
+```
+
 <Tip>
-  Use `onDestroy` workflows to ensure data is backed up and resources are cleaned up before cluster deletion.
+  Use `beforeCreate` and `afterDelete` together to manage cloud resources that outlive the cluster itself, such as VPCs and IAM roles.
 </Tip>
 
 ## Reconciliation
@@ -708,7 +783,7 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-app
-    onDestroy:
+    onDelete:
       - backup-data
       - notify-team
 ```
@@ -727,9 +802,12 @@ metadata:
 spec:
   provider: aws
   awsAccount: main-account
+  awsProfile: prod-admin         # optional: named AWS CLI profile
   awsVpcId: vpc-0abc123456789
   awsEksRoleName: eks-cluster-role
   awsNodeRoleName: node-role
+  awsKmsKeyAlias: alias/eks-secrets  # optional: KMS encryption for secrets
+  kubernetesVersion: "1.30"          # optional: pin k8s version
   nodeGroups:
     - name: system
       instanceType: t3.medium
@@ -739,10 +817,15 @@ spec:
       count: 4
       minCount: 2
       maxCount: 10
-  clusterType: k3s
-  ingress:
-    enabled: true
-    loadBalancer: true
+  workflows:
+    beforeCreate:
+      - provision-iam-roles
+    onCreate:
+      - setup-monitoring
+    onDelete:
+      - backup-data
+    afterDelete:
+      - cleanup-iam-roles
 ```
 
 ### GCP GKE Cluster

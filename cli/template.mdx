@@ -55,7 +55,7 @@ hyve template create [template-name] [flags]
   Workflows to run after cluster creation (comma-separated)
 </ParamField>
 
-<ParamField path="--on-destroy" type="string">
+<ParamField path="--on-delete" type="string">
   Workflows to run before cluster destruction (comma-separated)
 </ParamField>
 
@@ -84,7 +84,7 @@ hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
   --on-create setup-monitoring,deploy-app \
-  --on-destroy backup-data,cleanup
+  --on-delete backup-data,cleanup
 
 # Create a template with an automatic weekly Friday expiry
 hyve template create dev-weekly \
@@ -202,7 +202,7 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-app
-    onDestroy:
+    onDelete:
       - backup-data
 ```
 
@@ -439,7 +439,7 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-app
-    onDestroy:
+    onDelete:
       - backup-data
 ```
 
@@ -510,8 +510,8 @@ spec:
   Names of workflows to execute after cluster creation. Kubeconfig is injected automatically. Set via `--on-create` flag or the interactive TUI.
 </ParamField>
 
-<ParamField path="spec.workflows.onDestroy" type="string[]">
-  Names of workflows to execute before cluster destruction. Kubeconfig is injected automatically. Set via `--on-destroy` flag or the interactive TUI.
+<ParamField path="spec.workflows.onDelete" type="string[]">
+  Names of workflows to execute before cluster destruction. Kubeconfig is injected automatically. Set via `--on-delete` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.afterDelete" type="string[]">
@@ -532,6 +532,8 @@ spec:
   | `awsVpcId` | AWS | `HYVE_VPC_ID` |
   | `awsEksRoleName` | AWS | `HYVE_EKS_ROLE_NAME` |
   | `awsNodeRoleName` | AWS | `HYVE_NODE_ROLE_NAME` |
+  | `awsClusterSgId` | AWS | `HYVE_CLUSTER_SG_ID` |
+  | `awsWorkerSgId` | AWS | `HYVE_WORKER_SG_ID` |
   | `azureResourceGroup` | Azure | `HYVE_RESOURCE_GROUP_NAME` |
 
   Example — VPC and IAM roles created by a `beforeCreate` workflow:
@@ -574,6 +576,26 @@ These fields apply when `spec.provider` is `aws`.
   IAM role name for EKS node groups. Set in the template YAML or override with `--node-role-name/-n`. Omit (or list in `dynamicFields`) if a `beforeCreate` workflow outputs `HYVE_NODE_ROLE_NAME` / `HYVE_NODE_ROLE_ARN`.
 </ParamField>
 
+<ParamField path="spec.awsProfile" type="string">
+  Named AWS CLI profile to use for authentication (e.g. `"prod-admin"`). When set, Hyve uses `~/.aws/config` profile credentials instead of static key/secret.
+</ParamField>
+
+<ParamField path="spec.awsKmsKeyAlias" type="string">
+  AWS KMS key alias for encrypting Kubernetes secrets at rest (e.g. `"alias/my-eks-key"`). When set, EKS envelope encryption is enabled on cluster creation.
+</ParamField>
+
+<ParamField path="spec.awsClusterSgId" type="string">
+  Pre-existing EC2 security group ID to use as the EKS cluster security group. Can be set by a `beforeCreate` workflow via the `HYVE_CLUSTER_SG_ID` output variable. Omit to have EKS create one automatically.
+</ParamField>
+
+<ParamField path="spec.awsWorkerSgId" type="string">
+  Pre-existing EC2 security group ID to attach to worker nodes via an EC2 launch template. Can be set by a `beforeCreate` workflow via the `HYVE_WORKER_SG_ID` output variable.
+</ParamField>
+
+<ParamField path="spec.kubernetesVersion" type="string">
+  Kubernetes version to pin for clusters created from this template (e.g. `"1.30"`). Supported by AWS (EKS), GCP (GKE), and Azure (AKS). Omit to use the cloud provider's current default.
+</ParamField>
+
 <Info>
   AWS VPC and role fields can be set in the template YAML, overridden at execute time via flags, or left to a `beforeCreate` workflow by listing them in `spec.dynamicFields`. When listed in `dynamicFields`, the TUI skips the prompt and the reconciler reads the values from workflow output variables instead.
 </Info>
@@ -611,7 +633,7 @@ spec:
       - install-cert-manager
       - configure-backups
       - deploy-app
-    onDestroy:
+    onDelete:
       - final-backup
       - notify-team
 ```
@@ -734,7 +756,7 @@ workflows:
     - setup-monitoring      # Prometheus, Grafana
     - configure-storage     # PV, PVC, storage classes
     - deploy-app           # Application deployment
-  onDestroy:
+  onDelete:
     - backup-data          # Final backup before deletion
     - cleanup-dns          # Remove DNS records
 ```
@@ -1033,7 +1055,7 @@ spec:
       - configure-backups
       - setup-logging
       - deploy-app
-    onDestroy:
+    onDelete:
       - final-backup
       - export-logs
       - notify-team

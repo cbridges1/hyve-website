@@ -21,7 +21,7 @@ Hyve treats the cluster definition as continuous desired state. Commit a new clu
 
 After a cluster becomes active you typically need to install controllers, apply manifests, run smoke tests, or notify a team channel. In Terraform this requires a separate orchestration layer: `null_resource`, CI pipeline steps, or an Ansible playbook wired in after apply.
 
-In Hyve, `onCreate` and `onDestroy` workflow hooks run automatically as part of the same reconcile cycle. Define the steps once in a workflow YAML file; they execute every time a cluster is created or destroyed with no additional wiring.
+In Hyve, `onCreate` and `onDelete` workflow hooks run automatically as part of the same reconcile cycle. Define the steps once in a workflow YAML file; they execute every time a cluster is created or destroyed with no additional wiring.
 
 ```yaml
 spec:
@@ -29,7 +29,7 @@ spec:
     onCreate:
       - install-controllers
       - run-smoke-tests
-    onDestroy:
+    onDelete:
       - drain-workloads
       - notify-team
 ```
@@ -94,7 +94,7 @@ The resulting cluster YAML is committed to the state repository, reconciled, and
   </Card>
 
   <Card title="Built-in post-deploy hooks" icon="gears" color="#22c55e">
-    onCreate and onDestroy workflows run automatically — no extra orchestration.
+    onCreate and onDelete workflows run automatically — no extra orchestration.
   </Card>
 
   <Card title="Consistent multi-cloud interface" icon="cloud" color="#8b5cf6">

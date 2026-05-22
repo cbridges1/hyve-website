@@ -113,14 +113,14 @@ hyve cluster add [cluster-name] [flags]
   ```
 </ParamField>
 
-<ParamField path="--on-destroy" type="string (repeatable)">
+<ParamField path="--on-delete" type="string (repeatable)">
   Name of a workflow to run before the cluster is destroyed. Can be specified multiple times to attach several workflows. Workflow names must match an existing workflow defined with `hyve workflow add`.
 
   ```bash
   hyve cluster add my-cluster --provider civo --region PHX1 \
     --nodes g4s.kube.medium --org-name my-org \
-    --on-destroy backup-data \
-    --on-destroy notify-slack
+    --on-delete backup-data \
+    --on-delete notify-slack
   ```
 </ParamField>
 
@@ -139,7 +139,7 @@ hyve cluster add [cluster-name] [flags]
 </ParamField>
 
 <ParamField path="--expires-at" type="string">
-  RFC 3339 timestamp after which the reconciler automatically deletes the cluster (e.g. `2026-05-01T00:00:00Z`). When the deadline passes the reconciler runs any `onDestroy` workflows, deletes the cluster, and removes the YAML file. Clusters created from templates with a `schedule` field have this value computed automatically at execute time.
+  RFC 3339 timestamp after which the reconciler automatically deletes the cluster (e.g. `2026-05-01T00:00:00Z`). When the deadline passes the reconciler runs any `onDelete` workflows, deletes the cluster, and removes the YAML file. Clusters created from templates with a `schedule` field have this value computed automatically at execute time.
 </ParamField>
 
 **Examples by Provider:**
@@ -293,7 +293,7 @@ spec:
       - pre-flight-checks
     onCreate:
       - setup-monitoring
-    onDestroy:
+    onDelete:
       - backup-data
     afterDelete:
       - cleanup-dns
@@ -365,8 +365,8 @@ hyve cluster modify [cluster-name] [flags]
   Replace the `onCreate` workflow list.
 </ParamField>
 
-<ParamField path="--on-destroy" type="string (repeatable)">
-  Replace the `onDestroy` workflow list.
+<ParamField path="--on-delete" type="string (repeatable)">
+  Replace the `onDelete` workflow list.
 </ParamField>
 
 <ParamField path="--after-delete" type="string (repeatable)">
@@ -759,7 +759,7 @@ spec:
       - pre-flight-checks
     onCreate:
       - setup-monitoring
-    onDestroy:
+    onDelete:
       - backup-data
     afterDelete:
       - cleanup-dns
@@ -803,7 +803,7 @@ spec:
       - pre-flight-checks
     onCreate:
       - setup-monitoring
-    onDestroy:
+    onDelete:
       - backup-data
     afterDelete:
       - cleanup-dns
@@ -941,8 +941,8 @@ spec:
   List of workflow names to run after the cluster is successfully created. Kubeconfig is injected automatically. Set via `--on-create` flag or the interactive TUI.
 </ParamField>
 
-<ParamField path="spec.workflows.onDestroy" type="string[]">
-  List of workflow names to run before the cluster is destroyed. Kubeconfig is injected automatically. Set via `--on-destroy` flag or the interactive TUI.
+<ParamField path="spec.workflows.onDelete" type="string[]">
+  List of workflow names to run before the cluster is destroyed. Kubeconfig is injected automatically. Set via `--on-delete` flag or the interactive TUI.
 </ParamField>
 
 <ParamField path="spec.workflows.afterDelete" type="string[]">
@@ -975,6 +975,26 @@ spec:
 
 <ParamField path="spec.awsEksRoleArn" type="string">
   AWS EKS IAM role ARN. Constructed automatically at reconcile time from `awsEksRoleName` and `awsAccountId`. Do not set manually.
+</ParamField>
+
+<ParamField path="spec.awsProfile" type="string">
+  Named AWS CLI profile to use for authentication (e.g. `"prod-admin"`). When set, Hyve uses `~/.aws/config` profile credentials instead of static key/secret. AWS only. Set directly in the YAML.
+</ParamField>
+
+<ParamField path="spec.awsKmsKeyAlias" type="string">
+  AWS KMS key alias for encrypting Kubernetes secrets at rest (e.g. `"alias/my-eks-key"`). When set, EKS envelope encryption is enabled on cluster creation. AWS only. Set directly in the YAML.
+</ParamField>
+
+<ParamField path="spec.awsClusterSgId" type="string">
+  Pre-existing EC2 security group ID to use as the EKS cluster security group. When omitted, EKS creates one automatically. Can be set by a `beforeCreate` workflow via the `HYVE_CLUSTER_SG_ID` output variable. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsWorkerSgId" type="string">
+  Pre-existing EC2 security group ID to attach to worker nodes via an EC2 launch template. Can be set by a `beforeCreate` workflow via the `HYVE_WORKER_SG_ID` output variable. AWS only.
+</ParamField>
+
+<ParamField path="spec.kubernetesVersion" type="string">
+  Kubernetes version to pin for the cluster (e.g. `"1.30"`). Supported by AWS (EKS), GCP (GKE), and Azure (AKS). Omit to use the cloud provider's current default. Set directly in the YAML.
 </ParamField>
 
 ---
@@ -1041,7 +1061,7 @@ Hyve supports the following cloud providers for Kubernetes cluster management. T
       --nodes g4s.kube.medium --org-name my-org \
       --before-create pre-flight-checks \
       --on-create setup-monitoring --on-create notify-slack \
-      --on-destroy backup-data \
+      --on-delete backup-data \
       --after-delete cleanup-dns
     ```
   </Accordion>
@@ -1362,7 +1382,7 @@ hyve cluster add production \
   --org-name my-org \
   --before-create pre-flight-checks \
   --on-create setup-monitoring \
-  --on-destroy backup-data \
+  --on-delete backup-data \
   --after-delete cleanup-dns
 
 # Multiple workflows per lifecycle event on AWS
@@ -1376,8 +1396,8 @@ hyve cluster add production \
   --before-create pre-flight-checks \
   --on-create setup-monitoring \
   --on-create notify-slack \
-  --on-destroy backup-data \
-  --on-destroy notify-slack \
+  --on-delete backup-data \
+  --on-delete notify-slack \
   --after-delete cleanup-dns
 ```
 

@@ -70,29 +70,67 @@ When a workflow is assigned to a cluster lifecycle hook, Hyve automatically inje
 variables from the cluster definition before the workflow runs. These are available in
 every step without declaring them in `spec.inputs`:
 
-| Variable | Value | Available in |
-|----------|-------|--------------|
-| `HYVE_CLUSTER_NAME` | Cluster name | All hooks |
-| `HYVE_CLUSTER_REGION` | Cluster region | All hooks |
-| `HYVE_CLUSTER_PROVIDER` | Cloud provider (`aws`, `gcp`, `azure`, `civo`) | All hooks |
-| `HYVE_CLUSTER_TYPE` | Cluster type (`eks`, `gke`, `aks`, `k3s`) | All hooks |
-| `HYVE_AWS_ACCOUNT` | AWS account alias | All hooks (AWS clusters) |
-| `HYVE_GCP_PROJECT` | GCP project alias | All hooks (GCP clusters) |
-| `HYVE_AZURE_SUBSCRIPTION` | Azure subscription alias | All hooks (Azure clusters) |
-| `HYVE_CIVO_ORG` | Civo organization alias | All hooks (Civo clusters) |
-| `HYVE_CLUSTER_IP_ADDRESS` | Cluster IP address | `onCreate`, `onDestroy` |
-| `HYVE_CLUSTER_ID` | Cloud provider cluster ID | `onCreate`, `onDestroy` |
-| `HYVE_CLUSTER_STATUS` | Cluster status | `onCreate`, `onDestroy` |
-| `KUBECONFIG` | Path to cluster kubeconfig | `onCreate`, `onDestroy` |
+### Definition variables (all hooks)
 
-Provider credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) are also
-injected from `provider-configs/*.yaml` for the cluster's account so that CLI tools
-invoked by steps can authenticate without additional configuration.
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `HYVE_CLUSTER_NAME` | Cluster name | |
+| `HYVE_CLUSTER_REGION` | Cluster region | |
+| `HYVE_CLUSTER_PROVIDER` | Cloud provider (`aws`, `gcp`, `azure`, `civo`) | |
+| `HYVE_CLUSTER_TYPE` | Cluster type (`eks`, `gke`, `aks`, `k3s`) | |
+| `HYVE_CLUSTER_K8S_VERSION` | `spec.kubernetesVersion` | Empty string if not set |
+| `HYVE_AWS_ACCOUNT` | AWS account alias | AWS clusters only |
+| `HYVE_GCP_PROJECT` | GCP project alias | GCP clusters only |
+| `HYVE_AZURE_SUBSCRIPTION` | Azure subscription alias | Azure clusters only |
+| `HYVE_CIVO_ORG` | Civo organization alias | Civo clusters only |
+| `HYVE_CLUSTER_ACCOUNT_ID` | Resolved AWS account ID | AWS clusters only |
+| `HYVE_CLUSTER_VPC_ID` | `spec.awsVpcId` | AWS clusters only |
+| Provider credentials | Standard CLI env vars (e.g. `AWS_ACCESS_KEY_ID`) | From `provider-configs/*.yaml` |
 
-`beforeCreate` and `afterDelete` hooks receive the cluster definition variables but not
-live cluster data — the cluster does not exist at those points. Output variables printed
-by a `beforeCreate` step in `HYVE_VAR=value` format are captured by the reconciler and
-made available to subsequent steps and to the cluster definition.
+Only the account variable that matches the cluster's provider is set — the others are left unset.
+
+### Live cluster variables (`onCreate`, `onDelete`)
+
+| Variable | Value |
+|----------|-------|
+| `HYVE_CLUSTER_IP_ADDRESS` | Cluster API endpoint IP |
+| `HYVE_CLUSTER_ACCESS_PORT` | Cluster API port |
+| `HYVE_CLUSTER_ID` | Cloud provider cluster ID |
+| `HYVE_CLUSTER_STATUS` | Cluster status string |
+| `HYVE_CLUSTER_KUBECONFIG` | Path to cluster kubeconfig file |
+| `KUBECONFIG` | Same as `HYVE_CLUSTER_KUBECONFIG` |
+| `HYVE_CLUSTER_OIDC_URL` | EKS OIDC provider URL (AWS only) |
+
+`beforeCreate` and `afterDelete` receive only definition variables — the cluster does not
+exist at those points and kubeconfig injection is skipped.
+
+### beforeCreate output variables
+
+Output variables printed by a `beforeCreate` step in `HYVE_KEY=value` format are captured
+by the reconciler and written back into the cluster definition before creation proceeds:
+
+| Output Variable | Cluster Field Updated |
+|----------------|----------------------|
+| `HYVE_VPC_ID` | `spec.awsVpcId` |
+| `HYVE_EKS_ROLE_NAME` | `spec.awsEksRoleName` |
+| `HYVE_NODE_ROLE_NAME` | `spec.awsNodeRoleName` |
+| `HYVE_EKS_ROLE_ARN` | `spec.awsEksRoleArn` |
+| `HYVE_NODE_ROLE_ARN` | `spec.awsNodeRoleArn` |
+| `HYVE_CLUSTER_SG_ID` | `spec.awsClusterSgId` |
+| `HYVE_WORKER_SG_ID` | `spec.awsWorkerSgId` |
+
+Example — a `beforeCreate` step that provisions an EKS IAM role and exports it:
+
+```yaml
+steps:
+  - name: create-role
+    script: |
+      ROLE_ARN=$(aws iam create-role --role-name eks-cluster-role \
+        --assume-role-policy-document file://trust.json \
+        --query 'Role.Arn' --output text)
+      echo "HYVE_EKS_ROLE_NAME=eks-cluster-role"
+      echo "HYVE_EKS_ROLE_ARN=${ROLE_ARN}"
+```
 
 ## Variable Sources
 

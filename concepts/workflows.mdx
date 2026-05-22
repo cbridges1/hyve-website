@@ -67,10 +67,15 @@ spec:
 
 <ParamField path="spec.inputs" type="array">
   Variables that must be present before the workflow runs. When the workflow is executed
-  as a lifecycle hook (e.g. `beforeCreate`, `afterDelete`), values are injected automatically
-  by the reconciler. When run ad-hoc via `hyve workflow run`, any missing inputs are
-  prompted for in the TUI or must be supplied with `--set KEY=VALUE` on the CLI.
+  as a lifecycle hook (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`, `preReconcile`),
+  values are injected automatically by the reconciler. When run ad-hoc via `hyve workflow run`,
+  any missing inputs are prompted for in the TUI or must be supplied with `--set KEY=VALUE` on the CLI.
   See [Workflow Inputs](#workflow-inputs) for full details.
+</ParamField>
+
+<ParamField path="spec.preFlight.cluster" type="string">
+  Set to `"skip"` to bypass the kubeconfig setup step before execution. Required for `beforeCreate`
+  workflows that need to authenticate to a cloud provider before the cluster exists.
 </ParamField>
 
 <ParamField path="spec.requirements" type="object">
@@ -201,29 +206,52 @@ spec:
 
 ### Automatic injection by lifecycle hooks
 
-All four lifecycle hooks (`beforeCreate`, `onCreate`, `onDestroy`, `afterDelete`) receive
-the following HYVE_* variables from the cluster definition automatically:
+All lifecycle hooks receive the following HYVE_* variables from the cluster definition automatically:
 
-| Variable | Source | Notes |
-|----------|--------|-------|
-| `HYVE_CLUSTER_NAME` | `metadata.name` | |
-| `HYVE_CLUSTER_REGION` | `metadata.region` | |
-| `HYVE_CLUSTER_PROVIDER` | `spec.provider` | e.g. `aws`, `gcp`, `azure`, `civo` |
-| `HYVE_CLUSTER_TYPE` | `spec.clusterType` | e.g. `eks`, `gke`, `aks`, `k3s` |
-| `HYVE_AWS_ACCOUNT` | `spec.awsAccount` | AWS only |
-| `HYVE_GCP_PROJECT` | `spec.gcpProject` | GCP only |
-| `HYVE_AZURE_SUBSCRIPTION` | `spec.azureSubscription` | Azure only |
-| `HYVE_CIVO_ORG` | `spec.civoOrganization` | Civo only |
-| Provider credentials | `provider-configs/*.yaml` | Standard CLI env vars (e.g. `AWS_ACCESS_KEY_ID`) |
+| Variable | Source | Available in |
+|----------|--------|--------------|
+| `HYVE_CLUSTER_NAME` | `metadata.name` | All hooks |
+| `HYVE_CLUSTER_REGION` | `metadata.region` | All hooks |
+| `HYVE_CLUSTER_PROVIDER` | `spec.provider` | All hooks |
+| `HYVE_CLUSTER_TYPE` | `spec.clusterType` | All hooks |
+| `HYVE_CLUSTER_K8S_VERSION` | `spec.kubernetesVersion` | All hooks |
+| `HYVE_AWS_ACCOUNT` | `spec.awsAccount` | All hooks (AWS) |
+| `HYVE_GCP_PROJECT` | `spec.gcpProject` | All hooks (GCP) |
+| `HYVE_AZURE_SUBSCRIPTION` | `spec.azureSubscription` | All hooks (Azure) |
+| `HYVE_CIVO_ORG` | `spec.civoOrganization` | All hooks (Civo) |
+| `HYVE_CLUSTER_ACCOUNT_ID` | resolved AWS account ID | All hooks (AWS) |
+| `HYVE_CLUSTER_VPC_ID` | `spec.awsVpcId` | All hooks (AWS) |
+| Provider credentials | `provider-configs/*.yaml` | All hooks |
 
 Only the account variable that matches the cluster's provider is set — the others are left unset.
 
-`onCreate` and `onDestroy` hooks additionally receive live cluster data:
-`HYVE_CLUSTER_IP_ADDRESS`, `HYVE_CLUSTER_ID`, `HYVE_CLUSTER_STATUS`, and `KUBECONFIG`.
+`onCreate` and `onDelete` hooks additionally receive live cluster data:
 
-`beforeCreate` and `afterDelete` hooks run without a live cluster. Any HYVE_* output
-variables printed by a `beforeCreate` workflow step (e.g. `HYVE_VPC_ID=vpc-xxx`) are
-captured and available to subsequent steps and to the reconciler via `resolveHookEnvVars`.
+| Variable | Description |
+|----------|-------------|
+| `HYVE_CLUSTER_IP_ADDRESS` | Cluster API endpoint IP |
+| `HYVE_CLUSTER_ACCESS_PORT` | Cluster API port |
+| `HYVE_CLUSTER_ID` | Cloud provider cluster ID |
+| `HYVE_CLUSTER_STATUS` | Cluster status string |
+| `HYVE_CLUSTER_KUBECONFIG` | Path to cluster kubeconfig |
+| `KUBECONFIG` | Same as `HYVE_CLUSTER_KUBECONFIG` |
+| `HYVE_CLUSTER_OIDC_URL` | EKS OIDC provider URL (AWS only) |
+
+`beforeCreate` and `afterDelete` hooks run without a live cluster — kubeconfig injection is skipped.
+
+Output variables printed by a `beforeCreate` step in `HYVE_KEY=value` format are captured by the
+reconciler and written back to the cluster definition before creation proceeds. Supported output
+variables include:
+
+| Output Variable | Effect |
+|----------------|--------|
+| `HYVE_VPC_ID` | Sets `spec.awsVpcId` |
+| `HYVE_EKS_ROLE_NAME` | Sets `spec.awsEksRoleName` |
+| `HYVE_NODE_ROLE_NAME` | Sets `spec.awsNodeRoleName` |
+| `HYVE_EKS_ROLE_ARN` | Sets `spec.awsEksRoleArn` |
+| `HYVE_NODE_ROLE_ARN` | Sets `spec.awsNodeRoleArn` |
+| `HYVE_CLUSTER_SG_ID` | Sets `spec.awsClusterSgId` |
+| `HYVE_WORKER_SG_ID` | Sets `spec.awsWorkerSgId` |
 
 ### Ad-hoc runs
 
@@ -330,11 +358,15 @@ metadata:
 spec:
   # ... cluster config
   workflows:
+    beforeCreate:
+      - provision-vpc
     onCreate:
       - setup-monitoring
       - deploy-app
-    onDestroy:
+    onDelete:
       - backup-data
+    afterDelete:
+      - cleanup-vpc
 ```
 
 #### In Cluster Definitions
@@ -349,22 +381,57 @@ metadata:
 spec:
   # ... cluster config
   workflows:
+    beforeCreate:
+      - provision-network
     onCreate:
       - setup-monitoring
-    onDestroy:
+    onDelete:
       - backup-data
+    afterDelete:
+      - cleanup-network
 ```
 
 | Hook | When It Runs | Cluster Exists? | Kubeconfig Available? | Typical Use Cases |
 |------|--------------|-----------------|----------------------|-------------------|
 | `beforeCreate` | Before cluster is created | No | No | Provision VPC, create IAM roles, allocate IP ranges |
 | `onCreate` | After cluster is ready | Yes | Yes | Setup monitoring, deploy apps, configure services |
-| `onDestroy` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
+| `onDelete` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
 | `afterDelete` | After cluster is deleted | No | No | Destroy VPC, remove IAM roles, release IP ranges |
+| `preReconcile` | Every reconcile loop | Depends | Depends | Refresh credentials, sync config |
 
 <Note>
 `beforeCreate` and `afterDelete` run when no cluster exists, so kubeconfig injection is skipped. Workflows assigned to these hooks must not use `kubectl` or any tool that requires cluster access.
+
+`preReconcile` runs at the start of every reconcile cycle for the cluster, before any create/update/delete decisions are made.
 </Note>
+
+### Auth-Bootstrap Workflows (preFlight.cluster: skip)
+
+Some `beforeCreate` workflows need to authenticate to a cloud provider to provision
+resources (e.g. create an EKS IAM role or VPC) before the cluster exists. By default
+Hyve tries to set up kubeconfig before running any workflow. Set `preFlight.cluster: skip`
+in the workflow spec to bypass the kubeconfig setup step:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: provision-iam-roles
+spec:
+  preFlight:
+    cluster: skip    # skip EKS DescribeCluster + kubeconfig sync
+  jobs:
+    - name: create-roles
+      steps:
+        - name: create-eks-role
+          script: |
+            aws iam create-role --role-name eks-cluster-role \
+              --assume-role-policy-document file://eks-trust-policy.json
+            echo "HYVE_EKS_ROLE_NAME=eks-cluster-role"
+```
+
+The `HYVE_EKS_ROLE_NAME=eks-cluster-role` output line is captured by the reconciler and
+written to `spec.awsEksRoleName` before the cluster is created.
 
 ### Execution Flow
 

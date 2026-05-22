@@ -120,7 +120,7 @@ spec:
   nodes: [g4s.kube.small]
   expiresAt: "2026-05-01T00:00:00Z"   # auto-deleted after this time
   workflows:
-    onDestroy: [notify-team]
+    onDelete: [notify-team]
 ```
 
 ```yaml
@@ -314,9 +314,9 @@ jobs:
         run: hyve reconcile --path .
 ```
 
-## Deleting Clusters with onDestroy Workflows
+## Deleting Clusters with onDelete Workflows
 
-Deleting the YAML file for a cluster directly means the reconciler never sees the cluster definition — and therefore cannot run any `onDestroy` workflows before the cluster is removed. To safely delete a cluster and have its lifecycle workflows execute, use the **mark-for-deletion** pattern instead.
+Deleting the YAML file for a cluster directly means the reconciler never sees the cluster definition — and therefore cannot run any `onDelete` workflows before the cluster is removed. To safely delete a cluster and have its lifecycle workflows execute, use the **mark-for-deletion** pattern instead.
 
 ### How It Works
 
@@ -335,7 +335,7 @@ spec:
   region: us-east-1
   clusterType: eks
   workflows:
-    onDestroy:
+    onDelete:
       - cleanup-namespaces
       - drain-nodes
 ```
@@ -347,8 +347,8 @@ When the reconciler processes this file it will:
     `DetermineAction` returns `ActionDelete` as soon as it sees `spec.delete: true` — no cloud API call is needed to make this decision.
   </Step>
 
-  <Step title="Run onDestroy workflows">
-    All workflows listed under `spec.workflows.onDestroy` are executed against the cluster before any cloud resources are touched.
+  <Step title="Run onDelete workflows">
+    All workflows listed under `spec.workflows.onDelete` are executed against the cluster before any cloud resources are touched.
   </Step>
 
   <Step title="Delete the cluster">
@@ -365,7 +365,7 @@ When the reconciler processes this file it will:
 </Steps>
 
 <Warning>
-  Do not delete the YAML file directly if you need `onDestroy` workflows to run. The reconciler must be able to read the file — including the workflow list — before it can execute lifecycle hooks.
+  Do not delete the YAML file directly if you need `onDelete` workflows to run. The reconciler must be able to read the file — including the workflow list — before it can execute lifecycle hooks.
 </Warning>
 
 ### Required GitHub Actions Configuration
@@ -493,7 +493,7 @@ To resume normal reconciliation, remove the `pause: true` line (or set it to `fa
 
 ## Scheduled Cluster Expiry
 
-Set `spec.expiresAt` to an RFC 3339 timestamp to have the reconciler automatically delete a cluster when that time passes. When the scheduled reconcile runs after the expiry time, the reconciler treats the cluster exactly as if `spec.delete: true` had been set — running `onDestroy` workflows, deleting from the cloud provider, and removing the YAML file.
+Set `spec.expiresAt` to an RFC 3339 timestamp to have the reconciler automatically delete a cluster when that time passes. When the scheduled reconcile runs after the expiry time, the reconciler treats the cluster exactly as if `spec.delete: true` had been set — running `onDelete` workflows, deleting from the cloud provider, and removing the YAML file.
 
 ```yaml
 # clusters/dev-sprint-47.yaml
@@ -507,7 +507,7 @@ spec:
   nodes: [g4s.kube.small]
   expiresAt: "2026-05-01T00:00:00Z"   # deleted automatically after this time
   workflows:
-    onDestroy:
+    onDelete:
       - notify-team
       - cleanup-namespaces
 ```
@@ -543,7 +543,7 @@ spec:
   workflows:
     onCreate:
       - deploy-feature-branch
-    onDestroy:
+    onDelete:
       - export-test-results
       - notify-slack
 ```
@@ -745,10 +745,10 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
     Check that `hyve.yaml` is committed to the root of your state repository with `reconcile.mode: cicd`. If the file is absent, Hyve defaults to `local` mode.
   </Accordion>
 
-  <Accordion title="onDestroy workflows did not run before cluster was deleted">
+  <Accordion title="onDelete workflows did not run before cluster was deleted">
     This happens when the cluster YAML file was deleted directly from the repository instead of using the `spec.delete: true` marker. The reconciler never saw the file, so it had no workflow list to execute — the cluster appeared as an unmanaged orphan and was removed without running lifecycle hooks.
 
-    **Prevention:** Always set `spec.delete: true` in the YAML file and let the reconciler handle the deletion. Do not `git rm` or manually delete cluster files when `onDestroy` workflows need to run.
+    **Prevention:** Always set `spec.delete: true` in the YAML file and let the reconciler handle the deletion. Do not `git rm` or manually delete cluster files when `onDelete` workflows need to run.
   </Accordion>
 
   <Accordion title="Pipeline fails: permission denied pushing cluster file removal">

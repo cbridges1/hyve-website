@@ -47,7 +47,7 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-base-apps
-    onDestroy:
+    onDelete:
       - backup-data
       - cleanup-resources
 ```
@@ -68,12 +68,44 @@ spec:
   Cluster configuration (region, provider, nodes)
 </ParamField>
 
-<ParamField path="spec.workflows.onCreate" type="array">
-  List of workflow names to execute after cluster creation
+<ParamField path="spec.workflows.beforeCreate" type="array">
+  List of workflow names to execute before the cluster is created. No kubeconfig — the cluster does not exist yet. Output variables in `HYVE_KEY=value` format are captured and applied to the cluster definition.
 </ParamField>
 
-<ParamField path="spec.workflows.onDestroy" type="array">
-  List of workflow names to execute before cluster destruction
+<ParamField path="spec.workflows.onCreate" type="array">
+  List of workflow names to execute after cluster creation. Kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="array">
+  List of workflow names to execute before cluster deletion. Cluster is still running; kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="array">
+  List of workflow names to execute after the cluster has been deleted. No kubeconfig — the cluster no longer exists. Use to tear down infrastructure provisioned by `beforeCreate`.
+</ParamField>
+
+<ParamField path="spec.workflows.preReconcile" type="array">
+  List of workflow names to execute at the start of every reconcile loop for this cluster, before any create/update/delete decisions are made.
+</ParamField>
+
+<ParamField path="spec.kubernetesVersion" type="string">
+  Kubernetes version to pin for clusters created from this template (e.g. `"1.30"`). Supported by AWS (EKS), GCP (GKE), and Azure (AKS).
+</ParamField>
+
+<ParamField path="spec.awsProfile" type="string">
+  Named AWS CLI profile for authentication. When set, Hyve uses `~/.aws/config` profile credentials. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsKmsKeyAlias" type="string">
+  AWS KMS key alias for EKS secrets encryption at rest (e.g. `"alias/my-eks-key"`). AWS only.
+</ParamField>
+
+<ParamField path="spec.awsClusterSgId" type="string">
+  Pre-existing EC2 cluster security group ID. Can be set by a `beforeCreate` workflow via `HYVE_CLUSTER_SG_ID`. AWS only.
+</ParamField>
+
+<ParamField path="spec.awsWorkerSgId" type="string">
+  Pre-existing EC2 worker node security group ID, applied via EC2 launch template. Can be set by a `beforeCreate` workflow via `HYVE_WORKER_SG_ID`. AWS only.
 </ParamField>
 
 <ParamField path="spec.schedule" type="string">
@@ -95,7 +127,7 @@ hyve template create prod-template \
   --region NYC1 \
   --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large \
   --on-create setup-monitoring,deploy-apps \
-  --on-destroy backup-data,cleanup
+  --on-delete backup-data,cleanup
 
 # Create a dev template that auto-expires clusters every Friday at 20:00
 hyve template create dev-weekly \
@@ -131,7 +163,7 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-base-apps
-    onDestroy:
+    onDelete:
       - backup-data
 EOF
 
@@ -152,7 +184,7 @@ hyve template execute prod-template my-prod-cluster
 # 1. Create cluster 'my-prod-cluster' using template specs
 # 2. Wait for cluster to be ready
 # 3. Run 'onCreate' workflows (setup-monitoring, deploy-base-apps)
-# Note: 'onDestroy' workflows run when the cluster is deleted
+# Note: 'onDelete' workflows run before deletion, 'afterDelete' workflows run after
 ```
 
 ### Execution Flow
@@ -232,7 +264,7 @@ spec:
       - setup-logging
       - deploy-ingress-controller
       - setup-cert-manager
-    onDestroy:
+    onDelete:
       - backup-persistent-data
       - notify-team
 ```
@@ -304,7 +336,7 @@ spec:
       - install-cuda-drivers
       - setup-jupyter
       - deploy-ml-platform
-    onDestroy:
+    onDelete:
       - export-model-artifacts
 ```
 
@@ -327,7 +359,7 @@ spec:
       - setup-monitoring
       - deploy-apps
       - configure-ingress
-    onDestroy:             # Run before cluster deletion (kubeconfig injected)
+    onDelete:             # Run before cluster deletion (kubeconfig injected)
       - backup-data
       - cleanup-dns
     afterDelete:           # Run after the cluster is deleted (no kubeconfig)
@@ -340,7 +372,7 @@ spec:
 |-------|--------------|------------|-----------|
 | `beforeCreate` | Before the cluster is provisioned | No | Provision VPC, IAM roles, DNS zones |
 | `onCreate` | After cluster is ready | Yes | Setup monitoring, deploy apps, configure ingress |
-| `onDestroy` | Before cluster deletion | Yes | Backup data, drain workloads, notify teams |
+| `onDelete` | Before cluster deletion | Yes | Backup data, drain workloads, notify teams |
 | `afterDelete` | After the cluster is deleted | No | Tear down VPC, IAM roles, DNS zones |
 
 ### Workflow Requirements
@@ -441,7 +473,7 @@ spec:
       - setup-monitoring
       - configure-networking
       - deploy-compliance-tools
-    onDestroy:
+    onDelete:
       - audit-log-export
       - compliance-notification
 ```
@@ -521,7 +553,7 @@ hyve template execute prod-template prod-new-cluster
         - configure-security      # Security baseline
         - setup-backup           # Disaster recovery
         - deploy-core-services   # Essential services
-      onDestroy:
+      onDelete:
         - export-logs            # Preserve audit trail
         - backup-final-state     # Final backup
     ```
@@ -596,7 +628,7 @@ spec:
       - setup-monitoring
       - setup-logging
       - deploy-ingress
-    onDestroy:
+    onDelete:
       - backup-data
 ```
 
@@ -632,7 +664,7 @@ spec:
       - install-security-policies
       - deploy-ingress-controller
       - setup-cert-manager
-    onDestroy:
+    onDelete:
       - backup-persistent-volumes
       - export-audit-logs
       - notify-operations-team
@@ -697,11 +729,11 @@ hyve template execute production-complete prod-app-01
 hyve cluster delete prod-app-01
 
 # Output:
-# [INFO] Running onDestroy workflow 'backup-persistent-volumes'
+# [INFO] Running onDelete workflow 'backup-persistent-volumes'
 # [INFO] Workflow 'backup-persistent-volumes' completed
-# [INFO] Running onDestroy workflow 'export-audit-logs'
+# [INFO] Running onDelete workflow 'export-audit-logs'
 # [INFO] Workflow 'export-audit-logs' completed
-# [INFO] Running onDestroy workflow 'notify-operations-team'
+# [INFO] Running onDelete workflow 'notify-operations-team'
 # [INFO] Workflow 'notify-operations-team' completed
 # [INFO] Cluster 'prod-app-01' deleted successfully
 ```

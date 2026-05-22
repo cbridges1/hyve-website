@@ -14,7 +14,7 @@ Templates in Hyve enable reusable cluster configurations with automated workflow
 Templates combine:
 - Cluster specifications (provider, region, nodes or node groups)
 - Ingress configuration
-- Lifecycle workflows (onCreate runs after cluster creation, onDestroy runs before deletion)
+- Lifecycle workflows (onCreate runs after cluster creation, onDelete runs before deletion)
 - Node group definitions for multi-pool AWS EKS, GCP GKE, and Azure AKS clusters
 - Reusable patterns for consistent deployments
 
@@ -41,7 +41,7 @@ Templates combine:
       --ingress \
       --load-balancer \
       --on-create setup-monitoring,deploy-app,configure-backups \
-      --on-destroy backup-data,cleanup \
+      --on-delete backup-data,cleanup \
       --schedule "0 20 * * 5"
     ```
   </Tab>
@@ -69,7 +69,7 @@ Templates combine:
         onCreate:
           - setup-monitoring
           - deploy-app
-        onDestroy:
+        onDelete:
           - backup-data
     ```
   </Tab>
@@ -172,7 +172,7 @@ spec:
       - configure-logging
       - deploy-observability
       - setup-backups
-    onDestroy:
+    onDelete:
       - export-logs
       - final-backup
 ```
@@ -224,7 +224,7 @@ spec:
     onCreate:                      # Run after cluster is ready (kubeconfig injected)
       - workflow-name-1
       - workflow-name-2
-    onDestroy:                     # Run before cluster deletion (kubeconfig injected)
+    onDelete:                     # Run before cluster deletion (kubeconfig injected)
       - cleanup-workflow
     afterDelete:                   # Run after the cluster is deleted (no kubeconfig)
       - teardown-prereqs
@@ -267,7 +267,7 @@ hyve template execute prod-template prod-cluster-01
 4. Waits for cluster to be ready
 5. Syncs kubeconfig
 6. Executes all `onCreate` workflows in order
-7. Note: `onDestroy` and `afterDelete` workflows run when the cluster is deleted
+7. Note: `onDelete` and `afterDelete` workflows run when the cluster is deleted
 
 ### Execution Output
 
@@ -376,7 +376,7 @@ spec:
       - setup-monitoring
       - deploy-app
       - configure-backups
-    onDestroy:
+    onDelete:
       - backup-data
 ```
 
@@ -554,7 +554,7 @@ spec:
       - setup-backups
       - configure-alerting
       - deploy-app
-    onDestroy:
+    onDelete:
       - export-logs
       - final-backup
       - notify-team
@@ -841,7 +841,7 @@ hyve template create customer-template \
   --region NYC1 \
   --nodes g4s.kube.medium,g4s.kube.medium \
   --on-create setup-tenant,deploy-app,configure-isolation \
-  --on-destroy cleanup-tenant-data
+  --on-delete cleanup-tenant-data
 
 # Deploy for each customer
 hyve template execute customer-template customer-acme
@@ -906,7 +906,7 @@ hyve template execute test-talos test-talos-cluster
           - configure-logging     # Always log
           - setup-backups        # Always backup
           - deploy-app           # Application-specific
-        onDestroy:
+        onDelete:
           - export-logs          # Preserve audit trail
           - final-backup         # Last backup
     ```
@@ -958,7 +958,7 @@ hyve template execute test-talos test-talos-cluster
           - deploy-app           # Deploys main application
           - configure-backups    # Sets up Velero for backups
           - setup-alerting       # Configures PagerDuty alerts
-        onDestroy:
+        onDelete:
           - export-metrics       # Save final metrics
     ```
     Add comments to explain workflow purposes
@@ -1031,7 +1031,7 @@ spec:
       - setup-monitoring
       - setup-backups
       - configure-alerting
-    onDestroy:
+    onDelete:
       - final-backup
 EOF
 ```
