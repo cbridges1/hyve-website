@@ -30,7 +30,8 @@
           "guides/template-management",
           "guides/kubeconfig-management",
           "guides/credentials",
-          "guides/access-control"
+          "guides/access-control",
+          "guides/argocd"
         ]
       },
       {
