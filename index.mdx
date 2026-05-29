@@ -124,6 +124,8 @@ hyve template execute prod-template prod-cluster-01
 
 ## Why Hyve?
 
+**You probably need less infrastructure code than you think.**
+
 <AccordionGroup>
   <Accordion title="Git is the state backend — no S3, no Terraform Cloud">
     Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. There is no separate backend to configure or pay for. The full history of every cluster change is inherent in Git — who changed what, when, and why, reviewed through pull requests like any other code.
