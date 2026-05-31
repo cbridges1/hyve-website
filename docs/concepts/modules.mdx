@@ -1,0 +1,270 @@
+---
+title: "Modules"
+description: "Versioned, self-contained packages that implement cluster operations for any cloud provider"
+---
+
+## What is a module?
+
+A module is a versioned directory that implements the cluster lifecycle operations for a specific cloud provider or infrastructure target. Modules contain shell scripts and workflow YAMLs for:
+
+- **create** — provision a new cluster
+- **delete** — deprovision a cluster
+- **status** — query the current cluster status
+- **auth** — merge the cluster kubeconfig into `~/.kube/config`
+- **scale** (optional) — adjust node count without full reprovisioning
+
+Hyve does not embed any cloud SDKs. All cloud operations are delegated to modules, which in turn invoke whatever CLI tools are already installed in your environment (the Civo CLI, AWS CLI, gcloud, az, etc.).
+
+## Why modules?
+
+The module system decouples Hyve's core reconciliation logic from cloud-provider specifics:
+
+- **Any provider** — if you can write a shell script that creates a Kubernetes cluster, you can write a module for it
+- **Your credentials stay in your environment** — modules read credentials from the same env vars and config files that your cloud CLIs use; Hyve never stores them
+- **Versioned and locked** — modules are pinned in `hyve.lock` with a SHA256 content digest, ensuring reproducible reconciles across your team and CI/CD
+- **Composable** — modules can be combined with lifecycle workflows (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`) for full pipeline automation
+
+## Module directory structure
+
+```
+<module>/
+  module.yaml      — manifest: apiVersion, kind: Module, params, requirements
+  create.yaml      — kind: Workflow; provisions the cluster; emits HYVE_* outputs
+  delete.yaml      — kind: Workflow; deprovisions the cluster
+  status.yaml      — kind: Workflow; emits HYVE_CLUSTER_STATUS=<value>
+  auth.yaml        — kind: ClusterAuth; merges cluster into ~/.kube/config
+  scale.yaml       — kind: Workflow; optional; adjusts node count
+  README.md
+```
+
+### module.yaml
+
+The manifest describes the module, declares params, and lists any requirements (tools that must be in `PATH`):
+
+```yaml
+apiVersion: v1
+kind: Module
+metadata:
+  name: civo
+  description: Provision Civo Kubernetes clusters
+  version: v1.0.0
+spec:
+  params:
+    - name: node_size
+      type: string
+      required: true
+      description: Civo node size (e.g. g4s.kube.medium)
+    - name: node_count
+      type: int
+      required: false
+      default: "1"
+    - name: cluster_type
+      type: string
+      required: false
+      default: k3s
+  requirements:
+    - name: civo
+      description: Civo CLI must be installed and authenticated
+```
+
+## Module sources
+
+Modules are referenced by source string in templates:
+
+| Source format | Example | When to use |
+|---------------|---------|-------------|
+| GitHub (org/repo) | `github.com/hyve-modules/civo` | First-party or community modules |
+| GitHub with subdirectory | `github.com/org/repo//modules/k8s` | Monorepo with multiple modules |
+| Local path | `./local/my-module` | Module development and testing |
+
+## Module params
+
+Params declared in `module.yaml` map from `cluster.spec.params` to environment variables injected into every operation.
+
+**In the cluster YAML:**
+
+```yaml
+spec:
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
+  params:
+    node_size: g4s.kube.medium
+    node_count: "3"
+    cluster_type: k3s
+```
+
+**Injected as environment variables:**
+
+| cluster.spec.params key | Environment variable |
+|-------------------------|---------------------|
+| `node_size` | `HYVE_PARAM_NODE_SIZE` |
+| `node_count` | `HYVE_PARAM_NODE_COUNT` |
+| `cluster_type` | `HYVE_PARAM_CLUSTER_TYPE` |
+
+The rule is: `HYVE_PARAM_` + uppercase key with hyphens/dots replaced by underscores.
+
+## Standard environment variables
+
+In addition to `HYVE_PARAM_*` variables, every module operation also receives:
+
+| Variable | Value |
+|----------|-------|
+| `HYVE_CLUSTER_NAME` | `cluster.metadata.name` |
+| `HYVE_CLUSTER_REGION` | `cluster.metadata.region` |
+
+## Outputs protocol
+
+Operations emit outputs by printing `HYVE_KEY=value` lines to stdout. Hyve captures these and stores them in `cluster.spec.driverOutputs`.
+
+```bash
+# Inside create.yaml — a shell step outputs values for later use
+echo "HYVE_CLUSTER_ID=${CLUSTER_ID}"
+echo "HYVE_CLUSTER_ENDPOINT=${ENDPOINT}"
+echo "HYVE_CLUSTER_STATUS=active"
+```
+
+On every subsequent reconcile, all keys in `cluster.spec.driverOutputs` are re-injected verbatim as environment variables. This allows, for example, the create operation to output a VPC ID that the delete operation later references.
+
+<Info>
+  The outputs protocol is the only mechanism by which a module passes data forward in time. There is no shared state outside of what is stored in `driverOutputs` and re-injected as env vars.
+</Info>
+
+### Status values
+
+The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value is:
+
+| Value | Meaning |
+|-------|---------|
+| `active` | Cluster is running and ready |
+| `provisioning` | Cluster is being created |
+| `deleting` | Cluster is being deleted |
+| `error` | Cluster is in an error state |
+| `unknown` | Status could not be determined |
+
+## How auth works
+
+The `auth.yaml` file has `kind: ClusterAuth`. Hyve runs this operation when `hyve cluster auth <name>` is called. The operation is expected to merge the cluster's kubeconfig into `~/.kube/config` using standard Kubernetes tooling (e.g. `kubectl config merge`, `KUBECONFIG` env var merge, or the cloud CLI's built-in merge command).
+
+```bash
+# Example auth.yaml step for Civo
+civo kubernetes config ${HYVE_CLUSTER_NAME} --merge --save
+```
+
+```bash
+# Example auth.yaml step for EKS
+aws eks update-kubeconfig \
+  --name ${HYVE_CLUSTER_NAME} \
+  --region ${HYVE_CLUSTER_REGION}
+```
+
+## hyve.lock — content addressing
+
+`hyve.lock` maps each `source@version` reference to a SHA256 digest and download URL:
+
+```json
+{
+  "modules": {
+    "github.com/hyve-modules/civo@v1.0.0": {
+      "digest": "sha256:abc123...",
+      "url": "https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz"
+    }
+  }
+}
+```
+
+When Hyve downloads a module, it verifies the digest. If the content has changed (e.g. a tag was force-pushed), Hyve refuses to use the module and reports an integrity error.
+
+Commit `hyve.lock` to Git. This ensures:
+- Every team member uses the exact same module version
+- CI/CD pipelines reproduce the same reconcile behavior
+- Supply-chain tampering is detected
+
+## driverOutputs
+
+`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It is stored in the cluster YAML and committed to Git.
+
+```yaml
+spec:
+  driverOutputs:
+    HYVE_CLUSTER_ID: abc-123
+    HYVE_CLUSTER_ENDPOINT: https://abc-123.k8s.civo.com
+    HYVE_LAST_PARAMS_HASH: sha256:def456...
+```
+
+<Warning>
+  Do not edit `driverOutputs` manually. These values are managed by the reconciler and will be overwritten on the next reconcile.
+</Warning>
+
+## First-party modules
+
+<CardGroup cols={2}>
+  <Card title="Civo" icon="cloud" color="#3b82f6">
+    `github.com/hyve-modules/civo`
+
+    K3s and Talos clusters on Civo Cloud. Reads from `~/.civo.json` or `CIVO_TOKEN`.
+  </Card>
+
+  <Card title="AWS EKS" icon="aws" color="#f97316">
+    `github.com/hyve-modules/eks`
+
+    Amazon Elastic Kubernetes Service. Uses the standard AWS credential chain.
+  </Card>
+
+  <Card title="GCP GKE" icon="google" color="#22c55e">
+    `github.com/hyve-modules/gke`
+
+    Google Kubernetes Engine. Uses Application Default Credentials.
+  </Card>
+
+  <Card title="Azure AKS" icon="microsoft" color="#8b5cf6">
+    `github.com/hyve-modules/aks`
+
+    Azure Kubernetes Service. Uses the Azure CLI session or service principal env vars.
+  </Card>
+</CardGroup>
+
+## Writing a custom module
+
+Use `hyve module init` to scaffold a new module:
+
+```bash
+hyve module init my-provider
+cd my-provider
+```
+
+Edit `module.yaml` to declare your params and requirements. Then implement the operations:
+
+1. **`create.yaml`** — call your cloud CLI to create the cluster; emit `HYVE_CLUSTER_ID=...` and `HYVE_CLUSTER_STATUS=provisioning` (or `active` if creation is synchronous)
+2. **`status.yaml`** — query the cloud CLI for cluster status; emit `HYVE_CLUSTER_STATUS=active|provisioning|deleting|error|unknown`
+3. **`delete.yaml`** — call your cloud CLI to delete the cluster
+4. **`auth.yaml`** — merge the cluster kubeconfig into `~/.kube/config`
+
+Reference your local module in a template:
+
+```bash
+hyve template create my-template \
+  --driver ./my-provider \
+  --driver-version local \
+  --region us-east-1
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve module" icon="terminal" href="/docs/cli/module" color="#3b82f6">
+    CLI command reference for module management
+  </Card>
+
+  <Card title="hyve template" icon="file-code" href="/docs/cli/template" color="#06b6d4">
+    Templates reference modules via spec.driver
+  </Card>
+
+  <Card title="Cluster Concepts" icon="server" href="/docs/concepts/clusters" color="#8b5cf6">
+    How clusters use modules during reconciliation
+  </Card>
+
+  <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#22c55e">
+    Get started with a first-party module
+  </Card>
+</CardGroup>

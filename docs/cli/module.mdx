@@ -1,0 +1,385 @@
+---
+title: 'hyve module'
+description: 'Manage versioned modules that implement cluster operations'
+---
+
+The `hyve module` command group installs, locks, updates, and inspects modules — the versioned packages that implement cluster create, delete, status, and auth operations for any cloud provider.
+
+## Overview
+
+Modules are the extensibility mechanism in Hyve. Each module is a versioned directory containing shell scripts and workflow YAMLs that implement cluster lifecycle operations. Hyve calls into the active module for every reconcile operation.
+
+Module sources take one of two forms:
+
+| Form | Example |
+|------|---------|
+| Git (GitHub) | `github.com/hyve-modules/civo` |
+| Git with subdirectory | `github.com/org/repo//path/to/module` |
+| Local path | `./path/to/module` |
+
+Locked modules are stored in `hyve.lock` at the repository root.
+
+## Commands
+
+### hyve module install
+
+Install all modules referenced by templates in the current repository into `hyve.lock`.
+
+```bash
+hyve module install
+```
+
+Reads all template YAMLs in `templates/`, finds every `spec.driver.source` + `spec.driver.version` reference, and ensures each is locked and cached locally.
+
+```bash
+# Run after cloning a state repository for the first time
+hyve module install
+```
+
+<Info>
+  This is analogous to `npm install` or `go mod download`. Run it after cloning a repository or after another team member adds a new template.
+</Info>
+
+---
+
+### hyve module add
+
+Add a module at a specific version and write it to `hyve.lock`.
+
+```bash
+hyve module add <source>@<version>
+```
+
+<ParamField path="source@version" type="string" required>
+  Module source and version joined with `@`. Examples:
+  - `github.com/hyve-modules/civo@v1.0.0`
+  - `github.com/hyve-modules/eks@v2.1.3`
+  - `./my-local-module@local`
+</ParamField>
+
+**Examples:**
+
+```bash
+# Add the first-party Civo module
+hyve module add github.com/hyve-modules/civo@v1.0.0
+
+# Add the EKS module
+hyve module add github.com/hyve-modules/eks@v2.1.3
+
+# Add a module from a subdirectory
+hyve module add github.com/my-org/infra//modules/k8s@v1.0.0
+
+# Add a local module (for development)
+hyve module add ./my-local-module@local
+```
+
+**Output:**
+
+```
+Resolving github.com/hyve-modules/civo@v1.0.0...
+Downloading module...
+Computing digest: sha256:abc123...
+Locked github.com/hyve-modules/civo@v1.0.0 in hyve.lock
+```
+
+---
+
+### hyve module update
+
+Update a locked module to the latest version that satisfies the current version constraint.
+
+```bash
+hyve module update <source>
+```
+
+<ParamField path="source" type="string" required>
+  Module source without version (e.g. `github.com/hyve-modules/civo`)
+</ParamField>
+
+**Example:**
+
+```bash
+hyve module update github.com/hyve-modules/civo
+# Resolves latest version, updates hyve.lock
+```
+
+---
+
+### hyve module list
+
+List all modules currently locked in `hyve.lock`.
+
+```bash
+hyve module list
+```
+
+**Output:**
+
+```
+Locked modules (2):
+
+  github.com/hyve-modules/civo@v1.0.0
+    Digest: sha256:abc123...
+    Cached: yes
+
+  github.com/hyve-modules/eks@v2.1.3
+    Digest: sha256:def456...
+    Cached: yes
+```
+
+---
+
+### hyve module info
+
+Show the manifest, params, and requirements for a module.
+
+```bash
+hyve module info <source>
+```
+
+<ParamField path="source" type="string" required>
+  Module source (e.g. `github.com/hyve-modules/civo`). The version is resolved from `hyve.lock`.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve module info github.com/hyve-modules/civo
+```
+
+**Output:**
+
+```
+Module: github.com/hyve-modules/civo@v1.0.0
+
+Description: Provision Civo Kubernetes clusters
+Author: Hyve Contributors
+
+Operations:
+  create    create.yaml   — Provisions a Civo K3s or Talos cluster
+  delete    delete.yaml   — Deprovisions a Civo cluster
+  status    status.yaml   — Queries cluster status; emits HYVE_CLUSTER_STATUS
+  auth      auth.yaml     — Merges cluster kubeconfig into ~/.kube/config
+  scale     scale.yaml    — Adjusts node count (optional)
+
+Params:
+  api_key         string   required  Civo API key (or set CIVO_TOKEN env var)
+  region          string   required  Civo region (PHX1, NYC1, FRA1, LON1)
+  node_size       string   required  Node size (e.g. g4s.kube.medium)
+  node_count      int      optional  Number of nodes (default: 1)
+  cluster_type    string   optional  k3s or talos (default: k3s)
+
+Requirements:
+  civo   Civo CLI must be installed and authenticated
+```
+
+---
+
+### hyve module validate
+
+Verify that all modules referenced by templates in the current repository are locked in `hyve.lock` and cached locally.
+
+```bash
+hyve module validate
+```
+
+**Output (success):**
+
+```
+Validating modules for 3 template(s)...
+  my-civo-template     github.com/hyve-modules/civo@v1.0.0   OK
+  prod-eks-template    github.com/hyve-modules/eks@v2.1.3     OK
+  staging-gke          github.com/hyve-modules/gke@v1.2.0    OK
+
+All modules are valid.
+```
+
+**Output (error):**
+
+```
+Validating modules for 2 template(s)...
+  my-civo-template     github.com/hyve-modules/civo@v1.0.0   OK
+  prod-eks-template    github.com/hyve-modules/eks@v2.1.3     NOT LOCKED
+
+Error: 1 module(s) missing from hyve.lock
+Run 'hyve module install' to lock all template modules.
+```
+
+---
+
+### hyve module remove
+
+Remove a module from `hyve.lock`.
+
+```bash
+hyve module remove <source>
+```
+
+<ParamField path="source" type="string" required>
+  Module source to remove (e.g. `github.com/hyve-modules/civo`)
+</ParamField>
+
+**Example:**
+
+```bash
+hyve module remove github.com/hyve-modules/civo
+```
+
+<Warning>
+  Removing a module from `hyve.lock` does not delete any templates that reference it. Those templates will fail validation until the module is re-added.
+</Warning>
+
+---
+
+### hyve module init
+
+Scaffold a new module directory with the standard file structure.
+
+```bash
+hyve module init <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name for the new module directory
+</ParamField>
+
+**Example:**
+
+```bash
+hyve module init my-provider
+```
+
+**Output:**
+
+```
+Created module scaffold at ./my-provider/
+
+  my-provider/
+    module.yaml     — Module manifest (fill in metadata and params)
+    create.yaml     — Workflow: provision cluster; emit HYVE_* outputs
+    delete.yaml     — Workflow: deprovision cluster
+    status.yaml     — Workflow: query status; emit HYVE_CLUSTER_STATUS=<value>
+    auth.yaml       — ClusterAuth: merge cluster into ~/.kube/config
+    README.md       — Module documentation
+
+Edit module.yaml to define your module's metadata and params.
+```
+
+---
+
+## Module directory structure
+
+Every module is a directory with a standard set of files:
+
+```
+<module>/
+  module.yaml      — manifest (apiVersion, kind: Module, metadata, spec)
+  status.yaml      — kind: Workflow; emits HYVE_CLUSTER_STATUS=<value>
+  create.yaml      — kind: Workflow; provisions cluster; emits HYVE_* outputs
+  delete.yaml      — kind: Workflow; deprovisions cluster
+  auth.yaml        — kind: ClusterAuth; merges cluster into ~/.kube/config
+  scale.yaml       — kind: Workflow; optional; adjusts node count
+  README.md
+```
+
+### module.yaml
+
+```yaml
+apiVersion: v1
+kind: Module
+metadata:
+  name: civo
+  description: Provision Civo Kubernetes clusters
+  version: v1.0.0
+  author: Hyve Contributors
+spec:
+  params:
+    - name: api_key
+      type: string
+      required: true
+      description: Civo API key (or set CIVO_TOKEN env var)
+    - name: region
+      type: string
+      required: true
+      description: Civo region code (PHX1, NYC1, FRA1, LON1)
+    - name: node_size
+      type: string
+      required: true
+      description: Node size (e.g. g4s.kube.medium)
+    - name: node_count
+      type: int
+      required: false
+      default: "1"
+      description: Number of nodes
+  requirements:
+    - name: civo
+      description: Civo CLI must be installed and authenticated
+```
+
+## Environment variables injected into operations
+
+Every module operation receives the following environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `HYVE_CLUSTER_NAME` | Cluster name from `metadata.name` |
+| `HYVE_CLUSTER_REGION` | Cluster region from `metadata.region` |
+| `HYVE_PARAM_<KEY>` | Each param from `cluster.spec.params`, with key uppercased |
+
+In addition, all keys from `cluster.spec.driverOutputs` are re-injected verbatim on every reconcile. This allows create operations to output values (like a VPC ID or cluster endpoint) that subsequent operations can reference.
+
+**Example:** if a create operation emits `HYVE_EKS_CLUSTER_ENDPOINT=https://...`, that value is stored in `driverOutputs` and re-injected as `HYVE_EKS_CLUSTER_ENDPOINT` on every future reconcile.
+
+## Outputs protocol
+
+Operations emit outputs by printing `HYVE_KEY=value` lines to stdout. Hyve captures these lines, stores them in `cluster.spec.driverOutputs`, and re-injects them on the next reconcile.
+
+```bash
+# Inside create.yaml — a shell step outputs cluster info
+echo "HYVE_CLUSTER_ID=${CLUSTER_ID}"
+echo "HYVE_CLUSTER_ENDPOINT=${ENDPOINT}"
+echo "HYVE_CLUSTER_STATUS=active"
+```
+
+The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value is one of:
+- `active` — cluster is running and ready
+- `provisioning` — cluster is being created
+- `deleting` — cluster is being deleted
+- `error` — cluster is in an error state
+- `unknown` — status could not be determined
+
+## hyve.lock format
+
+`hyve.lock` is a JSON file at the repository root:
+
+```json
+{
+  "modules": {
+    "github.com/hyve-modules/civo@v1.0.0": {
+      "digest": "sha256:abc123def456...",
+      "url": "https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz"
+    },
+    "github.com/hyve-modules/eks@v2.1.3": {
+      "digest": "sha256:789xyz...",
+      "url": "https://github.com/hyve-modules/eks/archive/refs/tags/v2.1.3.tar.gz"
+    }
+  }
+}
+```
+
+Commit `hyve.lock` to Git. It ensures every team member and every CI/CD run uses the exact same module version and verifies integrity via the SHA256 digest.
+
+## First-party modules
+
+| Module | Source | Description |
+|--------|--------|-------------|
+| Civo | `github.com/hyve-modules/civo` | Civo K3s and Talos clusters |
+| AWS EKS | `github.com/hyve-modules/eks` | Amazon Elastic Kubernetes Service |
+| GCP GKE | `github.com/hyve-modules/gke` | Google Kubernetes Engine |
+| Azure AKS | `github.com/hyve-modules/aks` | Azure Kubernetes Service |
+
+## Related
+
+- [Concepts: Modules](/docs/concepts/modules) — Architecture overview
+- [hyve template](/docs/cli/template) — Templates reference modules via `spec.driver`
+- [hyve cluster](/docs/cli/cluster) — Clusters are created from templates

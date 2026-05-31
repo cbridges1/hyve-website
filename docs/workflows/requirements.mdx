@@ -1,0 +1,390 @@
+---
+title: "Workflow Requirements"
+description: "Validate prerequisites before workflow execution"
+---
+
+## Overview
+
+Hyve workflows support a `requirements` field that validates prerequisites before execution. This ensures all necessary CLI tools and secrets are available, preventing runtime failures with clear error messages.
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Tool Validation" icon="wrench" color="#f97316">
+    Check if CLI tools are available in PATH with optional version checking
+  </Card>
+
+  <Card title="Secret Management" icon="key" color="#f43f5e">
+    Automatically load secrets from encrypted database or environment variables
+  </Card>
+
+  <Card title="Clear Errors" icon="circle-exclamation" color="#f59e0b">
+    Helpful error messages when requirements aren't met
+  </Card>
+
+  <Card title="Multiple Sources" icon="database" color="#6366f1">
+    Support secrets from different providers (docker, github, datadog, etc.)
+  </Card>
+</CardGroup>
+
+## Requirement Types
+
+### Tool Requirements
+
+Validate that CLI tools are installed and meet minimum version requirements.
+
+```yaml
+requirements:
+  tools:
+    - name: kubectl
+      version: "1.28"
+      description: Kubernetes CLI for cluster operations
+    - name: helm
+      version: "3.12"
+      description: Helm package manager
+    - name: docker
+      description: Docker CLI (version check optional)
+```
+
+<ParamField path="name" type="string" required>
+  Tool command name (e.g., `kubectl`, `helm`, `docker`)
+</ParamField>
+
+<ParamField path="version" type="string">
+  Minimum version required (optional)
+</ParamField>
+
+<ParamField path="description" type="string">
+  Human-readable description for error messages
+</ParamField>
+
+### Secret Requirements
+
+Validate that secrets are available from the database or environment.
+
+```yaml
+requirements:
+  secrets:
+    - name: DOCKER_TOKEN
+      provider: docker
+      required: true
+      description: Docker Hub authentication token
+    - name: GITHUB_TOKEN
+      provider: github
+      required: false
+      description: GitHub token (optional)
+```
+
+<ParamField path="name" type="string" required>
+  Environment variable name (e.g., `DOCKER_TOKEN`)
+</ParamField>
+
+<ParamField path="provider" type="string">
+  Provider name for database lookup (e.g., `docker`, `github`)
+</ParamField>
+
+<ParamField path="required" type="boolean" default={true}>
+  Whether this secret is mandatory
+</ParamField>
+
+<ParamField path="description" type="string">
+  Human-readable description with instructions
+</ParamField>
+
+## Complete Example
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: k8s-deploy
+  description: Deploy to Kubernetes with validation
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+        description: Kubernetes CLI
+      - name: helm
+        version: "3.12"
+        description: Helm package manager
+    secrets:
+      - name: REGISTRY_TOKEN
+        provider: registry
+        required: true
+        description: Container registry token
+      - name: DATADOG_API_KEY
+        provider: datadog
+        required: false
+        description: Monitoring API key (optional)
+
+  env:
+    APP_NAME: my-app
+    NAMESPACE: default
+
+  jobs:
+    - name: deploy
+      steps:
+        - name: helm-deploy
+          command: helm upgrade --install ${APP_NAME} ./charts
+```
+
+## Setting Up Secrets
+
+Set secrets via environment variables before running the workflow:
+
+```bash
+# Set the required secret in your shell
+export DOCKER_TOKEN=my-docker-token
+
+# For Civo, use the Civo CLI (writes ~/.civo.json)
+civo apikey save my-token YOUR_TOKEN
+civo apikey use my-token
+# Hyve reads it automatically when provider is "civo"
+
+# Run workflow
+hyve workflow run docker-build
+```
+
+For CI/CD, set secrets as pipeline secrets (e.g., GitHub Actions secrets).
+
+## Secret Loading Priority
+
+When a workflow requires a secret:
+
+<Steps>
+  <Step title="Check environment variable">
+    If `$SECRET_NAME` is already set, use it
+  </Step>
+
+  <Step title="Check provider credential file">
+    For `provider: civo`, reads from `~/.civo.json`. For AWS/GCP/Azure, their native credential chains are used.
+  </Step>
+
+  <Step title="Fail if required">
+    If secret is marked as `required: true` and not found, fail with helpful error
+  </Step>
+</Steps>
+
+## Error Messages
+
+### Missing Tool
+
+```
+Requirements validation failed:
+  - Required tool 'helm' not found in PATH (Helm package manager)
+```
+
+### Version Mismatch
+
+```
+Requirements validation failed:
+  - tool 'kubectl' version mismatch: found 1.26.0, requires 1.28
+```
+
+### Missing Secret
+
+```
+Requirements validation failed:
+  - Required secret 'DOCKER_TOKEN' not found (Docker Hub authentication token)
+    Set via: export DOCKER_TOKEN=your-secret
+```
+
+### Multiple Errors
+
+```
+Requirements validation failed:
+  - Required tool 'helm' not found in PATH (Helm package manager)
+  - Required secret 'DOCKER_TOKEN' not found (Docker Hub authentication token)
+    Set via: export DOCKER_TOKEN=your-secret
+  - Required secret 'GITHUB_TOKEN' not found (GitHub API token)
+    Set via: export GITHUB_TOKEN=your-secret
+```
+
+## Successful Validation
+
+When all requirements are met:
+
+```
+[INFO] Starting workflow 'docker-build'
+[INFO] Validating workflow requirements...
+[INFO] ✅ All requirements validated successfully
+[INFO][validate-environment] Starting job 'validate-environment'
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Be Specific with Versions">
+    Always specify minimum versions for critical tools:
+
+    ```yaml
+    requirements:
+      tools:
+        - name: kubectl
+          version: "1.28"  # Specify minimum version
+    ```
+  </Accordion>
+
+  <Accordion title="2. Add Helpful Descriptions">
+    Include descriptions with instructions or URLs:
+
+    ```yaml
+    requirements:
+      secrets:
+        - name: DOCKER_TOKEN
+          provider: docker
+          required: true
+          description: Get token from https://hub.docker.com/settings/security
+    ```
+  </Accordion>
+
+  <Accordion title="3. Mark Optional Secrets">
+    Use `required: false` for optional features:
+
+    ```yaml
+    requirements:
+      secrets:
+        - name: DATADOG_API_KEY
+          provider: datadog
+          required: false  # Won't fail if missing
+          description: Monitoring is optional
+    ```
+  </Accordion>
+
+  <Accordion title="4. Group Related Requirements">
+    Organize requirements by purpose:
+
+    ```yaml
+    requirements:
+      tools:
+        # Container tools
+        - name: docker
+          version: "20.10"
+        - name: buildx
+
+        # Kubernetes tools
+        - name: kubectl
+          version: "1.28"
+        - name: helm
+          version: "3.12"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Examples
+
+### Docker Build Workflow
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: docker-build
+spec:
+  requirements:
+    tools:
+      - name: docker
+        version: "20.10"
+        description: Docker CLI for building images
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+        required: true
+        description: Docker Hub authentication
+
+  jobs:
+    - name: build
+      steps:
+        - name: docker-build
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+            docker build -t myapp:latest .
+            docker push myapp:latest
+```
+
+### Multi-Tool Deployment
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: complete-deploy
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+      - name: helm
+        version: "3.12"
+      - name: terraform
+        version: "1.5"
+    secrets:
+      - name: AWS_ACCESS_KEY_ID
+        provider: aws
+        required: true
+      - name: DATADOG_API_KEY
+        provider: datadog
+        required: false
+
+  jobs:
+    - name: infrastructure
+      steps:
+        - name: terraform-apply
+          command: terraform apply -auto-approve
+
+    - name: deploy
+      dependsOn: [infrastructure]
+      steps:
+        - name: helm-install
+          command: helm upgrade --install myapp ./chart
+```
+
+## Testing Requirements
+
+### Test Missing Tools
+
+```bash
+# Run workflow without helm installed
+hyve workflow run k8s-deploy
+# Error: Required tool 'helm' not found in PATH
+```
+
+### Test Missing Secrets
+
+```bash
+# Run workflow without setting secrets
+hyve workflow run docker-build
+# Error: Required secret 'DOCKER_TOKEN' not found
+```
+
+### Test With Requirements Met
+
+```bash
+# Set required secret via environment variable
+export DOCKER_TOKEN=your-docker-token
+
+# Run workflow successfully
+hyve workflow run docker-build
+# ✅ All requirements validated successfully
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflow Overview" icon="diagram-project" href="/docs/workflows/overview" color="#22c55e">
+    Learn about workflows
+  </Card>
+
+  <Card title="Configuration" icon="sliders" href="/docs/configuration" color="#f97316">
+    Configure API tokens and secrets
+  </Card>
+
+  <Card title="Workflow Examples" icon="code" href="/docs/workflows/examples" color="#6366f1">
+    See complete workflow examples
+  </Card>
+
+  <Card title="Module System" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    How modules inject credentials via environment variables
+  </Card>
+</CardGroup>

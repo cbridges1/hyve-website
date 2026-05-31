@@ -1,0 +1,590 @@
+---
+title: "Git Management"
+description: "Manage Git repositories for GitOps state management"
+---
+
+## Prerequisites
+
+Hyve uses your system's `git` binary for all repository operations. **Git must be installed and available in your `PATH`** before using any `hyve git` commands.
+
+```bash
+# Verify git is installed
+git --version
+```
+
+If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
+
+```bash
+# macOS
+brew install git
+
+# Ubuntu / Debian
+sudo apt install git
+
+# Windows
+winget install Git.Git
+```
+
+## Overview
+
+Hyve uses Git repositories to store all cluster state, workflows, and templates. This guide covers repository management, branching, synchronization, and multi-environment workflows.
+
+## Repository Basics
+
+### Adding Repositories
+
+Add a Git repository to store your infrastructure state:
+
+```bash
+# Add a repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# Add and set as the active repository immediately
+hyve git add staging \
+  --repo-url https://github.com/company/hyve-staging.git \
+  --set-current
+```
+
+<Note>
+  The repository is cloned to `~/.hyve/repositories/<name>/` by default
+</Note>
+
+### Listing Repositories
+
+```bash
+hyve git list
+```
+
+**Output:**
+```
+📁 Configured Git repositories (3):
+
+  production (current) ⭐
+    URL: https://github.com/company/hyve-prod.git
+    Local: /Users/username/.hyve/repositories/production
+    Added: 2026-01-15 09:30
+
+  staging
+    URL: https://github.com/company/hyve-staging.git
+    Local: /Users/username/.hyve/repositories/staging
+    Added: 2026-01-15 09:32
+
+  development
+    URL: https://github.com/company/hyve-dev.git
+    Local: /Users/username/.hyve/repositories/development
+    Added: 2026-01-15 09:34
+```
+
+### Switching Repositories
+
+```bash
+# Switch to a different repository
+hyve git use staging
+
+# Check current repository
+hyve git status
+```
+
+### Removing Repositories
+
+```bash
+# Remove a repository
+hyve git remove development
+
+# Reset all repositories (clean slate)
+hyve git reset
+```
+
+<Warning>
+  Removing a repository deletes the local clone and configuration. The remote repository is not affected.
+</Warning>
+
+## Branch Management
+
+### Listing Branches
+
+```bash
+# List all branches
+hyve git branch list
+```
+
+**Output:**
+```
+🌿 Branches in repository 'production':
+
+  feature/add-staging-cluster (abc12345)
+* main (def56789)
+  feature/update-workflows (ghi90123)
+```
+
+### Creating Branches
+
+<Tabs>
+  <Tab title="Basic">
+    ```bash
+    # Create a new branch
+    hyve git branch create feature/new-cluster
+    ```
+  </Tab>
+
+  <Tab title="Create and Switch">
+    ```bash
+    # Create and switch to new branch
+    hyve git branch create feature/staging --switch
+    ```
+  </Tab>
+
+  <Tab title="Create and Push">
+    ```bash
+    # Create, switch, and push to remote
+    hyve git branch create feature/updates --switch --push
+    ```
+  </Tab>
+</Tabs>
+
+### Switching Branches
+
+```bash
+# Switch to existing branch
+hyve git branch switch develop
+
+# Switch and pull latest changes
+hyve git branch switch main --pull
+```
+
+### Deleting Branches
+
+```bash
+# Delete a branch
+hyve git branch delete feature/old-config
+
+# Force delete
+hyve git branch delete feature/experimental --force
+```
+
+## Synchronization
+
+### Pull Changes
+
+Pull latest changes from the remote:
+
+```bash
+hyve git pull
+```
+
+### Push Changes
+
+Push local changes to the remote:
+
+```bash
+# Push with custom message
+hyve git push "Updated cluster configuration"
+
+# Push with default message (auto-generated from changes)
+hyve git push
+```
+
+<Note>
+  The push command automatically stages all changes, commits them, and pushes to remote
+</Note>
+
+### Sync (Pull + Push)
+
+Synchronize both ways:
+
+```bash
+# Sync with custom message
+hyve git sync --message "Synced infrastructure changes"
+
+# Sync (pull only, no local changes to push)
+hyve git sync
+```
+
+**Workflow:**
+1. Pulls latest changes from remote
+2. If local changes exist, commits them with your message
+3. Pushes to remote
+
+## Authentication
+
+Hyve delegates all git operations to the system `git` binary. Authentication is handled by git itself — configure it the same way you would for any other git workflow.
+
+### Recommended: Personal Access Token via Environment Variable
+
+```bash
+# Set for the current session
+export HYVE_GIT_TOKEN=your_personal_access_token
+
+# Persist in your shell profile
+echo 'export HYVE_GIT_TOKEN=your_token' >> ~/.bashrc
+```
+
+Hyve reads `HYVE_GIT_TOKEN` and passes it to git when cloning and pushing.
+
+### Alternative: Git Credential Manager
+
+Use git's built-in credential storage so you don't need to set environment variables:
+
+```bash
+# macOS — Keychain (usually preconfigured)
+git config --global credential.helper osxkeychain
+
+# Windows — Git Credential Manager (included with Git for Windows)
+git config --global credential.helper manager
+
+# Linux
+git config --global credential.helper store
+```
+
+Once configured, git will prompt for credentials on first use and cache them automatically.
+
+### Alternative: SSH Keys
+
+Use SSH URLs instead of HTTPS to authenticate with SSH keys:
+
+```bash
+hyve git add production --repo-url git@github.com:company/hyve-prod.git
+```
+
+Ensure your SSH key is added to your git host and loaded into `ssh-agent`:
+
+```bash
+ssh-add ~/.ssh/id_ed25519
+```
+
+
+## Multi-Environment Workflows
+
+### Scenario: Dev, Staging, Production
+
+<Steps>
+  <Step title="Set up repositories">
+    ```bash
+    # Development
+    hyve git add development \
+      --repo-url https://github.com/company/hyve-dev.git
+
+    # Staging
+    hyve git add staging \
+      --repo-url https://github.com/company/hyve-staging.git
+
+    # Production
+    hyve git add production \
+      --repo-url https://github.com/company/hyve-prod.git
+    ```
+  </Step>
+
+  <Step title="Configure each environment">
+    ```bash
+    # Development clusters
+    hyve git use development
+    hyve cluster add dev-app --provider civo --region PHX1 --nodes g4s.kube.small
+
+    # Staging clusters
+    hyve git use staging
+    hyve cluster add staging-app --provider civo --region NYC1 --nodes g4s.kube.medium
+
+    # Production clusters
+    hyve git use production
+    hyve cluster add prod-app --provider civo --region NYC1 --nodes g4s.kube.large
+    ```
+  </Step>
+
+  <Step title="Manage independently">
+    Each repository maintains its own:
+    - Cluster definitions
+    - Workflows
+    - Templates
+    - Kubeconfigs (encrypted per repository)
+  </Step>
+</Steps>
+
+### Branch-Based Environments
+
+Use branches within a single repository:
+
+```bash
+# Main repository
+hyve git add infrastructure --repo-url https://github.com/company/infra.git
+
+# Development branch
+hyve git branch create develop --switch
+hyve cluster add dev-cluster --provider civo --region PHX1 --nodes g4s.kube.small
+
+# Staging branch
+hyve git branch create staging --switch
+hyve cluster add staging-cluster --provider civo --region NYC1 --nodes g4s.kube.medium
+
+# Production in main
+hyve git branch switch main
+hyve cluster add prod-cluster --provider civo --region NYC1 --nodes g4s.kube.large
+```
+
+## Repository Structure
+
+Each repository follows this structure:
+
+```
+repository/
+├── clusters/           # Cluster definitions
+│   ├── production.yaml
+│   ├── staging.yaml
+│   └── dev-cluster.yaml
+├── workflows/          # Workflow definitions
+│   ├── deploy-app.yaml
+│   ├── setup-monitoring.yaml
+│   └── backup-db.yaml
+├── templates/          # Cluster templates
+│   ├── prod-template.yaml
+│   ├── staging-template.yaml
+│   └── dev-template.yaml
+└── .gitignore         # Ignore temporary files
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Repository Names">
+    ```bash
+    # Good
+    hyve git add production-us-east
+    hyve git add production-eu-west
+    hyve git add staging-shared
+
+    # Avoid
+    hyve git add repo1
+    hyve git add my-clusters
+    ```
+  </Accordion>
+
+  <Accordion title="2. Regular Synchronization">
+    ```bash
+    # At start of day
+    hyve git pull
+
+    # Before making changes
+    hyve git pull
+
+    # After making changes
+    hyve git push "Your changes description"
+
+    # Or use sync for both
+    hyve git sync --message "Daily sync"
+    ```
+  </Accordion>
+
+  <Accordion title="3. Branch for Experimental Changes">
+    ```bash
+    # Create feature branch
+    hyve git branch create feature/test-new-cluster --switch
+
+    # Make changes
+    hyve cluster add test-cluster --provider civo --region PHX1 --nodes g4s.kube.small
+
+    # Test and verify
+    hyve reconcile
+
+    # Merge to main when ready
+    hyve git branch switch main
+    # Manually merge via Git or pull request
+    ```
+  </Accordion>
+
+  <Accordion title="4. Separate Repositories for Environments">
+    Use different repositories for different environments to:
+    - Isolate configurations
+    - Control access permissions
+    - Prevent accidental changes
+    - Enable different Git workflows per environment
+  </Accordion>
+
+  <Accordion title="5. Commit Messages">
+    ```bash
+    # Descriptive messages
+    hyve git push "Add production cluster for US region"
+    hyve git push "Update workflow to include monitoring setup"
+    hyve git push "Scale production cluster to 5 nodes"
+
+    # Avoid vague messages
+    hyve git push "Update"
+    hyve git push "Changes"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="git: command not found">
+    **Problem:** Hyve cannot find the git binary
+
+    **Solution:** Install git and ensure it is in your `PATH`:
+    ```bash
+    # Verify installation
+    git --version
+
+    # macOS
+    brew install git
+
+    # Ubuntu / Debian
+    sudo apt install git
+
+    # Windows
+    winget install Git.Git
+    ```
+  </Accordion>
+
+  <Accordion title="Authentication Failed">
+    **Problem:** Git operations fail with authentication error
+
+    **Solutions:**
+    ```bash
+    # Set token via environment variable
+    export HYVE_GIT_TOKEN=your_personal_access_token
+
+    # Or configure git credential manager
+    git config --global credential.helper osxkeychain  # macOS
+    git config --global credential.helper manager      # Windows
+
+    # For SSH: verify your key is loaded
+    ssh-add -l
+    ssh -T git@github.com
+    ```
+  </Accordion>
+
+  <Accordion title="Merge Conflicts">
+    **Problem:** Git pull fails due to conflicts
+
+    **Solutions:**
+    ```bash
+    # Navigate to repository
+    cd ~/.hyve/repositories/production
+
+    # Check status
+    git status
+
+    # Resolve conflicts manually
+    # Edit conflicting files
+
+    # Commit resolution
+    git add .
+    git commit -m "Resolve merge conflicts"
+
+    # Push resolved changes
+    hyve git push "Resolved conflicts"
+    ```
+  </Accordion>
+
+  <Accordion title="Repository Not Found">
+    **Problem:** No Git repository configured error
+
+    **Solution:**
+    ```bash
+    # Add a repository
+    hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+    # Verify it's added
+    hyve git list
+
+    # Set as active if needed
+    hyve git use production
+    ```
+  </Accordion>
+
+  <Accordion title="Local Changes Conflict">
+    **Problem:** Can't switch repositories/branches with uncommitted changes
+
+    **Solutions:**
+    ```bash
+    # Option 1: Commit and push changes
+    hyve git push "WIP: In progress work"
+
+    # Option 2: Stash changes manually
+    cd ~/.hyve/repositories/production
+    git stash
+    # Switch repositories/branches
+    # Later: git stash pop
+
+    # Option 3: Discard changes (careful!)
+    cd ~/.hyve/repositories/production
+    git reset --hard HEAD
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Workflows
+
+### Team Collaboration
+
+```bash
+# Team member 1
+hyve git pull                           # Get latest
+hyve cluster add new-cluster            # Make changes
+hyve git push "Add new cluster"         # Push changes
+
+# Team member 2
+hyve git pull                           # Pull changes from team member 1
+# See new cluster automatically
+hyve reconcile                          # Apply changes
+```
+
+### Multi-Region Setup
+
+```bash
+# US Region
+hyve git add us-infrastructure \
+  --repo-url https://github.com/company/hyve-us.git
+
+hyve cluster add us-cluster --provider civo --region NYC1 --nodes g4s.kube.large
+
+# EU Region
+hyve git add eu-infrastructure \
+  --repo-url https://github.com/company/hyve-eu.git
+
+hyve git use eu-infrastructure
+hyve cluster add eu-cluster --provider civo --region FRA1 --nodes g4s.kube.large
+```
+
+### Promotion Workflow
+
+```bash
+# Develop in dev repository
+hyve git use development
+hyve workflow create deploy-v2 --template deployment-pipeline
+
+# Test in staging
+# Copy workflow file to staging repo
+cp ~/.hyve/repositories/development/workflows/deploy-v2.yaml \
+   ~/.hyve/repositories/staging/workflows/
+
+hyve git use staging
+hyve git push "Add deploy-v2 workflow"
+hyve workflow run deploy-v2 --cluster staging-cluster
+
+# Promote to production after testing
+cp ~/.hyve/repositories/staging/workflows/deploy-v2.yaml \
+   ~/.hyve/repositories/production/workflows/
+
+hyve git use production
+hyve git push "Promote deploy-v2 workflow to production"
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Cluster Management" icon="server" href="/docs/guides/cluster-management" color="#3b82f6">
+    Learn cluster operations
+  </Card>
+
+  <Card title="Workflow Management" icon="diagram-project" href="/docs/guides/workflow-management" color="#22c55e">
+    Automate deployments
+  </Card>
+
+  <Card title="Module System" icon="cube" href="/docs/concepts/modules" color="#f43f5e">
+    How credentials work with modules
+  </Card>
+
+  <Card title="CLI: Git Commands" icon="terminal" href="/docs/cli/git" color="#10b981">
+    Complete Git command reference
+  </Card>
+</CardGroup>

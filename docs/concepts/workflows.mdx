@@ -1,0 +1,813 @@
+---
+title: "Workflow Concepts"
+description: "Understanding automated deployment pipelines and workflow execution"
+---
+
+## Overview
+
+Workflows in Hyve are automated deployment pipelines defined as YAML files in Git repositories. They enable consistent, repeatable operations with built-in validation, secret management, and variable substitution.
+
+<CardGroup cols={2}>
+  <Card title="Automated Pipelines" icon="diagram-project" color="#22c55e">
+    Define multi-step deployment processes
+  </Card>
+
+  <Card title="Requirements Validation" icon="list-check" color="#22c55e">
+    Ensure tools and secrets are available before execution
+  </Card>
+
+  <Card title="Variable Substitution" icon="brackets-curly" color="#eab308">
+    Use environment and workflow variables
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch" color="#8b5cf6">
+    Workflows stored in Git with full history
+  </Card>
+</CardGroup>
+
+## Workflow Structure
+
+Workflows follow a standard YAML structure:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deploy-app
+  description: Deploy application to Kubernetes
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+  env:
+    APP_NAME: my-app
+    NAMESPACE: default
+  jobs:
+    - name: deploy
+      steps:
+        - name: apply-manifests
+          command: kubectl apply -f manifests/
+```
+
+### Metadata
+
+<ParamField path="metadata.name" type="string" required>
+  Unique workflow identifier
+</ParamField>
+
+<ParamField path="metadata.description" type="string">
+  Human-readable description of the workflow
+</ParamField>
+
+### Spec
+
+<ParamField path="spec.inputs" type="array">
+  Variables that must be present before the workflow runs. When the workflow is executed
+  as a lifecycle hook (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`, `preReconcile`),
+  values are injected automatically by the reconciler. When run ad-hoc via `hyve workflow run`,
+  any missing inputs are prompted for in the TUI or must be supplied with `--set KEY=VALUE` on the CLI.
+  See [Workflow Inputs](#workflow-inputs) for full details.
+</ParamField>
+
+<ParamField path="spec.preFlight.cluster" type="string">
+  Set to `"skip"` to bypass the kubeconfig setup step before execution. Required for `beforeCreate`
+  workflows that need to authenticate to a cloud provider before the cluster exists.
+</ParamField>
+
+<ParamField path="spec.requirements" type="object">
+  Prerequisites for workflow execution (tools and secrets)
+</ParamField>
+
+<ParamField path="spec.env" type="object">
+  Environment variables available to all jobs
+</ParamField>
+
+<ParamField path="spec.jobs" type="array" required>
+  List of jobs to execute sequentially
+</ParamField>
+
+## Jobs and Steps
+
+Jobs contain steps that execute commands:
+
+```yaml
+jobs:
+  - name: build
+    steps:
+      - name: docker-build
+        command: docker build -t ${APP_NAME}:latest .
+      - name: docker-push
+        command: docker push ${APP_NAME}:latest
+
+  - name: deploy
+    dependsOn: [build]
+    steps:
+      - name: kubectl-apply
+        command: kubectl apply -f manifests/
+```
+
+### Job Fields
+
+<ParamField path="jobs[].name" type="string" required>
+  Job identifier
+</ParamField>
+
+<ParamField path="jobs[].dependsOn" type="array">
+  List of job names that must complete before this job runs
+</ParamField>
+
+<ParamField path="jobs[].steps" type="array" required>
+  List of steps to execute in sequence
+</ParamField>
+
+### Step Fields
+
+<ParamField path="steps[].name" type="string" required>
+  Step identifier
+</ParamField>
+
+<ParamField path="steps[].command" type="string">
+  Single command to execute
+</ParamField>
+
+<ParamField path="steps[].script" type="string">
+  Multi-line shell script to execute
+</ParamField>
+
+## Requirements
+
+Workflows can validate prerequisites before execution:
+
+### Tool Requirements
+
+Ensure CLI tools are installed:
+
+```yaml
+requirements:
+  tools:
+    - name: kubectl
+      version: "1.28"
+      description: Kubernetes CLI
+    - name: helm
+      version: "3.12"
+      description: Helm package manager
+    - name: docker
+      description: Docker CLI (version optional)
+```
+
+### Secret Requirements
+
+Load secrets from encrypted database or environment:
+
+```yaml
+requirements:
+  secrets:
+    - name: DOCKER_TOKEN
+      provider: docker
+      required: true
+      description: Docker Hub authentication
+    - name: GITHUB_TOKEN
+      provider: github
+      required: false
+      description: GitHub API token (optional)
+```
+
+<Note>
+  See [Workflow Requirements](/docs/workflows/requirements) for detailed documentation.
+</Note>
+
+## Workflow Inputs
+
+`spec.inputs` declares the environment variables a workflow needs at runtime. This is distinct from `spec.requirements.secrets` (which loads secrets from storage) — inputs are values the **caller** must supply.
+
+```yaml
+spec:
+  inputs:
+    - name: HYVE_CLUSTER_NAME
+      description: "Name of the cluster to provision infrastructure for"
+    - name: HYVE_CLUSTER_REGION
+      description: "Cloud region to create resources in"
+    - name: HYVE_CLUSTER_PROVIDER
+      description: "Cloud provider (azure, aws, gcp, civo)"
+  jobs:
+    - name: provision-network
+      steps:
+        - name: create-vnet
+          command: |
+            az network vnet create \
+              --name ${HYVE_CLUSTER_NAME}-vnet \
+              --location ${HYVE_CLUSTER_REGION} \
+              --resource-group ${HYVE_CLUSTER_NAME}-rg
+```
+
+### Automatic injection by lifecycle hooks
+
+All lifecycle hooks receive the following HYVE_* variables from the cluster definition automatically:
+
+| Variable | Source | Available in |
+|----------|--------|--------------|
+| `HYVE_CLUSTER_NAME` | `metadata.name` | All hooks |
+| `HYVE_CLUSTER_REGION` | `metadata.region` | All hooks |
+| `HYVE_CLUSTER_PROVIDER` | `spec.provider` | All hooks |
+| `HYVE_CLUSTER_TYPE` | `spec.clusterType` | All hooks |
+| `HYVE_CLUSTER_K8S_VERSION` | `spec.kubernetesVersion` | All hooks |
+| `HYVE_AWS_ACCOUNT` | `spec.awsAccount` | All hooks (AWS) |
+| `HYVE_GCP_PROJECT` | `spec.gcpProject` | All hooks (GCP) |
+| `HYVE_AZURE_SUBSCRIPTION` | `spec.azureSubscription` | All hooks (Azure) |
+| `HYVE_CIVO_ORG` | `spec.civoOrganization` | All hooks (Civo) |
+| `HYVE_CLUSTER_ACCOUNT_ID` | resolved AWS account ID | All hooks (AWS) |
+| `HYVE_CLUSTER_VPC_ID` | `spec.awsVpcId` | All hooks (AWS) |
+| Provider credentials | `provider-configs/*.yaml` | All hooks |
+
+Only the account variable that matches the cluster's provider is set — the others are left unset.
+
+`onCreate` and `onDelete` hooks additionally receive live cluster data:
+
+| Variable | Description |
+|----------|-------------|
+| `HYVE_CLUSTER_IP_ADDRESS` | Cluster API endpoint IP |
+| `HYVE_CLUSTER_ACCESS_PORT` | Cluster API port |
+| `HYVE_CLUSTER_ID` | Cloud provider cluster ID |
+| `HYVE_CLUSTER_STATUS` | Cluster status string |
+| `HYVE_CLUSTER_KUBECONFIG` | Path to cluster kubeconfig |
+| `KUBECONFIG` | Same as `HYVE_CLUSTER_KUBECONFIG` |
+| `HYVE_CLUSTER_OIDC_URL` | EKS OIDC provider URL (AWS only) |
+
+`beforeCreate` and `afterDelete` hooks run without a live cluster — kubeconfig injection is skipped.
+
+Output variables printed by a `beforeCreate` step in `HYVE_KEY=value` format are captured by the
+reconciler and written back to the cluster definition before creation proceeds. Supported output
+variables include:
+
+| Output Variable | Effect |
+|----------------|--------|
+| `HYVE_VPC_ID` | Sets `spec.awsVpcId` |
+| `HYVE_EKS_ROLE_NAME` | Sets `spec.awsEksRoleName` |
+| `HYVE_NODE_ROLE_NAME` | Sets `spec.awsNodeRoleName` |
+| `HYVE_EKS_ROLE_ARN` | Sets `spec.awsEksRoleArn` |
+| `HYVE_NODE_ROLE_ARN` | Sets `spec.awsNodeRoleArn` |
+| `HYVE_CLUSTER_SG_ID` | Sets `spec.awsClusterSgId` |
+| `HYVE_WORKER_SG_ID` | Sets `spec.awsWorkerSgId` |
+
+### Ad-hoc runs
+
+When the same workflow is run outside a cluster lifecycle (e.g., to manually provision
+infrastructure), missing inputs are handled as follows:
+
+**CLI** — supply with `--set`:
+```bash
+hyve workflow run provision-network \
+  --set HYVE_CLUSTER_NAME=my-cluster \
+  --set HYVE_CLUSTER_REGION=eastus \
+  --set HYVE_CLUSTER_PROVIDER=azure
+```
+
+**TUI** — missing inputs are prompted for interactively. Variables already present in the
+environment are skipped automatically.
+
+<ParamField path="inputs[].name" type="string" required>
+  Environment variable name (e.g. `HYVE_CLUSTER_NAME`)
+</ParamField>
+
+<ParamField path="inputs[].description" type="string">
+  Human-readable label shown in the TUI prompt and in `hyve workflow show` output
+</ParamField>
+
+<ParamField path="inputs[].default" type="string">
+  Default value used when no value is supplied. Shown as placeholder in the TUI prompt.
+</ParamField>
+
+## Environment Variables
+
+Define variables at workflow or job level:
+
+### Workflow-Level Variables
+
+Available to all jobs:
+
+```yaml
+spec:
+  env:
+    APP_NAME: my-app
+    REGISTRY: docker.io/myuser
+    VERSION: v1.0.0
+  jobs:
+    - name: build
+      steps:
+        - name: build
+          command: docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+```
+
+### Job-Level Variables
+
+Available only to specific job:
+
+```yaml
+jobs:
+  - name: deploy
+    env:
+      NAMESPACE: production
+      REPLICAS: "3"
+    steps:
+      - name: deploy
+        command: kubectl scale deployment ${APP_NAME} --replicas=${REPLICAS} -n ${NAMESPACE}
+```
+
+### Variable Substitution
+
+Hyve supports full shell variable substitution:
+
+```yaml
+steps:
+  - name: example
+    command: echo "Deploying ${APP_NAME} version ${VERSION:-latest} to ${NAMESPACE}"
+```
+
+<Note>
+  See [Variable Substitution](/docs/workflows/variables) for advanced usage.
+</Note>
+
+## Running Workflows
+
+### Basic Execution
+
+```bash
+# Run workflow
+hyve workflow run deploy-app
+
+# Run with specific cluster
+hyve workflow run deploy-app --cluster production
+```
+
+### Lifecycle Workflows
+
+Workflows can be triggered automatically during cluster lifecycle events:
+
+#### In Templates
+
+```yaml
+# Template definition
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-template
+spec:
+  # ... cluster config
+  workflows:
+    beforeCreate:
+      - provision-vpc
+    onCreate:
+      - setup-monitoring
+      - deploy-app
+    onDelete:
+      - backup-data
+    afterDelete:
+      - cleanup-vpc
+```
+
+#### In Cluster Definitions
+
+```yaml
+# Cluster definition
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: production
+  region: NYC1
+spec:
+  # ... cluster config
+  workflows:
+    beforeCreate:
+      - provision-network
+    onCreate:
+      - setup-monitoring
+    onDelete:
+      - backup-data
+    afterDelete:
+      - cleanup-network
+```
+
+| Hook | When It Runs | Cluster Exists? | Kubeconfig Available? | Typical Use Cases |
+|------|--------------|-----------------|----------------------|-------------------|
+| `beforeCreate` | Before cluster is created | No | No | Provision VPC, create IAM roles, allocate IP ranges |
+| `onCreate` | After cluster is ready | Yes | Yes | Setup monitoring, deploy apps, configure services |
+| `onDelete` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
+| `afterDelete` | After cluster is deleted | No | No | Destroy VPC, remove IAM roles, release IP ranges |
+| `preReconcile` | Every reconcile loop | Depends | Depends | Refresh credentials, sync config |
+
+<Note>
+`beforeCreate` and `afterDelete` run when no cluster exists, so kubeconfig injection is skipped. Workflows assigned to these hooks must not use `kubectl` or any tool that requires cluster access.
+
+`preReconcile` runs at the start of every reconcile cycle for the cluster, before any create/update/delete decisions are made.
+</Note>
+
+### Auth-Bootstrap Workflows (preFlight.cluster: skip)
+
+Some `beforeCreate` workflows need to authenticate to a cloud provider to provision
+resources (e.g. create an EKS IAM role or VPC) before the cluster exists. By default
+Hyve tries to set up kubeconfig before running any workflow. Set `preFlight.cluster: skip`
+in the workflow spec to bypass the kubeconfig setup step:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: provision-iam-roles
+spec:
+  preFlight:
+    cluster: skip    # skip EKS DescribeCluster + kubeconfig sync
+  jobs:
+    - name: create-roles
+      steps:
+        - name: create-eks-role
+          script: |
+            aws iam create-role --role-name eks-cluster-role \
+              --assume-role-policy-document file://eks-trust-policy.json
+            echo "HYVE_EKS_ROLE_NAME=eks-cluster-role"
+```
+
+The `HYVE_EKS_ROLE_NAME=eks-cluster-role` output line is captured by the reconciler and
+written to `spec.awsEksRoleName` before the cluster is created.
+
+### Execution Flow
+
+<Steps>
+  <Step title="Load Workflow">
+    Read workflow YAML from repository
+
+    ```bash
+    # workflows/deploy-app.yaml
+    ```
+  </Step>
+
+  <Step title="Validate Requirements">
+    Check tools and secrets
+
+    ```
+    [INFO] Validating workflow requirements...
+    [INFO] ✅ All requirements validated successfully
+    ```
+  </Step>
+
+  <Step title="Set Environment">
+    Load environment variables and secrets
+
+    ```bash
+    export APP_NAME=my-app
+    export DOCKER_TOKEN=***
+    ```
+  </Step>
+
+  <Step title="Execute Jobs">
+    Run jobs in sequence
+
+    ```
+    [INFO][build] Starting job 'build'
+    [INFO][build][docker-build] Running step 'docker-build'
+    ```
+  </Step>
+
+  <Step title="Report Results">
+    Show success or failure
+
+    ```
+    [INFO] Workflow 'deploy-app' completed successfully
+    ```
+  </Step>
+</Steps>
+
+## Workflow Types
+
+### Deployment Workflow
+
+Deploy applications to Kubernetes:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deploy-app
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28"
+  env:
+    APP_NAME: my-app
+  jobs:
+    - name: deploy
+      steps:
+        - name: apply
+          command: kubectl apply -f manifests/
+        - name: wait
+          command: kubectl rollout status deployment/${APP_NAME}
+```
+
+### Build Workflow
+
+Build and push Docker images:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: build-image
+spec:
+  requirements:
+    tools:
+      - name: docker
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+  env:
+    IMAGE: myapp
+    TAG: latest
+  jobs:
+    - name: build
+      steps:
+        - name: docker-build
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+            docker build -t ${IMAGE}:${TAG} .
+            docker push ${IMAGE}:${TAG}
+```
+
+### Infrastructure Workflow
+
+Provision infrastructure with Terraform:
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: provision-infra
+spec:
+  requirements:
+    tools:
+      - name: terraform
+        version: "1.5"
+    secrets:
+      - name: AWS_ACCESS_KEY_ID
+        provider: aws
+      - name: AWS_SECRET_ACCESS_KEY
+        provider: aws
+  jobs:
+    - name: provision
+      steps:
+        - name: init
+          command: terraform init
+        - name: plan
+          command: terraform plan
+        - name: apply
+          command: terraform apply -auto-approve
+```
+
+## Commands vs Scripts
+
+### Single Commands
+
+For simple operations:
+
+```yaml
+steps:
+  - name: deploy
+    command: kubectl apply -f manifests/
+```
+
+### Multi-Line Scripts
+
+For complex operations:
+
+```yaml
+steps:
+  - name: deploy
+    script: |
+      echo "Starting deployment..."
+      kubectl apply -f manifests/
+      kubectl rollout status deployment/my-app
+      echo "Deployment complete!"
+```
+
+## Job Dependencies
+
+Control execution order with dependencies:
+
+```yaml
+jobs:
+  - name: test
+    steps:
+      - name: run-tests
+        command: npm test
+
+  - name: build
+    dependsOn: [test]
+    steps:
+      - name: docker-build
+        command: docker build -t myapp .
+
+  - name: deploy
+    dependsOn: [build]
+    steps:
+      - name: kubectl-apply
+        command: kubectl apply -f manifests/
+```
+
+Execution order: `test` → `build` → `deploy`
+
+## Error Handling
+
+Workflows stop on first error:
+
+```yaml
+jobs:
+  - name: deploy
+    steps:
+      - name: test
+        command: npm test  # If this fails, workflow stops
+
+      - name: deploy
+        command: kubectl apply -f manifests/  # This won't run
+```
+
+<Warning>
+  If any step fails, the workflow stops immediately. Design workflows with this in mind.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Use Descriptive Names">
+    Name workflows, jobs, and steps clearly:
+
+    ```yaml
+    metadata:
+      name: deploy-api-production
+      description: Deploy API service to production cluster
+
+    jobs:
+      - name: run-tests
+        steps:
+          - name: unit-tests
+          - name: integration-tests
+    ```
+  </Accordion>
+
+  <Accordion title="2. Validate Requirements">
+    Always specify required tools and secrets:
+
+    ```yaml
+    requirements:
+      tools:
+        - name: kubectl
+          version: "1.28"
+      secrets:
+        - name: DOCKER_TOKEN
+          provider: docker
+          required: true
+    ```
+  </Accordion>
+
+  <Accordion title="3. Use Environment Variables">
+    Avoid hardcoding values:
+
+    ```yaml
+    # Good
+    env:
+      NAMESPACE: production
+    steps:
+      - name: deploy
+        command: kubectl apply -f manifests/ -n ${NAMESPACE}
+
+    # Bad
+    steps:
+      - name: deploy
+        command: kubectl apply -f manifests/ -n production
+    ```
+  </Accordion>
+
+  <Accordion title="4. Document Workflows">
+    Add descriptions explaining purpose:
+
+    ```yaml
+    metadata:
+      name: deploy-app
+      description: |
+        Deploy application to Kubernetes cluster
+        - Runs tests first
+        - Builds Docker image
+        - Deploys to cluster
+        - Waits for rollout
+    ```
+  </Accordion>
+
+  <Accordion title="5. Test in Development">
+    Test workflows in development before production:
+
+    ```bash
+    # Switch to development
+    hyve git use development
+
+    # Test workflow
+    hyve workflow run deploy-app --cluster dev-cluster
+
+    # If successful, run in production
+    hyve git use production
+    hyve workflow run deploy-app --cluster prod-cluster
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Workflow Examples
+
+### Complete Deployment Pipeline
+
+```yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: complete-pipeline
+  description: Full CI/CD pipeline
+spec:
+  requirements:
+    tools:
+      - name: docker
+      - name: kubectl
+        version: "1.28"
+      - name: helm
+        version: "3.12"
+    secrets:
+      - name: DOCKER_TOKEN
+        provider: docker
+      - name: DATADOG_API_KEY
+        provider: datadog
+        required: false
+
+  env:
+    APP_NAME: my-app
+    REGISTRY: docker.io/myuser
+    VERSION: v1.0.0
+
+  jobs:
+    - name: test
+      steps:
+        - name: unit-tests
+          command: npm test
+        - name: lint
+          command: npm run lint
+
+    - name: build
+      dependsOn: [test]
+      steps:
+        - name: docker-build
+          script: |
+            echo "$DOCKER_TOKEN" | docker login -u myuser --password-stdin
+            docker build -t ${REGISTRY}/${APP_NAME}:${VERSION} .
+            docker push ${REGISTRY}/${APP_NAME}:${VERSION}
+
+    - name: deploy
+      dependsOn: [build]
+      env:
+        NAMESPACE: production
+      steps:
+        - name: helm-upgrade
+          command: |
+            helm upgrade --install ${APP_NAME} ./chart \
+              --set image.tag=${VERSION} \
+              --namespace ${NAMESPACE}
+        - name: wait-rollout
+          command: kubectl rollout status deployment/${APP_NAME} -n ${NAMESPACE}
+
+    - name: notify
+      dependsOn: [deploy]
+      steps:
+        - name: send-notification
+          script: |
+            if [ -n "$DATADOG_API_KEY" ]; then
+              echo "Sending notification to Datadog..."
+              # Send notification
+            fi
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflow Overview" icon="diagram-project" href="/docs/workflows/overview" color="#22c55e">
+    Complete workflow guide
+  </Card>
+
+  <Card title="Requirements" icon="list-check" href="/docs/workflows/requirements" color="#22c55e">
+    Tool and secret validation
+  </Card>
+
+  <Card title="Variables" icon="brackets-curly" href="/docs/workflows/variables" color="#eab308">
+    Variable substitution
+  </Card>
+
+  <Card title="CLI Workflow" icon="terminal" href="/docs/cli/workflow" color="#10b981">
+    Workflow command reference
+  </Card>
+</CardGroup>

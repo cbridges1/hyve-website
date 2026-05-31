@@ -1,0 +1,326 @@
+---
+title: "Cluster Concepts"
+description: "Understanding driver-based Kubernetes cluster definitions and lifecycle"
+---
+
+## Overview
+
+Hyve manages Kubernetes clusters through declarative YAML definitions stored in Git repositories. Each cluster references a module (driver) that implements its lifecycle operations — create, delete, status, and auth. The driver is versioned and locked in `hyve.lock`, ensuring reproducibility across your team and CI/CD.
+
+<CardGroup cols={2}>
+  <Card title="Declarative" icon="file-code" color="#06b6d4">
+    Define clusters as YAML files in Git
+  </Card>
+
+  <Card title="Driver-based" icon="cube" color="#8b5cf6">
+    Any cloud provider via the module system
+  </Card>
+
+  <Card title="Version Controlled" icon="code-branch" color="#f97316">
+    Full history of every cluster change
+  </Card>
+
+  <Card title="Lifecycle Hooks" icon="gears" color="#22c55e">
+    beforeCreate, onCreate, onDelete, afterDelete
+  </Card>
+</CardGroup>
+
+## Cluster Definition
+
+Clusters are defined using YAML files stored in the `clusters/` directory of your Git state repository. The driver determines which module handles all cloud operations.
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: us-east-1
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v1.0.0
+  params:
+    vpc_id: vpc-0abc123456789
+    eks_role_arn: arn:aws:iam::123456789012:role/eks-role
+    node_role_arn: arn:aws:iam::123456789012:role/node-role
+    instance_type: t3.medium
+    node_count: "3"
+  driverOutputs:               # populated by reconciler — do not edit
+    HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
+    HYVE_LAST_PARAMS_HASH: abc123...
+  workflows:
+    beforeCreate:
+      - provision-network
+    onCreate:
+      - deploy-monitoring
+    onDelete:
+      - drain-workloads
+    afterDelete:
+      - cleanup-network
+  delete: false
+  pause: false
+  expiresAt: ""
+  pendingWorkflows: []
+  workflowSchedules: []
+```
+
+### Metadata fields
+
+<ParamField path="metadata.name" type="string" required>
+  Unique cluster identifier. Used as the YAML filename (`clusters/<name>.yaml`) and injected as `HYVE_CLUSTER_NAME` into module operations.
+</ParamField>
+
+<ParamField path="metadata.region" type="string" required>
+  Cloud provider region (e.g. `PHX1`, `us-east-1`, `us-central1`, `eastus`). Injected as `HYVE_CLUSTER_REGION` into module operations.
+</ParamField>
+
+### Driver fields
+
+<ParamField path="spec.driver.source" type="string" required>
+  Module source string. Examples:
+  - `github.com/hyve-modules/civo`
+  - `github.com/org/repo//path/to/module`
+  - `./local-module`
+</ParamField>
+
+<ParamField path="spec.driver.version" type="string" required>
+  Module version. Must be locked in `hyve.lock`. Examples: `v1.0.0`, `v2.1.3`, `local`
+</ParamField>
+
+### Params
+
+<ParamField path="spec.params" type="object">
+  Module-specific key-value parameters. Each param is injected as `HYVE_PARAM_<UPPERCASED_KEY>` into module operations. The set of valid params is defined by the module's `module.yaml`.
+
+  Params are set when creating a template (`--set KEY=VALUE`) or can be overridden at execute time.
+</ParamField>
+
+### driverOutputs
+
+<ParamField path="spec.driverOutputs" type="object">
+  Key-value pairs emitted by module operations as `HYVE_KEY=value` stdout lines during reconciliation. These are stored here and re-injected on the next reconcile, allowing operations to pass data forward (e.g. cluster endpoint, VPC ID, last param hash).
+
+  **Do not edit this field manually.** It is managed exclusively by the reconciler.
+</ParamField>
+
+### Lifecycle control
+
+<ParamField path="spec.delete" type="boolean" default="false">
+  When `true`, the reconciler runs `onDelete` workflows, calls the module's delete operation, runs `afterDelete` workflows, and removes the YAML file. Set this field (rather than deleting the file directly) to ensure lifecycle hooks run.
+</ParamField>
+
+<ParamField path="spec.pause" type="boolean" default="false">
+  When `true`, the reconciler skips this cluster entirely. The cloud cluster continues running; Hyve does not compare or modify it until `pause` is set to `false`.
+</ParamField>
+
+<ParamField path="spec.expiresAt" type="string">
+  RFC 3339 timestamp (e.g. `"2026-09-01T00:00:00Z"`). When the current time passes this value, the reconciler treats the cluster as if `spec.delete: true` is set — running lifecycle hooks, deleting from the cloud, and removing the YAML file. A paused cluster is never checked for expiry.
+</ParamField>
+
+### Workflow hooks
+
+<ParamField path="spec.workflows.beforeCreate" type="string[]">
+  Workflow names to run before the cluster is provisioned. The cluster does not exist yet — no kubeconfig is available. Use for provisioning prerequisites (VPCs, IAM roles, security groups). Workflow output variables (`HYVE_KEY=value`) are captured and can populate `driverOutputs` before create.
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="string[]">
+  Workflow names to run after the cluster is created and the module reports status `active`. The cluster exists; run `hyve cluster auth` first if your workflows need `kubectl` access.
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="string[]">
+  Workflow names to run before the cluster is deleted. Cluster is still running; kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="string[]">
+  Workflow names to run after the cluster has been deleted. No kubeconfig available. Use for tearing down cloud prerequisites provisioned by `beforeCreate` workflows.
+</ParamField>
+
+<ParamField path="spec.workflows.preReconcile" type="string[]">
+  Workflow names to run at the start of every reconcile loop for this cluster, before any create/update/delete logic. Runs on every reconcile regardless of whether the cluster definition changed.
+</ParamField>
+
+## Cluster lifecycle
+
+### Creation
+
+<Steps>
+  <Step title="Execute a template">
+    ```bash
+    hyve template execute my-civo-template my-cluster
+    ```
+    Generates `clusters/my-cluster.yaml` and commits it to Git.
+  </Step>
+
+  <Step title="Reconcile">
+    ```bash
+    hyve reconcile
+    ```
+    Runs `beforeCreate` workflows, calls the module's create operation, waits for `active` status, runs `onCreate` workflows.
+  </Step>
+
+  <Step title="Authenticate">
+    ```bash
+    hyve cluster auth my-cluster
+    kubectl config use-context my-cluster
+    kubectl get nodes
+    ```
+  </Step>
+</Steps>
+
+### Deletion
+
+To delete a cluster and run lifecycle hooks:
+
+```bash
+# Mark for deletion — runs onDelete, calls module delete, runs afterDelete
+hyve cluster delete my-cluster
+```
+
+This sets `spec.delete: true` in the cluster YAML, commits to Git, and runs reconciliation.
+
+<Warning>
+  Do not delete the cluster YAML file directly if you have `onDelete` or `afterDelete` workflows — they will not run. Use `hyve cluster delete` to ensure lifecycle hooks execute.
+</Warning>
+
+### Pausing
+
+Pause a cluster to stop Hyve from touching it during reconciliation (useful for maintenance windows):
+
+```bash
+# Edit clusters/my-cluster.yaml, set spec.pause: true
+# Commit and push — reconciler will skip this cluster
+```
+
+To resume, set `spec.pause: false` and commit.
+
+### Auto-expiry
+
+Set `spec.expiresAt` to automatically delete a cluster at a future time:
+
+```yaml
+spec:
+  expiresAt: "2026-09-01T00:00:00Z"
+```
+
+Or use a template with a `schedule` to compute the expiry automatically at execute time.
+
+## Lifecycle workflow hooks
+
+| Hook | When | Cluster exists? | Kubeconfig? |
+|------|------|-----------------|-------------|
+| `beforeCreate` | Before cloud provisioning | No | No |
+| `onCreate` | After cluster reaches `active` status | Yes | After auth |
+| `onDelete` | Before cloud deprovisioning | Yes | Yes |
+| `afterDelete` | After cloud deprovisioning | No | No |
+| `preReconcile` | Start of every reconcile loop | Depends | Depends |
+
+### beforeCreate use cases
+
+```yaml
+spec:
+  workflows:
+    beforeCreate:
+      - provision-vpc          # Create VPC and subnets for EKS
+      - create-iam-roles       # Create EKS cluster and node IAM roles
+```
+
+These workflows can emit `HYVE_KEY=value` outputs that are stored in `driverOutputs` and used by the module's create operation.
+
+### onCreate use cases
+
+```yaml
+spec:
+  workflows:
+    onCreate:
+      - setup-monitoring       # Install Prometheus/Grafana
+      - configure-networking   # Apply network policies
+      - deploy-app             # Deploy application workloads
+```
+
+### onDelete use cases
+
+```yaml
+spec:
+  workflows:
+    onDelete:
+      - backup-data            # Final backup before deletion
+      - drain-workloads        # Gracefully drain workloads
+      - notify-team            # Send deletion notification
+```
+
+### afterDelete use cases
+
+```yaml
+spec:
+  workflows:
+    afterDelete:
+      - destroy-vpc            # Remove VPC and subnets created in beforeCreate
+      - delete-iam-roles       # Clean up IAM roles
+      - cleanup-dns            # Remove DNS records
+```
+
+## Reconciliation
+
+Reconciliation reads all cluster YAMLs from Git and calls the appropriate module to bring the cloud state in line with the desired state.
+
+```bash
+# Reconcile from local machine (local mode)
+hyve reconcile
+
+# Reconcile from a checked-out repo path (CI/CD mode)
+hyve reconcile --path .
+```
+
+### What the reconciler does
+
+<AccordionGroup>
+  <Accordion title="Creates missing clusters">
+    If a cluster YAML exists in Git but the cluster does not exist in the cloud, the reconciler calls the module's create operation and runs `beforeCreate` → create → `onCreate` workflows.
+  </Accordion>
+
+  <Accordion title="Checks existing clusters">
+    For each cluster that exists in both Git and the cloud, the reconciler calls the module's status operation. If the cluster's params have changed (detected via `HYVE_LAST_PARAMS_HASH`), the reconciler may update or recreate the cluster depending on the module.
+  </Accordion>
+
+  <Accordion title="Deletes marked clusters">
+    If `spec.delete: true` is set, or if `spec.expiresAt` has passed, the reconciler runs `onDelete` workflows, calls the module's delete operation, and then runs `afterDelete` workflows before removing the YAML file.
+  </Accordion>
+
+  <Accordion title="Skips paused clusters">
+    If `spec.pause: true` is set, the cluster is skipped entirely. No status check, no create, no delete.
+  </Accordion>
+</AccordionGroup>
+
+## Storage
+
+Cluster definitions are stored in:
+
+```
+~/.hyve/repositories/<repository-name>/
+└── clusters/
+    ├── my-cluster.yaml
+    ├── staging.yaml
+    └── dev.yaml
+```
+
+These files are version-controlled in your Git repository. Every change is committed and pushed — providing a full audit trail of all cluster modifications.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Module Concepts" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    How modules power cluster operations
+  </Card>
+
+  <Card title="Cluster Management Guide" icon="server" href="/docs/guides/cluster-management" color="#3b82f6">
+    Hands-on cluster management guide
+  </Card>
+
+  <Card title="hyve cluster" icon="terminal" href="/docs/cli/cluster" color="#10b981">
+    Cluster command reference
+  </Card>
+
+  <Card title="hyve template" icon="file-code" href="/docs/cli/template" color="#06b6d4">
+    Creating clusters from templates
+  </Card>
+</CardGroup>

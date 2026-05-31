@@ -1,0 +1,302 @@
+---
+title: 'hyve cluster'
+description: 'Manage cluster definitions and authenticate into clusters'
+---
+
+The `hyve cluster` command group manages Kubernetes cluster definitions stored in your Git state repository, and provides access to cluster authentication.
+
+## Overview
+
+Clusters are defined as YAML files in the `clusters/` directory of your Git state repository. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you list, inspect, mark for deletion, and authenticate into clusters.
+
+To create clusters, use `hyve template execute` — which generates the cluster YAML and triggers reconciliation.
+
+<Note>
+  The old `hyve cluster add` and `hyve cluster modify` commands have been removed. Clusters now come from `hyve template execute`. To change cluster params, edit the YAML directly or update the template and re-execute.
+</Note>
+
+## Commands
+
+### hyve cluster list
+
+List all cluster definitions in the current repository.
+
+```bash
+hyve cluster list
+```
+
+**Output:**
+
+```
+Clusters in repository 'production' (3):
+
+  my-cluster
+    Driver:  github.com/hyve-modules/civo@v1.0.0
+    Region:  PHX1
+    Status:  active
+
+  staging-eks
+    Driver:  github.com/hyve-modules/eks@v2.1.3
+    Region:  us-east-1
+    Status:  provisioning
+
+  dev-gke
+    Driver:  github.com/hyve-modules/gke@v1.2.0
+    Region:  us-central1
+    Status:  active
+```
+
+---
+
+### hyve cluster show
+
+Show the full cluster definition YAML and a human-readable summary.
+
+```bash
+hyve cluster show <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster to show
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster show my-cluster
+```
+
+**Output:**
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: PHX1
+spec:
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
+  params:
+    node_size: g4s.kube.medium
+    node_count: "3"
+  driverOutputs:
+    HYVE_CLUSTER_ID: abc-123
+    HYVE_CLUSTER_STATUS: active
+  workflows:
+    onCreate:
+      - setup-monitoring
+  delete: false
+  pause: false
+```
+
+---
+
+### hyve cluster delete
+
+Mark a cluster for deletion by setting `spec.delete: true` in the cluster YAML.
+
+```bash
+hyve cluster delete <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster to mark for deletion
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster delete my-cluster
+```
+
+This sets `spec.delete: true` in the cluster YAML, commits the change to Git, and (in local mode) immediately runs reconciliation. The reconciler will:
+
+1. Run any `onDelete` lifecycle workflows
+2. Call the module's `delete` operation to deprovision the cluster
+3. Run any `afterDelete` lifecycle workflows
+4. Remove the cluster YAML from the repository
+
+**Output:**
+
+```
+Marked cluster 'my-cluster' for deletion.
+Committed: set spec.delete=true in clusters/my-cluster.yaml
+Running reconciliation...
+[onDelete] Running workflow: backup-data
+[onDelete] backup-data completed successfully
+Deleting cluster 'my-cluster' via github.com/hyve-modules/civo@v1.0.0...
+Cluster 'my-cluster' deleted.
+[afterDelete] Running workflow: cleanup-dns
+[afterDelete] cleanup-dns completed successfully
+Removed clusters/my-cluster.yaml from repository.
+```
+
+<Info>
+  Using `spec.delete: true` ensures lifecycle workflows (`onDelete`, `afterDelete`) run before the cluster is removed. Deleting the YAML file directly bypasses these hooks.
+</Info>
+
+<Warning>
+  In CI/CD mode (`reconcile.mode: cicd`), setting `spec.delete: true` commits the change and exits. The actual deletion happens when your CI/CD pipeline runs `hyve reconcile --path .`.
+</Warning>
+
+---
+
+### hyve cluster auth
+
+Run the module's auth operation to merge the cluster's kubeconfig into `~/.kube/config`.
+
+```bash
+hyve cluster auth <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster to authenticate into
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster auth my-cluster
+```
+
+**Output:**
+
+```
+Running auth operation for 'my-cluster'...
+Module: github.com/hyve-modules/civo@v1.0.0
+Updated context 'my-cluster' in ~/.kube/config
+```
+
+After running this command, you can use `kubectl` with the merged context:
+
+```bash
+kubectl config use-context my-cluster
+kubectl get nodes
+```
+
+<Info>
+  Auth is implemented by the module — specifically the `auth.yaml` file in the module directory. Different modules use different mechanisms: `civo kubernetes config --merge`, `aws eks update-kubeconfig`, `gcloud container clusters get-credentials`, or `az aks get-credentials`.
+</Info>
+
+---
+
+## Cluster definition format
+
+Clusters are stored as YAML files in `clusters/<name>.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: us-east-1
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v1.0.0
+  params:
+    vpc_id: vpc-0abc123456789
+    eks_role_arn: arn:aws:iam::123456789012:role/eks-role
+    node_role_arn: arn:aws:iam::123456789012:role/node-role
+    instance_type: t3.medium
+    node_count: "3"
+  driverOutputs:               # populated by reconciler — do not edit manually
+    HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
+    HYVE_LAST_PARAMS_HASH: abc123...
+  workflows:
+    beforeCreate:
+      - provision-network
+    onCreate:
+      - deploy-monitoring
+    onDelete:
+      - drain-workloads
+    afterDelete:
+      - cleanup-network
+  delete: false                 # set to true to mark for deletion
+  pause: false                  # set to true to skip reconciliation
+  expiresAt: ""                 # RFC 3339 auto-delete timestamp
+  pendingWorkflows: []          # managed by reconciler
+  workflowSchedules: []         # managed by reconciler
+```
+
+### Field reference
+
+<ParamField path="metadata.name" type="string" required>
+  Unique cluster identifier. Used as the filename (`clusters/<name>.yaml`) and as `HYVE_CLUSTER_NAME` in module operations.
+</ParamField>
+
+<ParamField path="metadata.region" type="string" required>
+  Cloud provider region. Passed to module operations as `HYVE_CLUSTER_REGION`.
+</ParamField>
+
+<ParamField path="spec.driver.source" type="string" required>
+  Module source string. Examples: `github.com/hyve-modules/civo`, `./my-local-module`
+</ParamField>
+
+<ParamField path="spec.driver.version" type="string" required>
+  Module version. Must be locked in `hyve.lock`. Examples: `v1.0.0`, `local`
+</ParamField>
+
+<ParamField path="spec.params" type="object">
+  Module-specific key-value params. Each key is uppercased and injected as `HYVE_PARAM_<KEY>`. Refer to the module's `module.yaml` for the list of accepted params.
+</ParamField>
+
+<ParamField path="spec.driverOutputs" type="object">
+  Populated by the reconciler after successful create/update operations. Do not edit manually. All keys are re-injected verbatim as environment variables on the next reconcile.
+</ParamField>
+
+<ParamField path="spec.workflows.beforeCreate" type="string[]">
+  Workflows to run before the cluster is provisioned. No kubeconfig is available — the cluster does not exist yet. Use for provisioning cloud prerequisites (VPCs, IAM roles, etc.).
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="string[]">
+  Workflows to run after the cluster is created and ready. Kubeconfig is available (after auth is run).
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="string[]">
+  Workflows to run before the cluster is deleted. Cluster is still running; kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="string[]">
+  Workflows to run after the cluster is deleted. No kubeconfig available. Use for tearing down cloud prerequisites provisioned by `beforeCreate` workflows.
+</ParamField>
+
+<ParamField path="spec.workflows.preReconcile" type="string[]">
+  Workflows to run at the start of every reconcile loop for this cluster, before any create/update/delete logic.
+</ParamField>
+
+<ParamField path="spec.delete" type="boolean" default="false">
+  When `true`, the reconciler runs `onDelete` workflows, calls the module's delete operation, runs `afterDelete` workflows, and removes the YAML file. Set this field (do not delete the file directly) to ensure lifecycle hooks run.
+</ParamField>
+
+<ParamField path="spec.pause" type="boolean" default="false">
+  When `true`, the reconciler skips this cluster entirely. The cloud cluster continues running; Hyve does not compare or modify it until `pause` is set back to `false`.
+</ParamField>
+
+<ParamField path="spec.expiresAt" type="string">
+  RFC 3339 timestamp (e.g. `"2026-09-01T00:00:00Z"`). When the current time passes this value, the reconciler automatically treats the cluster as if `spec.delete: true` is set — running lifecycle hooks, deleting from the cloud, and removing the YAML file.
+</ParamField>
+
+## Reconciliation
+
+After marking a cluster for deletion or editing a cluster's params, run `hyve reconcile` to apply changes:
+
+```bash
+# Apply all pending changes
+hyve reconcile
+
+# CI/CD pipeline mode (use checked-out repo directly)
+hyve reconcile --path .
+```
+
+See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
+
+## Related Commands
+
+- [hyve module](/docs/cli/module) — Manage the modules that power cluster operations
+- [hyve template](/docs/cli/template) — Create cluster definitions from templates
+- [hyve workflow](/docs/cli/workflow) — Define and run lifecycle workflows
+- [hyve kubeconfig](/docs/cli/kubeconfig) — Manage kubeconfigs (legacy — prefer `hyve cluster auth`)
+- [hyve git](/docs/cli/git) — Manage Git repositories that store cluster definitions

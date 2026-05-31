@@ -9,44 +9,60 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "why-hyve",
-          "quickstart",
-          "installation",
-          "configuration"
-        ]
+        "tab": "Home",
+        "pages": ["index"]
       },
       {
-        "group": "Guides",
+        "tab": "Documentation",
         "pages": [
-          "guides/git-management",
-          "guides/cluster-management",
-          "guides/cicd",
-          "guides/workflow-management",
-          "guides/template-management",
-          "guides/kubeconfig-management",
-          "guides/credentials",
-          "guides/access-control",
-          "guides/argocd"
-        ]
-      },
-      {
-        "group": "CLI Reference",
-        "pages": [
-          "cli/overview",
-          "cli/git",
-          "cli/cluster",
-          "cli/workflow",
-          "cli/template",
-          "cli/kubeconfig",
-          "cli/config",
-          "cli/interactive",
-          "cli/use",
-          "cli/run"
+          {
+            "group": "Getting Started",
+            "pages": [
+              "docs/quickstart",
+              "docs/installation",
+              "docs/configuration"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "docs/concepts/modules",
+              "docs/concepts/clusters",
+              "docs/concepts/templates",
+              "docs/concepts/workflows",
+              "docs/concepts/repositories",
+              "docs/concepts/gitops"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "docs/guides/git-management",
+              "docs/guides/cluster-management",
+              "docs/guides/workflow-management",
+              "docs/guides/template-management",
+              "docs/guides/kubeconfig-management",
+              "docs/guides/cicd",
+              "docs/guides/argocd"
+            ]
+          },
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "docs/cli/overview",
+              "docs/cli/cluster",
+              "docs/cli/module",
+              "docs/cli/template",
+              "docs/cli/workflow",
+              "docs/cli/git",
+              "docs/cli/kubeconfig",
+              "docs/cli/interactive",
+              "docs/cli/use",
+              "docs/cli/run"
+            ]
+          }
         ]
       }
     ],
@@ -67,24 +83,18 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "https://github.com/cbridges1/hyve/issues"
+        "label": "GitHub",
+        "href": "https://github.com/cbridges1/hyve"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Get Started",
-      "href": "/quickstart"
+      "href": "/docs/quickstart"
     }
   },
   "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "cursor"
-    ]
+    "options": ["copy", "view", "chatgpt", "claude", "cursor"]
   },
   "footer": {
     "socials": {

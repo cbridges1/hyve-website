@@ -1,0 +1,486 @@
+---
+title: 'hyve template'
+description: 'Create and manage reusable cluster templates'
+---
+
+The `hyve template` command group manages reusable cluster templates that define a driver (module), region, default params, and lifecycle workflows. Executing a template creates a cluster definition YAML and provisions the cluster.
+
+## Overview
+
+Templates capture the shape of a cluster. They reference a module (driver), specify a region, set default params, and optionally attach lifecycle workflows. Execute a template by name to stamp out a new cluster with all those settings applied.
+
+## Commands
+
+### hyve template create
+
+Create a new cluster template.
+
+```bash
+hyve template create <template-name> [flags]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to create
+</ParamField>
+
+<ParamField path="--driver" type="string" required>
+  Module source string (e.g. `github.com/hyve-modules/civo`, `./my-local-module`)
+</ParamField>
+
+<ParamField path="--driver-version" type="string" required>
+  Module version. Must be locked in `hyve.lock` (e.g. `v1.0.0`, `local`)
+</ParamField>
+
+<ParamField path="--region" type="string">
+  Default region for clusters created from this template (e.g. `PHX1`, `us-east-1`)
+</ParamField>
+
+<ParamField path="--set" type="string (repeatable)">
+  Set a default param value in `KEY=VALUE` format. Can be specified multiple times.
+
+  ```bash
+  --set node_size=g4s.kube.medium --set node_count=3
+  ```
+</ParamField>
+
+<ParamField path="--description" type="string">
+  Human-readable description for the template
+</ParamField>
+
+<ParamField path="--before-create" type="string (repeatable)">
+  Workflow name to run before the cluster is provisioned. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--on-create" type="string (repeatable)">
+  Workflow name to run after the cluster is created and ready. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--on-delete" type="string (repeatable)">
+  Workflow name to run before the cluster is deleted. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--after-delete" type="string (repeatable)">
+  Workflow name to run after the cluster is deleted. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--schedule" type="string">
+  5-field cron expression. When the template is executed, the next occurrence is computed and written to the cluster's `spec.expiresAt`. Useful for ephemeral clusters that should auto-expire.
+
+  Example: `"0 20 * * 5"` (every Friday at 20:00)
+</ParamField>
+
+**Examples:**
+
+```bash
+# Civo template
+hyve template create my-civo-template \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.medium \
+  --set node_count=3 \
+  --on-create setup-monitoring
+
+# AWS EKS template with all lifecycle hooks
+hyve template create prod-eks \
+  --driver github.com/hyve-modules/eks \
+  --driver-version v2.1.3 \
+  --region us-east-1 \
+  --set vpc_id=vpc-0abc123456789 \
+  --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
+  --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
+  --set instance_type=t3.medium \
+  --set node_count=3 \
+  --before-create provision-prereqs \
+  --on-create deploy-monitoring \
+  --on-delete backup-data \
+  --after-delete cleanup-prereqs
+
+# Template with auto-expiry every Friday at 20:00
+hyve template create dev-ephemeral \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.small \
+  --schedule "0 20 * * 5"
+```
+
+**Output:**
+
+```
+Template 'my-civo-template' created successfully.
+Path: ~/.hyve/repositories/production/templates/my-civo-template.yaml
+
+Execute with:
+  hyve template execute my-civo-template <cluster-name>
+```
+
+---
+
+### hyve template list
+
+List all available templates in the current repository.
+
+```bash
+hyve template list
+```
+
+**Output:**
+
+```
+Available templates (2):
+
+  my-civo-template
+    Driver:    github.com/hyve-modules/civo@v1.0.0
+    Region:    PHX1
+    onCreate:  setup-monitoring
+
+  prod-eks
+    Driver:    github.com/hyve-modules/eks@v2.1.3
+    Region:    us-east-1
+    beforeCreate: provision-prereqs
+    onCreate:  deploy-monitoring
+    onDelete:  backup-data
+    afterDelete: cleanup-prereqs
+```
+
+---
+
+### hyve template show
+
+Display the full YAML of a cluster template.
+
+```bash
+hyve template show <template-name>
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to show
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template show my-civo-template
+```
+
+**Output:**
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: my-civo-template
+  description: Production Civo cluster
+spec:
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
+  region: PHX1
+  params:
+    node_size: g4s.kube.medium
+    node_count: "3"
+  workflows:
+    onCreate:
+      - setup-monitoring
+```
+
+---
+
+### hyve template execute
+
+Create a cluster from a template. Generates the cluster YAML, commits it to Git, and runs reconciliation.
+
+```bash
+hyve template execute <template-name> <cluster-name> [flags]
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to execute
+</ParamField>
+
+<ParamField path="cluster-name" type="string" required>
+  Name for the new cluster
+</ParamField>
+
+<ParamField path="--region" type="string">
+  Override the template's default region for this cluster
+</ParamField>
+
+<ParamField path="--set" type="string (repeatable)">
+  Override or supply a param value for this specific cluster execution. Takes precedence over template defaults.
+
+  ```bash
+  --set node_count=5 --set instance_type=t3.large
+  ```
+</ParamField>
+
+**Examples:**
+
+```bash
+# Execute with template defaults
+hyve template execute my-civo-template prod-cluster-01
+
+# Override region and a param
+hyve template execute my-civo-template eu-cluster-01 \
+  --region FRA1 \
+  --set node_count=5
+
+# Override multiple params
+hyve template execute prod-eks staging-eks-01 \
+  --region us-west-2 \
+  --set node_count=2 \
+  --set instance_type=t3.small
+```
+
+**Execution process:**
+
+1. Load the template YAML
+2. Apply any `--region` and `--set` overrides
+3. Compute `spec.expiresAt` if the template has a `schedule`
+4. Generate the cluster YAML at `clusters/<cluster-name>.yaml`
+5. Commit the cluster YAML to Git
+6. Run reconciliation (create cluster via module, then run lifecycle workflows)
+
+**Output:**
+
+```
+Executing template 'my-civo-template' → cluster 'prod-cluster-01'
+
+Driver: github.com/hyve-modules/civo@v1.0.0
+Region: PHX1
+Params: node_size=g4s.kube.medium, node_count=3
+
+Cluster definition created: clusters/prod-cluster-01.yaml
+Committed and pushed to Git.
+
+Running reconciliation...
+[create] Provisioning cluster 'prod-cluster-01'...
+[status] Waiting for cluster to become active...
+[status] Cluster is active.
+[auth]   Updating kubeconfig...
+[onCreate] Running workflow: setup-monitoring
+[onCreate] setup-monitoring completed.
+
+Cluster 'prod-cluster-01' is ready.
+Run 'hyve cluster auth prod-cluster-01' to merge the kubeconfig.
+```
+
+---
+
+### hyve template delete
+
+Remove a template from the repository.
+
+```bash
+hyve template delete <template-name>
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to delete
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template delete old-template
+```
+
+<Warning>
+  Deleting a template does not delete clusters that were created from it. Existing clusters continue to run and reference the driver source from their own YAML.
+</Warning>
+
+---
+
+### hyve template validate
+
+Validate the syntax and structure of a template definition.
+
+```bash
+hyve template validate <template-name>
+```
+
+<ParamField path="template-name" type="string" required>
+  Name of the template to validate
+</ParamField>
+
+**Example:**
+
+```bash
+hyve template validate my-civo-template
+```
+
+**Output (success):**
+
+```
+Validating template 'my-civo-template'...
+
+  Driver:    github.com/hyve-modules/civo@v1.0.0   LOCKED
+  Region:    PHX1
+  Params:    node_size, node_count
+  Workflows: onCreate=[setup-monitoring]
+
+Template is valid.
+```
+
+**Output (errors):**
+
+```
+Validating template 'broken-template'...
+
+  ERRORS:
+    - spec.driver.source is required
+    - spec.driver.version 'v9.9.9' is not locked in hyve.lock
+
+  WARNINGS:
+    - onCreate workflow 'missing-workflow' not found in repository
+
+Template is invalid.
+```
+
+---
+
+## Template YAML format
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-eks-template
+  description: Production EKS cluster
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v1.0.0
+  region: us-east-1
+  params:
+    vpc_id: vpc-0abc123456789
+    eks_role_arn: arn:aws:iam::123456789012:role/eks-role
+    node_role_arn: arn:aws:iam::123456789012:role/node-role
+    instance_type: t3.medium
+    node_count: "3"
+  schedule: ""    # optional cron expression for auto-expiry
+  workflows:
+    beforeCreate:
+      - provision-network
+    onCreate:
+      - deploy-monitoring
+    onDelete:
+      - drain-workloads
+    afterDelete:
+      - cleanup-network
+```
+
+### Field reference
+
+<ParamField path="spec.driver.source" type="string" required>
+  Module source string (e.g. `github.com/hyve-modules/civo`)
+</ParamField>
+
+<ParamField path="spec.driver.version" type="string" required>
+  Module version. Must be locked in `hyve.lock`.
+</ParamField>
+
+<ParamField path="spec.region" type="string">
+  Default region. Can be overridden at execute time with `--region`.
+</ParamField>
+
+<ParamField path="spec.params" type="object">
+  Default param values. Keys and types must match the module's `module.yaml` param declarations. Values can be overridden at execute time with `--set`.
+</ParamField>
+
+<ParamField path="spec.schedule" type="string">
+  5-field cron expression (minute, hour, day-of-month, month, day-of-week). When the template is executed, the next occurrence is computed and written to `cluster.spec.expiresAt`. Leave blank for clusters that should not expire.
+</ParamField>
+
+<ParamField path="spec.workflows.beforeCreate" type="string[]">
+  Workflows to run before the cluster is provisioned. No kubeconfig is available yet.
+</ParamField>
+
+<ParamField path="spec.workflows.onCreate" type="string[]">
+  Workflows to run after the cluster is created and ready.
+</ParamField>
+
+<ParamField path="spec.workflows.onDelete" type="string[]">
+  Workflows to run before the cluster is deleted.
+</ParamField>
+
+<ParamField path="spec.workflows.afterDelete" type="string[]">
+  Workflows to run after the cluster is deleted.
+</ParamField>
+
+## Template library examples
+
+### Minimal Civo template
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: dev-civo
+spec:
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
+  region: PHX1
+  params:
+    node_size: g4s.kube.small
+    node_count: "1"
+```
+
+### Production EKS with full lifecycle
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: prod-eks
+  description: Production EKS cluster with full lifecycle hooks
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v2.1.3
+  region: us-east-1
+  params:
+    vpc_id: vpc-0abc123456789
+    eks_role_arn: arn:aws:iam::123456789012:role/eks-role
+    node_role_arn: arn:aws:iam::123456789012:role/node-role
+    instance_type: t3.medium
+    node_count: "3"
+  workflows:
+    onCreate:
+      - install-monitoring
+      - install-cert-manager
+      - deploy-app
+    onDelete:
+      - backup-state
+      - drain-workloads
+    afterDelete:
+      - notify-team
+```
+
+### Weekly ephemeral dev template
+
+```yaml
+apiVersion: v1
+kind: Template
+metadata:
+  name: dev-weekly
+  description: Dev cluster that auto-expires every Friday at 20:00
+spec:
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
+  region: PHX1
+  params:
+    node_size: g4s.kube.small
+    node_count: "1"
+  schedule: "0 20 * * 5"
+```
+
+## Related
+
+- [hyve module](/docs/cli/module) — Install and manage modules referenced by templates
+- [hyve cluster](/docs/cli/cluster) — List, inspect, and delete clusters
+- [hyve workflow](/docs/cli/workflow) — Define lifecycle workflows
+- [Concepts: Modules](/docs/concepts/modules) — How the module system works

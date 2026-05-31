@@ -1,0 +1,431 @@
+---
+title: "ArgoCD Integration"
+description: "Combining Hyve cluster lifecycle management with ArgoCD application delivery"
+---
+
+## Overview
+
+Hyve and ArgoCD operate at complementary layers of the GitOps stack:
+
+| Layer | Tool | Responsibility |
+|-------|------|----------------|
+| Infrastructure | **Hyve** | Provision, scale, and delete Kubernetes clusters |
+| Applications | **ArgoCD** | Deploy and sync workloads inside those clusters |
+
+Hyve manages the cluster itself — when it exists, what size it is, when it's deleted. ArgoCD manages what runs inside it. Neither tool knows about the other by default; the connection happens in lifecycle workflows.
+
+<CardGroup cols={2}>
+  <Card title="Hyve creates the cluster" icon="server" color="#06b6d4">
+    `onCreate` workflow installs ArgoCD and registers the cluster
+  </Card>
+  <Card title="ArgoCD deploys apps" icon="diagram-project" color="#8b5cf6">
+    ApplicationSets target clusters registered by Hyve workflows
+  </Card>
+  <Card title="Hyve deletes the cluster" icon="trash" color="#ef4444">
+    `onDelete` workflow deregisters from ArgoCD before teardown
+  </Card>
+  <Card title="Hyve reconciler as workload" icon="rotate" color="#22c55e">
+    Run `hyve reconcile` as an ArgoCD-managed CronJob
+  </Card>
+</CardGroup>
+
+---
+
+## Pattern 1 — Bootstrap ArgoCD on every new cluster
+
+The most common integration: Hyve creates the cluster, an `onCreate` workflow installs
+ArgoCD and registers the cluster with a central ArgoCD control plane.
+
+### Workflow: install-argocd
+
+```yaml
+# workflows/install-argocd.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: install-argocd
+  description: Install ArgoCD into a newly provisioned cluster and register it with the control plane
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+      - name: helm
+        version: "3.14"
+      - name: argocd
+    secrets:
+      - name: ARGOCD_ADMIN_PASSWORD
+        provider: argocd
+  jobs:
+    - name: install
+      steps:
+        - name: create-namespace
+          command: kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+        - name: helm-install
+          script: |
+            helm repo add argo https://argoproj.github.io/argo-helm
+            helm repo update
+            helm upgrade --install argocd argo/argo-cd \
+              --namespace argocd \
+              --set configs.secret.argocdServerAdminPassword="${ARGOCD_ADMIN_PASSWORD}" \
+              --wait
+
+    - name: register
+      dependsOn: [install]
+      steps:
+        - name: login-control-plane
+          script: |
+            argocd login argocd.internal.example.com \
+              --username admin \
+              --password "${ARGOCD_ADMIN_PASSWORD}" \
+              --insecure
+
+        - name: add-cluster
+          # HYVE_CLUSTER_NAME and KUBECONFIG are injected automatically by the reconciler
+          command: argocd cluster add ${HYVE_CLUSTER_NAME} --kubeconfig ${KUBECONFIG} --yes
+```
+
+### Workflow: deregister-argocd
+
+```yaml
+# workflows/deregister-argocd.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: deregister-argocd
+  description: Remove cluster from ArgoCD control plane before cluster deletion
+spec:
+  requirements:
+    tools:
+      - name: argocd
+    secrets:
+      - name: ARGOCD_ADMIN_PASSWORD
+        provider: argocd
+  jobs:
+    - name: deregister
+      steps:
+        - name: login
+          script: |
+            argocd login argocd.internal.example.com \
+              --username admin \
+              --password "${ARGOCD_ADMIN_PASSWORD}" \
+              --insecure
+
+        - name: remove-cluster
+          command: argocd cluster rm ${HYVE_CLUSTER_NAME} --yes
+```
+
+### Cluster definition
+
+```yaml
+# clusters/staging.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: staging
+  region: us-east-1
+spec:
+  provider: aws
+  awsAccount: main
+  awsVpcId: vpc-0abc123456789
+  awsEksRoleName: eks-cluster-role
+  awsNodeRoleName: node-role
+  kubernetesVersion: "1.30"
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 2
+  workflows:
+    onCreate:
+      - install-argocd      # installs ArgoCD and registers cluster
+    onDelete:
+      - deregister-argocd   # removes cluster from ArgoCD before teardown
+```
+
+After `hyve reconcile` runs:
+1. EKS cluster is created
+2. `install-argocd` runs — ArgoCD is installed and the cluster appears in the ArgoCD UI
+3. ArgoCD ApplicationSets targeting `staging` begin syncing workloads automatically
+
+---
+
+## Pattern 2 — ArgoCD ApplicationSet targets Hyve-managed clusters
+
+ArgoCD's [Cluster Generator](https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/Generators-Cluster/)
+creates Applications for every registered cluster. Combined with the registration workflow
+above, every cluster Hyve creates automatically gets its base apps deployed.
+
+```yaml
+# applicationsets/base-apps.yaml  (in your ArgoCD repo)
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: base-apps
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: staging    # applied when argocd cluster add --label is used
+  template:
+    metadata:
+      name: "base-apps-{{name}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/my-org/k8s-apps
+        targetRevision: main
+        path: base/
+      destination:
+        server: "{{server}}"
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+```
+
+Update the `register` step in `install-argocd` to attach the label:
+
+```yaml
+- name: add-cluster
+  script: |
+    argocd cluster add ${HYVE_CLUSTER_NAME} \
+      --kubeconfig ${KUBECONFIG} \
+      --label environment=staging \
+      --yes
+```
+
+---
+
+## Pattern 3 — Run the Hyve reconciler as an ArgoCD-managed CronJob
+
+Rather than running `hyve reconcile` manually or via a separate CI system, you can run
+it as a Kubernetes CronJob deployed by ArgoCD into a management cluster. This makes the
+reconciler itself a GitOps workload.
+
+### Directory layout
+
+```
+infra-repo/
+├── clusters/              # Hyve reads these
+│   ├── staging.yaml
+│   └── production.yaml
+├── workflows/             # Hyve reads these
+│   └── install-argocd.yaml
+└── hyve-reconciler/       # ArgoCD deploys this
+    ├── cronjob.yaml
+    ├── secret.yaml        # Hyve credentials / git deploy key
+    └── rbac.yaml
+```
+
+### CronJob manifest
+
+```yaml
+# hyve-reconciler/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hyve-reconciler
+  namespace: hyve-system
+spec:
+  schedule: "*/10 * * * *"    # reconcile every 10 minutes
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: hyve-reconciler
+          restartPolicy: OnFailure
+          volumes:
+            - name: hyve-config
+              secret:
+                secretName: hyve-config
+          containers:
+            - name: reconciler
+              image: ghcr.io/cbridges1/hyve:latest
+              args: ["reconcile"]
+              volumeMounts:
+                - name: hyve-config
+                  mountPath: /root/.hyve
+                  readOnly: true
+              env:
+                - name: HYVE_REPO
+                  value: "production"
+```
+
+### ArgoCD Application for the reconciler
+
+```yaml
+# In your ArgoCD control plane
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hyve-reconciler
+  namespace: argocd
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/my-org/infra-repo
+    targetRevision: main
+    path: hyve-reconciler/
+  destination:
+    server: https://kubernetes.default.svc   # management cluster
+    namespace: hyve-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+Now adding a cluster to `infra-repo/clusters/` triggers both systems:
+1. ArgoCD detects the CronJob config change → ensures the reconciler is running
+2. Hyve reconciler picks up the new cluster YAML → provisions in the cloud
+
+---
+
+## Pattern 4 — beforeCreate provisions prerequisites, ArgoCD deploys post-install
+
+A complete end-to-end example where a `beforeCreate` workflow creates AWS IAM roles and
+VPC resources, Hyve creates the EKS cluster, and ArgoCD handles everything inside it.
+
+```yaml
+# clusters/prod-us-east.yaml
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: prod-us-east
+  region: us-east-1
+spec:
+  provider: aws
+  awsAccount: production
+  awsProfile: prod-admin
+  awsKmsKeyAlias: alias/eks-secrets   # encrypt secrets at rest
+  kubernetesVersion: "1.30"
+  nodeGroups:
+    - name: system
+      instanceType: t3.medium
+      count: 3
+    - name: workers
+      instanceType: m5.xlarge
+      count: 5
+      minCount: 3
+      maxCount: 15
+  dynamicFields:
+    - awsVpcId
+    - awsEksRoleName
+    - awsNodeRoleName
+    - awsClusterSgId
+    - awsWorkerSgId
+  workflows:
+    beforeCreate:
+      - provision-eks-prereqs     # creates VPC, IAM roles, SGs; outputs HYVE_* vars
+    onCreate:
+      - install-argocd            # installs ArgoCD, registers cluster
+    onDelete:
+      - deregister-argocd         # removes from ArgoCD
+    afterDelete:
+      - teardown-eks-prereqs      # destroys VPC, IAM roles, SGs
+```
+
+The `provision-eks-prereqs` workflow outputs variables that the reconciler writes back
+to the cluster definition before creating the cluster:
+
+```yaml
+# workflows/provision-eks-prereqs.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: provision-eks-prereqs
+spec:
+  preFlight:
+    cluster: skip    # no cluster yet — skip kubeconfig setup
+  requirements:
+    tools:
+      - name: terraform
+        version: "1.5"
+      - name: aws
+  jobs:
+    - name: provision
+      steps:
+        - name: terraform-apply
+          script: |
+            cd terraform/eks-prereqs
+            terraform init
+            terraform apply -auto-approve \
+              -var "cluster_name=${HYVE_CLUSTER_NAME}" \
+              -var "region=${HYVE_CLUSTER_REGION}"
+
+        - name: export-outputs
+          script: |
+            cd terraform/eks-prereqs
+            echo "HYVE_VPC_ID=$(terraform output -raw vpc_id)"
+            echo "HYVE_EKS_ROLE_NAME=$(terraform output -raw eks_role_name)"
+            echo "HYVE_NODE_ROLE_NAME=$(terraform output -raw node_role_name)"
+            echo "HYVE_CLUSTER_SG_ID=$(terraform output -raw cluster_sg_id)"
+            echo "HYVE_WORKER_SG_ID=$(terraform output -raw worker_sg_id)"
+```
+
+The reconciler captures these outputs, updates the cluster YAML, then creates the EKS
+cluster with the correct VPC, roles, and security groups — no manual intervention needed.
+
+---
+
+## Full provisioning timeline
+
+```
+git push clusters/prod-us-east.yaml
+        │
+        ▼
+  hyve reconcile
+        │
+        ├─ beforeCreate: provision-eks-prereqs
+        │     └─ Terraform creates VPC, IAM roles, SGs
+        │     └─ Outputs HYVE_VPC_ID, HYVE_EKS_ROLE_NAME, etc.
+        │
+        ├─ EKS cluster created (with KMS encryption, pinned k8s version)
+        │
+        ├─ onCreate: install-argocd
+        │     └─ Helm installs ArgoCD into the new cluster
+        │     └─ argocd cluster add prod-us-east (labeled environment=production)
+        │
+        ▼
+  ArgoCD ApplicationSet detects new cluster
+        │
+        └─ Deploys: monitoring, ingress, cert-manager, base-apps
+```
+
+```
+git push clusters/prod-us-east.yaml  # with spec.delete: true
+        │
+        ▼
+  hyve reconcile
+        │
+        ├─ onDelete: deregister-argocd
+        │     └─ argocd cluster rm prod-us-east
+        │
+        ├─ EKS cluster deleted
+        │
+        └─ afterDelete: teardown-eks-prereqs
+              └─ terraform destroy (VPC, IAM roles, SGs)
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflow Concepts" icon="diagram-project" href="/docs/concepts/workflows" color="#22c55e">
+    Lifecycle hooks and variable injection
+  </Card>
+  <Card title="beforeCreate Workflows" icon="play" href="/docs/concepts/clusters#beforecreate-workflows" color="#06b6d4">
+    Provision cloud resources before the cluster
+  </Card>
+  <Card title="Variable Reference" icon="brackets-curly" href="/docs/workflows/variables" color="#eab308">
+    HYVE_* variables and output variables
+  </Card>
+  <Card title="CI/CD Integration" icon="code-branch" href="/docs/guides/cicd" color="#8b5cf6">
+    Running Hyve in CI pipelines
+  </Card>
+</CardGroup>
