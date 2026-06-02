@@ -44,33 +44,37 @@ hyve module install
 
 ### hyve module add
 
-Add a module at a specific version and write it to `hyve.lock`.
+Add a module and write it to `hyve.lock`. Version is optional — when omitted, the latest semver tag is resolved automatically.
 
 ```bash
-hyve module add <source>@<version>
+hyve module add <source>[@<version>]
 ```
 
-<ParamField path="source@version" type="string" required>
-  Module source and version joined with `@`. Examples:
-  - `github.com/hyve-modules/civo@v1.0.0`
-  - `github.com/hyve-modules/eks@v2.1.3`
-  - `./my-local-module@local`
+<ParamField path="source" type="string" required>
+  Module source. Can be a GitHub path, a GitHub path with subdirectory, or a local path. Examples:
+  - `github.com/hyve-modules/civo`
+  - `github.com/org/repo//path/to/module`
+  - `./custom-modules/civo`
+</ParamField>
+
+<ParamField path="version" type="string">
+  Semver tag to lock. When omitted, the latest semver tag is resolved automatically. Can be provided as part of the source argument (`source@version`) or as a separate argument.
 </ParamField>
 
 **Examples:**
 
 ```bash
-# Add the first-party Civo module
-hyve module add github.com/hyve-modules/civo@v1.0.0
+# Resolve and lock the latest semver tag automatically
+hyve module add github.com/hyve-modules/civo
 
-# Add the EKS module
-hyve module add github.com/hyve-modules/eks@v2.1.3
+# Pin to an exact version
+hyve module add github.com/hyve-modules/civo@v1.0.0
 
 # Add a module from a subdirectory
 hyve module add github.com/my-org/infra//modules/k8s@v1.0.0
 
 # Add a local module (for development)
-hyve module add ./my-local-module@local
+hyve module add ./custom-modules/civo
 ```
 
 **Output:**

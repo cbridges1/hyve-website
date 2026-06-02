@@ -59,7 +59,6 @@
               "docs/cli/git",
               "docs/cli/kubeconfig",
               "docs/cli/interactive",
-              "docs/cli/use",
               "docs/cli/run"
             ]
           }

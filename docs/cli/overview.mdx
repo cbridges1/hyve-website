@@ -27,9 +27,6 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="interactive" icon="terminal" href="/docs/cli/interactive" color="#eab308">
     Guided TUI
   </Card>
-  <Card title="use" icon="circle-play" href="/docs/cli/use" color="#10b981">
-    Switch kubectl context
-  </Card>
   <Card title="run" icon="bolt" href="/docs/cli/run" color="#8b5cf6">
     Scoped command execution
   </Card>
@@ -81,7 +78,7 @@ hyve cluster auth <name>
 
 ```bash
 hyve module install
-hyve module add <source>@<version>
+hyve module add <source>[@<version>]
 hyve module update <source>
 hyve module list
 hyve module info <source>
@@ -144,11 +141,10 @@ hyve template validate <name>
 ### kubeconfig
 
 ```bash
-hyve kubeconfig sync [cluster]
-hyve kubeconfig list
-hyve kubeconfig get <cluster>
-eval $(hyve kubeconfig use <cluster> --eval)
+hyve kubeconfig remove <cluster>
 ```
+
+Remove a context entry from `~/.kube/config`. To add cluster access, use `hyve cluster auth <name>`.
 
 [Full reference →](/docs/cli/kubeconfig)
 
@@ -159,19 +155,9 @@ hyve interactive
 hyve tui          # alias
 ```
 
-Launches a full-screen guided TUI. Navigates all command groups — cluster, module, git, workflow, template, kubeconfig — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+Launches a full-screen guided TUI. Navigates all command groups — cluster, template, module, git, workflow, kubeconfig — with menus, select lists populated from live data, and back navigation at every level. No flags required.
 
 [Full reference →](/docs/cli/interactive)
-
-### use
-
-```bash
-hyve use <cluster-name>
-```
-
-Shortcut that merges a cluster's kubeconfig into `~/.kube/config` and sets it as the active `kubectl` context. Equivalent to `hyve kubeconfig use`.
-
-[Full reference →](/docs/cli/use)
 
 ### run
 

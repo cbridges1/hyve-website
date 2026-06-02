@@ -36,10 +36,10 @@ The TUI is fully loop-based — after completing an action you are returned to t
 ```
 Hyve — what would you like to do?
   > cluster    — manage Kubernetes clusters
+    template   — reusable cluster patterns
     git        — manage Git repositories
     module     — manage versioned provider modules
     workflow   — automated pipelines
-    template   — reusable cluster patterns
     kubeconfig — cluster access
     Quit
 ```
@@ -57,7 +57,18 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | List clusters | Prints all cluster definitions in the current repository with driver and status. |
 | Show cluster | Cluster selected from list; displays full YAML definition. |
 | Delete a cluster | Cluster selected from list; sets `spec.delete: true` and reconciles. Lifecycle hooks run automatically. |
-| Auth (get kubeconfig) | Cluster selected from list; runs module auth operation to merge kubeconfig into `~/.kube/config`. |
+| Configure kubeconfig (auth) | Cluster selected from list; runs module auth operation to merge kubeconfig into `~/.kube/config`. |
+
+### template
+
+| Action | Description |
+|--------|-------------|
+| List templates | Prints all templates in the current repository. |
+| Show template | Template selected from list; displays full definition. |
+| Execute template | Template selected from list; cluster name and optional param overrides collected. |
+| Create template | Driver source, driver version, region, and params collected via form. |
+| Validate template | Template selected from list; checks driver is locked and workflows exist. |
+| Delete template | Template selected from list; requires confirmation. |
 
 ### git
 
@@ -111,26 +122,11 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | Validate | Workflow selected from list; reports errors and warnings. |
 | Delete | Workflow selected from list; requires confirmation. |
 
-### template
-
-| Action | Description |
-|--------|-------------|
-| Create | Driver source, driver version, region, and params collected via form. |
-| Execute | Template selected from list; cluster name and optional param overrides collected. |
-| List | Prints all templates. |
-| Show | Template selected from list. |
-| Validate | Template selected from list; checks driver is locked and workflows exist. |
-| Delete | Template selected from list; requires confirmation. |
-
 ### kubeconfig
 
 | Action | Description |
 |--------|-------------|
-| Sync | Retrieves kubeconfigs from all active clusters. |
-| Get | Cluster selected from stored kubeconfigs. |
-| Use | Cluster selected; merges into `~/.kube/config` and sets active context. |
-| Merge | Cluster selected; merges into `~/.kube/config`. |
-| Remove | Cluster selected from list; requires confirmation. |
+| Remove | Cluster selected from list; requires confirmation. Strips the context entry from `~/.kube/config`. |
 
 ---
 
