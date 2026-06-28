@@ -148,17 +148,26 @@ Removed clusters/my-cluster.yaml from repository.
 Run the module's auth operation to merge the cluster's kubeconfig into `~/.kube/config`.
 
 ```bash
-hyve cluster auth <name>
+hyve cluster auth <name> [--method <method-name>]
 ```
 
 <ParamField path="name" type="string" required>
   Name of the cluster to authenticate into
 </ParamField>
 
-**Example:**
+<ParamField path="--method" type="string">
+  Name of the auth method to use. When omitted, Hyve runs the first method defined in the module's `auth.yaml`. Use this flag when a module declares multiple auth methods and you need a specific one.
+</ParamField>
+
+**Examples:**
 
 ```bash
+# Default — runs the first method in the module's auth.yaml
 hyve cluster auth my-cluster
+
+# Explicitly select a named method
+hyve cluster auth my-cluster --method headless
+hyve cluster auth my-cluster --method local
 ```
 
 **Output:**
@@ -177,7 +186,7 @@ kubectl get nodes
 ```
 
 <Info>
-  Auth is implemented by the module — specifically the `auth.yaml` file in the module directory. Different modules use different mechanisms: `civo kubernetes config --merge`, `aws eks update-kubeconfig`, `gcloud container clusters get-credentials`, or `az aks get-credentials`.
+  Auth is implemented by the module — specifically the `auth.yaml` file in the module directory. A module can declare multiple named auth methods (e.g. `local` for interactive flows, `headless` for non-interactive environments). See [Modules](/docs/concepts/modules) for the `auth.yaml` schema.
 </Info>
 
 ---

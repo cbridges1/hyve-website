@@ -32,7 +32,7 @@ The module system decouples Hyve's core reconciliation logic from cloud-provider
   create.yaml      — kind: Workflow; provisions the cluster; emits HYVE_* outputs
   delete.yaml      — kind: Workflow; deprovisions the cluster
   status.yaml      — kind: Workflow; emits HYVE_CLUSTER_STATUS=<value>
-  auth.yaml        — kind: ClusterAuth; merges cluster into ~/.kube/config
+  auth.yaml        — kind: ClusterAuth; one or more named auth methods
   scale.yaml       — kind: Workflow; optional; adjusts node count
   README.md
 ```
@@ -144,19 +144,71 @@ The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value 
 
 ## How auth works
 
-The `auth.yaml` file has `kind: ClusterAuth`. Hyve runs this operation when `hyve cluster auth <name>` is called. The operation is expected to merge the cluster's kubeconfig into `~/.kube/config` using standard Kubernetes tooling (e.g. `kubectl config merge`, `KUBECONFIG` env var merge, or the cloud CLI's built-in merge command).
+The `auth.yaml` file has `kind: ClusterAuth`. Hyve runs this operation when `hyve cluster auth <name>` is called. The operation merges the cluster's kubeconfig into `~/.kube/config`.
 
-```bash
-# Example auth.yaml step for Civo
-civo kubernetes config ${HYVE_CLUSTER_NAME} --merge --save
+A module can declare one or more named auth methods under `spec.methods`. Hyve runs the first method by default; pass `--method <name>` to select a specific one.
+
+```yaml
+# auth.yaml
+apiVersion: v1
+kind: ClusterAuth
+metadata:
+  name: civo-auth
+spec:
+  methods:
+    - name: local
+      description: Auth via the Civo CLI. Requires the civo CLI and kubectl.
+      deps:
+        - civo
+        - kubectl
+      auth:
+        script: |
+          civo kubernetes config "$HYVE_CLUSTER_NAME" \
+            --region "$HYVE_CLUSTER_REGION" \
+            --save \
+            --yes
+          kubectl cluster-info
+      exports: KUBECONFIG
 ```
 
-```bash
-# Example auth.yaml step for EKS
-aws eks update-kubeconfig \
-  --name ${HYVE_CLUSTER_NAME} \
-  --region ${HYVE_CLUSTER_REGION}
+Modules that support more than one auth path — for example an interactive CLI flow and a non-interactive API-based flow — declare each as a separate named method:
+
+```yaml
+spec:
+  methods:
+    - name: local
+      description: Full auth flow via aws-cli. Supports SSO and MFA.
+      deps: [aws-cli]
+      auth:
+        script: |
+          aws eks update-kubeconfig \
+            --name "${HYVE_CLUSTER_NAME}" \
+            --region "${HYVE_CLUSTER_REGION}"
+      exports: KUBECONFIG
+
+    - name: headless
+      description: Non-interactive auth using the AWS STS HTTP API via curl. No aws-cli required.
+      deps: []
+      auth:
+        script: |
+          # construct pre-signed STS URL, build kubeconfig with kubectl
+          export KEEPER_KUBECONFIG="$(cat /tmp/kubeconfig-${HYVE_CLUSTER_NAME}.yaml)"
+      exports: KEEPER_KUBECONFIG
 ```
+
+### Method fields
+
+| Field | Description |
+|-------|-------------|
+| `name` | Unique identifier within the module. Used with `--method`. |
+| `description` | Human-readable explanation of this auth path. |
+| `deps` | Tools the script requires (informational; checked before execution). |
+| `auth.script` | Shell script that performs the auth. Receives all `HYVE_*` env vars. |
+| `exports` | Variable the script sets on exit: `KUBECONFIG` (file path) or `KEEPER_KUBECONFIG` (raw YAML string). |
+
+### Backward compatibility
+
+Single-method `auth.yaml` files using the legacy `spec.bootstrap` / `spec.verify` shape continue to work without modification. Hyve wraps them internally as a single method named `"default"`.
 
 ## hyve.lock — content addressing
 
