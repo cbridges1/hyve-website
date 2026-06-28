@@ -69,6 +69,20 @@ hyve template create <template-name> [flags]
   Example: `"0 20 * * 5"` (every Friday at 20:00)
 </ParamField>
 
+<ParamField path="--lock-params" type="boolean">
+  Lock the template's default params. When set, users executing this template cannot override param values — the TUI skips the override prompt and `--set` flags are silently ignored. Use for templates where the cluster shape must stay fixed (e.g. production templates managed by platform admins).
+
+  ```bash
+  hyve template create prod-template \
+    --driver github.com/hyve-modules/civo \
+    --driver-version v1.0.0 \
+    --region NYC1 \
+    --set node_size=g4s.kube.large \
+    --set node_count=3 \
+    --lock-params
+  ```
+</ParamField>
+
 **Examples:**
 
 ```bash

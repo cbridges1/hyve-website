@@ -108,6 +108,18 @@ spec:
   Pre-existing EC2 worker node security group ID, applied via EC2 launch template. Can be set by a `beforeCreate` workflow via `HYVE_WORKER_SG_ID`. AWS only.
 </ParamField>
 
+<ParamField path="spec.lockParams" type="boolean">
+  When `true`, users cannot override default param values at execute time. The TUI skips the "Override default params?" prompt entirely, and any `--set` flags passed to `hyve template execute` are silently ignored. Use this to enforce a fixed cluster shape — for example, a production template where node size and count must not be changed by the person spinning up the cluster.
+
+  ```yaml
+  spec:
+    lockParams: true
+    params:
+      node_size: g4s.kube.large
+      node_count: "3"
+  ```
+</ParamField>
+
 <ParamField path="spec.schedule" type="string">
   A 5-field cron expression (e.g. `0 20 * * 5`). When the template is executed, the next scheduled occurrence is computed and set as `spec.expiresAt` on the generated cluster definition, causing it to be automatically deleted at that time. Useful for short-lived environments that should expire on a predictable schedule.
 </ParamField>

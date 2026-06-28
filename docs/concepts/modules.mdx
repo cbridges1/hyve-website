@@ -167,7 +167,6 @@ spec:
             --region "$HYVE_CLUSTER_REGION" \
             --save \
             --yes
-          kubectl cluster-info
       exports: KUBECONFIG
 ```
 
@@ -204,7 +203,7 @@ spec:
 | `description` | Human-readable explanation of this auth path. |
 | `deps` | Tools the script requires (informational; checked before execution). |
 | `auth.script` | Shell script that performs the auth. Receives all `HYVE_*` env vars. |
-| `exports` | Variable the script sets on exit: `KUBECONFIG` (file path) or `KEEPER_KUBECONFIG` (raw YAML string). |
+| `exports` | Signal to Hyve about what the auth script produces. `KUBECONFIG` — Hyve sets the `KUBECONFIG` environment variable in the reconciler process after auth, pointing to `~/.kube/config` (the default location written by tools like the Civo CLI with `--save`). `KEEPER_KUBECONFIG` — reserved for Keeper-based auth flows. |
 
 ### Backward compatibility
 
