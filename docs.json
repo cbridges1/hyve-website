@@ -45,7 +45,8 @@
               "docs/guides/template-management",
               "docs/guides/kubeconfig-management",
               "docs/guides/cicd",
-              "docs/guides/argocd"
+              "docs/guides/argocd",
+              "docs/guides/server-mode"
             ]
           },
           {

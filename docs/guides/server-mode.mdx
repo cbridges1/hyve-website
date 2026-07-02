@@ -1,0 +1,241 @@
+---
+title: "Server Mode"
+description: "Run hyve as a REST API server and open Hyve Studio in your browser"
+---
+
+## Overview
+
+`hyve serve` starts a local REST API server backed by your configuration repository. It
+exposes endpoints for triggering reconciles, running workflows, listing clusters, and
+streaming execution output over WebSocket. Combined with `hyve open`, it launches
+**Hyve Studio** — a lightweight web UI for driving hyve from the browser.
+
+## Quick Start
+
+```bash
+# Start the server (defaults: port 8080, auth mode: none)
+hyve serve
+
+# Open Hyve Studio in your default browser
+hyve open
+```
+
+`hyve open` opens `<frontendUrl>?server=http://localhost:<port>` so the UI knows which
+server to talk to. `frontendUrl` is read from `hyve.yaml`.
+
+## Configuration
+
+Add a `server` block to your `hyve.yaml`:
+
+```yaml
+server:
+  port: 8080                        # default
+  frontendUrl: "http://localhost:5173"
+
+  auth:
+    mode: none                      # none | jwt (default: none)
+
+    # JWT options (only needed when mode: jwt)
+    jwt:
+      # Option A — symmetric secret
+      secret: "${JWT_SECRET}"
+
+      # Option B — JWKS endpoint (e.g. Keeper, Auth0, Keycloak)
+      jwksUrl: "https://auth.example.com/.well-known/jwks.json"
+
+      # Optional claims validation
+      issuer: "https://auth.example.com"
+      audience: "hyve"
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `server.port` | `8080` | TCP port to listen on |
+| `server.frontendUrl` | — | URL `hyve open` navigates to |
+| `server.auth.mode` | `none` | Authentication mode |
+| `server.auth.jwt.secret` | — | Symmetric HS256 secret |
+| `server.auth.jwt.jwksUrl` | — | JWKS endpoint for RS256/ES256 keys |
+| `server.auth.jwt.issuer` | — | Expected `iss` claim |
+| `server.auth.jwt.audience` | — | Expected `aud` claim |
+
+## REST API
+
+All endpoints except `/health` and `/auth/check` require a valid Bearer token when
+`auth.mode` is `jwt`.
+
+### Health
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Returns `{"status":"ok"}`. Never requires auth. |
+| `GET` | `/auth/check` | Returns `200` if the token is valid (or auth is `none`), `401` otherwise. Useful for frontend page-load checks. |
+
+### Clusters
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/clusters` | List all clusters in the repository |
+| `GET` | `/clusters/{name}` | Get a single cluster |
+
+### Reconcile
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/reconcile` | Trigger a full reconcile across all clusters |
+| `POST` | `/reconcile/clusters/{name}` | Reconcile a single cluster |
+
+Both return an execution object:
+
+```json
+{ "id": "exec_abc123", "kind": "reconcile", "status": "running" }
+```
+
+### Workflows
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/workflows` | List available workflows |
+| `POST` | `/workflows/{name}/run` | Run a workflow |
+
+### Executions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/executions` | List recent executions |
+| `GET` | `/executions/{id}` | Get execution status |
+| `GET (WS)` | `/executions/{id}/stream` | Stream live output lines |
+
+WebSocket frames are newline-delimited JSON:
+
+```json
+{"line": "[INFO] Applying manifests..."}
+{"line": "[INFO] Rollout complete."}
+```
+
+## Authentication
+
+### `mode: none`
+
+No token is required. Suitable for local development and trusted environments.
+
+### `mode: jwt`
+
+Every protected route passes through JWT middleware inline — there is no separate
+"validate token" step. The middleware extracts the `Authorization: Bearer <token>`
+header, validates the signature and optional claims (`iss`, `aud`), and either forwards
+the request or returns `401`. hyve never issues or refreshes tokens; that is the
+responsibility of the caller (e.g. Keeper).
+
+The optional `/auth/check` endpoint applies the same middleware to a no-op handler,
+making it convenient for a frontend to verify its token on page load without making a
+full API request.
+
+**Symmetric secret (HS256):**
+```yaml
+server:
+  auth:
+    mode: jwt
+    jwt:
+      secret: "${JWT_SECRET}"
+```
+
+**JWKS (RS256/ES256) — for use with Keeper or an external IdP:**
+```yaml
+server:
+  auth:
+    mode: jwt
+    jwt:
+      jwksUrl: "https://keeper.example.com/.well-known/jwks.json"
+      issuer: "https://keeper.example.com"
+      audience: "hyve"
+```
+
+## Hyve Studio
+
+Hyve Studio is a minimal React + Tailwind UI served separately (typically via
+`npm run dev` in the `studio/` directory of your repository). It connects to the hyve
+server at the URL passed in the `?server=` query parameter, with an optional
+`?token=` parameter for JWT mode.
+
+`hyve open` constructs this URL automatically:
+
+```
+http://localhost:5173?server=http://localhost:8080
+```
+
+### Running Studio locally
+
+```bash
+cd studio
+npm install
+npm run dev
+```
+
+Then in a separate terminal:
+
+```bash
+hyve serve
+hyve open   # opens http://localhost:5173?server=http://localhost:8080
+```
+
+### Studio features
+
+- **Clusters** — list clusters with per-cluster reconcile trigger and live log streaming
+- **Reconcile** — trigger a full reconcile with live output
+- **Workflows** — list and run workflows with live log streaming
+- Server connection status shown in the sidebar
+
+## Docker
+
+```bash
+# Build
+docker build -t hyve .
+
+# Run (mount your config repo)
+docker run -p 8080:8080 \
+  -v /path/to/config-repo:/repo \
+  -e JWT_SECRET=mysecret \
+  hyve serve --repo /repo
+```
+
+## Usage with Keeper
+
+When Keeper manages the hyve container, it:
+
+1. Starts the hyve container with `auth.mode: jwt`
+2. Issues short-lived JWTs signed with its private key
+3. Passes the token to the frontend via the `?token=` URL parameter
+4. Subscribes to `/executions/{id}/stream` to relay logs into its own audit trail
+
+The hyve server validates tokens against Keeper's JWKS endpoint. hyve never stores
+users, sessions, or tokens — it only validates.
+
+```yaml
+server:
+  auth:
+    mode: jwt
+    jwt:
+      jwksUrl: "http://keeper:3000/.well-known/jwks.json"
+      issuer: "keeper"
+      audience: "hyve"
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/docs/configuration" color="#22c55e">
+    Full hyve.yaml reference
+  </Card>
+
+  <Card title="CI/CD & Remote Workflows" icon="rocket" href="/docs/guides/cicd" color="#8b5cf6">
+    Running workflows in CI pipelines
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/docs/cli/overview" color="#10b981">
+    All hyve commands
+  </Card>
+
+  <Card title="Workflow Concepts" icon="diagram-project" href="/docs/concepts/workflows" color="#eab308">
+    Workflow structure and tool requirements
+  </Card>
+</CardGroup>
