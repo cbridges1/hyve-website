@@ -213,15 +213,13 @@ Single-method `auth.yaml` files using the legacy `spec.bootstrap` / `spec.verify
 
 `hyve.lock` maps each `source@version` reference to a SHA256 digest and download URL:
 
-```json
-{
-  "modules": {
-    "github.com/hyve-modules/civo@v1.0.0": {
-      "digest": "sha256:abc123...",
-      "url": "https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz"
-    }
-  }
-}
+```yaml
+version: 1
+modules:
+  github.com/hyve-modules/civo@v1.0.0:
+    source: github.com/hyve-modules/civo@v1.0.0
+    resolved: https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz
+    sha256: "abc123..."
 ```
 
 When Hyve downloads a module, it verifies the digest. If the content has changed (e.g. a tag was force-pushed), Hyve refuses to use the module and reports an integrity error.
@@ -230,6 +228,10 @@ Commit `hyve.lock` to Git. This ensures:
 - Every team member uses the exact same module version
 - CI/CD pipelines reproduce the same reconcile behavior
 - Supply-chain tampering is detected
+
+<Info>
+  Remote [workflow references](/docs/concepts/workflows#remote-workflow-references) are content-addressed and locked the same way, in a sibling `workflows` map in the same `hyve.lock` file.
+</Info>
 
 ## driverOutputs
 

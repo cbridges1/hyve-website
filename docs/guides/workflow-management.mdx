@@ -653,6 +653,60 @@ hyve workflow validate deployment-pipeline
   </Tab>
 </Tabs>
 
+## Sharing Workflows Across Repositories
+
+If several state repositories need the same workflow — a standard monitoring setup, a backup routine, a teardown sequence — you don't have to copy the file into each one. Reference it remotely instead.
+
+### 1. Add a remote reference
+
+In any template or cluster's `spec.workflows`, use a `{source, path}` mapping instead of a local name:
+
+```yaml
+spec:
+  workflows:
+    onCreate:
+      - source: github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+```
+
+Version is optional — omit `@v1.2.0` to track the latest commit on the default branch. Hyve resolves it once and locks the resolved SHA, so reconciles stay reproducible even though the source string itself is versionless.
+
+### 2. Lock it
+
+```bash
+hyve workflow install
+```
+
+This scans every template and cluster definition for remote references, resolves and content-hashes each one, and writes the results into `hyve.lock`. Commit `hyve.lock` — it's how every teammate and every CI run reproduces the exact same workflow content.
+
+### 3. Run it directly (optional)
+
+You don't need a lifecycle hook to use a remote workflow — `hyve workflow run` accepts a bare name (resolved against `hyve.lock` if not found locally) or a full source string:
+
+```bash
+# By name, once installed
+hyve workflow run setup-monitoring
+
+# By full source string — fetches on the fly if not installed, without
+# writing to hyve.lock
+hyve workflow run github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+```
+
+### 4. Keep it fresh
+
+```bash
+# Re-resolve to the latest commit/tag and refresh the lock entry
+hyve workflow update github.com/myorg/shared-workflows//setup-monitoring.yaml
+
+# Confirm every locked workflow's cached content still matches its sha256
+hyve workflow verify
+```
+
+<Info>
+  Pulling in a whole directory of workflows at once (`source: github.com/myorg/shared-workflows//platform/workflows/`, trailing slash) works with `hyve workflow install`, but not directly inside a lifecycle hook — a hook must reference exactly one workflow file.
+</Info>
+
+See [Remote Workflow References](/docs/cli/workflow#remote-workflow-references) in the CLI reference for the full source-string format and path-resolution rules.
+
 ## Workflow Examples
 
 ### Simple Deployment

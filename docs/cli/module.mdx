@@ -354,24 +354,26 @@ The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value 
 
 ## hyve.lock format
 
-`hyve.lock` is a JSON file at the repository root:
+`hyve.lock` is a YAML file at the repository root:
 
-```json
-{
-  "modules": {
-    "github.com/hyve-modules/civo@v1.0.0": {
-      "digest": "sha256:abc123def456...",
-      "url": "https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz"
-    },
-    "github.com/hyve-modules/eks@v2.1.3": {
-      "digest": "sha256:789xyz...",
-      "url": "https://github.com/hyve-modules/eks/archive/refs/tags/v2.1.3.tar.gz"
-    }
-  }
-}
+```yaml
+version: 1
+modules:
+  github.com/hyve-modules/civo@v1.0.0:
+    source: github.com/hyve-modules/civo@v1.0.0
+    resolved: https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz
+    sha256: "abc123def456..."
+  github.com/hyve-modules/eks@v2.1.3:
+    source: github.com/hyve-modules/eks@v2.1.3
+    resolved: https://github.com/hyve-modules/eks/archive/refs/tags/v2.1.3.tar.gz
+    sha256: "789xyz..."
 ```
 
 Commit `hyve.lock` to Git. It ensures every team member and every CI/CD run uses the exact same module version and verifies integrity via the SHA256 digest.
+
+<Info>
+  `hyve.lock` also carries a sibling `workflows` map for remote workflow references — see [`hyve workflow`](/docs/cli/workflow#hyve-lock-format).
+</Info>
 
 ## First-party modules
 

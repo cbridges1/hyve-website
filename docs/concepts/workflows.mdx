@@ -408,6 +408,23 @@ spec:
 `preReconcile` runs at the start of every reconcile cycle for the cluster, before any create/update/delete decisions are made.
 </Note>
 
+### Remote Workflow References
+
+Every entry above can also be a remote reference instead of a local name — a workflow pulled from another Git repository, resolved and content-hashed into `hyve.lock`, the same way modules are referenced via `spec.driver.source`:
+
+```yaml
+spec:
+  workflows:
+    onCreate:
+      - pre-flight-checks                                                  # local, unchanged
+      - source: github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0   # remote, pinned
+      - source: github.com/myorg/shared-workflows//setup-monitoring.yaml          # remote, tracks latest
+```
+
+This exists so shared operational workflows — monitoring setup, backup jobs, teardown routines — can live in one repository and be referenced from many, instead of being copied into every state repository that needs them. Version is optional: omit it and Hyve resolves the latest commit once and locks the resolved SHA, exactly like an unversioned module reference.
+
+A lifecycle hook entry must resolve to a single workflow file — a directory-form source (used for bulk-installing a whole set of workflows via `hyve workflow install`) is rejected if placed directly in a hook. See [`hyve workflow`](/docs/cli/workflow#remote-workflow-references) for the full source-string format, path resolution rules, and name-resolution order for `hyve workflow run`.
+
 ### Auth-Bootstrap Workflows (preFlight.cluster: skip)
 
 Some `beforeCreate` workflows need to authenticate to a cloud provider to provision

@@ -39,26 +39,36 @@ See the [CI/CD Workflow Guide](/docs/guides/cicd) for a complete walkthrough of 
 
 ## hyve.lock
 
-`hyve.lock` is a content-addressed lock file at the root of your state repository. It is auto-managed by the `hyve module` commands and should be committed to Git.
+`hyve.lock` is a content-addressed YAML lock file at the root of your state repository. It is auto-managed by the `hyve module` and `hyve workflow` commands and should be committed to Git.
 
-```json
-{
-  "modules": {
-    "github.com/hyve-modules/civo@v1.0.0": {
-      "digest": "sha256:abc123...",
-      "url": "https://github.com/hyve-modules/civo/archive/v1.0.0.tar.gz"
-    }
-  }
-}
+```yaml
+version: 1
+modules:
+  github.com/hyve-modules/civo@v1.0.0:
+    source: github.com/hyve-modules/civo@v1.0.0
+    resolved: https://github.com/hyve-modules/civo/archive/v1.0.0.tar.gz
+    sha256: "abc123..."
+workflows:
+  github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0:
+    name: setup-monitoring
+    source: github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+    resolved: https://raw.githubusercontent.com/myorg/shared-workflows/v1.2.0/setup-monitoring.yaml
+    sha256: "def456..."
 ```
 
-You should never edit `hyve.lock` directly. Use the module commands to manage it:
+The `workflows` key only appears once a template or cluster references a [remote workflow](/docs/cli/workflow#remote-workflow-references) — repositories using only local workflows in `workflows/` don't have it at all.
+
+You should never edit `hyve.lock` directly. Use the module and workflow commands to manage it:
 
 ```bash
-hyve module add github.com/hyve-modules/civo@v1.0.0    # add and lock
-hyve module update github.com/hyve-modules/civo         # update to latest
+hyve module add github.com/hyve-modules/civo@v1.0.0    # add and lock a module
+hyve module update github.com/hyve-modules/civo         # update a module to latest
 hyve module install                                      # install all locked modules
 hyve module list                                         # show locked modules
+
+hyve workflow install                                    # lock all remote workflow refs
+hyve workflow update github.com/myorg/shared-workflows//setup-monitoring.yaml
+hyve workflow verify                                      # confirm cached content matches sha256
 ```
 
 ## Credentials
@@ -141,7 +151,7 @@ See the [Git Management guide](/docs/guides/git-management) for full authenticat
         ├── workflows/      # Workflow YAML definitions
         ├── templates/      # Template YAML definitions
         ├── hyve.yaml       # Reconciliation config (optional)
-        └── hyve.lock       # Module lock file (auto-managed)
+        └── hyve.lock       # Module + remote workflow lock file (auto-managed)
 ```
 
 ## Configuration Priority

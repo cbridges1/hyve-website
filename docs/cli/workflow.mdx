@@ -9,6 +9,73 @@ The `hyve workflow` command group manages automated workflows for task execution
 
 Workflows enable you to automate deployments, configuration management, and operational tasks. Each workflow consists of jobs that contain steps to execute commands, scripts, or predefined actions.
 
+In addition to local workflows in `workflows/`, templates and cluster definitions can reference workflows hosted in external Git repositories — see [Remote Workflow References](#remote-workflow-references) below.
+
+## Remote Workflow References
+
+Templates and cluster definitions can reference workflows from external Git repositories the same way modules are referenced via `spec.driver.source`. This lets you share common workflows (monitoring setup, backup jobs, etc.) across repositories without copying files.
+
+### Source format
+
+```
+github.com/<org>/<repo>[//<path>][@<version>]
+```
+
+| Component | Required | Description |
+|---|---|---|
+| `github.com/<org>/<repo>` | Yes | The repository hosting the workflow file(s) |
+| `//<path>` | No | Path within the repository — see **Path resolution** below |
+| `@<version>` | No | A tag, branch, or commit SHA. Omit to track the latest commit on the default branch — Hyve resolves it once and locks the SHA, the same way an unversioned `hyve module add` works. |
+
+### Path resolution
+
+File vs. directory is **explicit**, never inferred from what happens to exist:
+
+| Path form | Resolves to | Installs |
+|---|---|---|
+| `path/to/file.yaml` (`.yaml`/`.yml` suffix) | A single file | One workflow |
+| `path/to/dir/` (trailing `/`) | A directory | Every `*.yaml` file found directly inside it (shallow — not recursive) |
+| _(omitted)_ | Repository root | Every `*.yaml` file at the repo root (shallow) |
+| anything else | — | Error: add a `.yaml`/`.yml` extension for a file, or a trailing `/` for a directory |
+
+A `path:` field is equivalent to the inline `//path` form — use whichever reads more clearly at the call site. If both are supplied, `path:` wins.
+
+### Referencing a remote workflow
+
+```yaml
+# templates/prod.yaml or clusters/production.yaml
+spec:
+  workflows:
+    onCreate:
+      # local (unchanged)
+      - pre-flight-checks
+
+      # remote — pinned to a tag
+      - source: github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+
+      # remote — no version; Hyve resolves latest and locks the SHA
+      - source: github.com/myorg/shared-workflows//setup-monitoring.yaml
+
+      # remote — path field instead of inline "//"
+      - source: github.com/myorg/shared-workflows
+        path: deploy-base-apps.yaml
+```
+
+<Info>
+  A lifecycle hook entry must resolve to exactly one workflow file. A directory-form source (useful with `hyve workflow install` to bulk-install a whole set of workflows) is rejected if placed directly in `onCreate`/`onDelete`/etc.
+</Info>
+
+### Name resolution for `hyve workflow run`
+
+When you run `hyve workflow run <name>` with a bare name (not a full source string):
+
+1. Look for an exact match in the local `workflows/` directory.
+2. If not found, search locked remote workflows in `hyve.lock` by name.
+3. No match in either place → error, suggesting `hyve workflow install` or the full source string.
+4. More than one match among locked remote entries → error listing every matching source; re-run with the full source string to disambiguate.
+
+Running a full source string that isn't installed fetches, verifies, and executes it in one step, without writing to `hyve.lock` — the same "not saved unless you ask" behavior as `npx` vs. `npm install`.
+
 ## Commands
 
 ### hyve workflow create
@@ -153,14 +220,16 @@ hyve workflow show deploy-app
 
 ### hyve workflow run
 
-Execute a workflow on a cluster.
+Execute a workflow on a cluster. Accepts a local workflow name or a remote source string.
 
 ```bash
-hyve workflow run [workflow-name] [flags]
+hyve workflow run [workflow-name-or-source] [flags]
 ```
 
-<ParamField path="workflow-name" type="string" required>
-  Name of the workflow to run
+<ParamField path="workflow-name-or-source" type="string" required>
+  A local workflow name (resolved against `workflows/`, then against `hyve.lock` by name), or a
+  full remote source string (`github.com/org/repo//path.yaml@version`). Any `/` in the argument
+  is treated as a source string — local workflow names can never contain one.
 </ParamField>
 
 <ParamField path="--cluster, -c" type="string">
@@ -173,6 +242,11 @@ hyve workflow run [workflow-name] [flags]
 
 <ParamField path="--output, -o" type="boolean" default="false">
   Show step outputs
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Override/supply the source's path component for a remote source string, equivalent to
+  `path:` in YAML. Ignored for local workflow names.
 </ParamField>
 
 <ParamField path="--set" type="string[]">
@@ -205,6 +279,16 @@ hyve workflow run provision-network \
   --set HYVE_CLUSTER_NAME=my-cluster \
   --set HYVE_CLUSTER_REGION=eastus \
   --set HYVE_CLUSTER_PROVIDER=azure
+
+# Run a workflow already locked in hyve.lock, by name
+hyve workflow run setup-monitoring
+
+# Run a remote workflow by full source string (fetches if not installed,
+# does not write to hyve.lock)
+hyve workflow run github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+
+# Same, using --path instead of an inline "//path"
+hyve workflow run github.com/myorg/shared-workflows --path setup-monitoring.yaml
 ```
 
 **Output:**
@@ -249,6 +333,88 @@ deploy           completed   28.0s     3/3
 <Info>
   If `--cluster` is not specified, the workflow runs without a kubeconfig context. Use this for local commands or workflows that don't interact with Kubernetes.
 </Info>
+
+---
+
+### hyve workflow install
+
+Resolve every remote workflow reference found in templates and cluster definitions into `hyve.lock`.
+
+```bash
+hyve workflow install
+```
+
+Scans all template YAMLs in `templates/` and all cluster YAMLs in `clusters/`, finds every `{source, path}` workflow reference, resolves and content-hashes each file, and writes any new or changed entries to `hyve.lock`. Entries whose content hasn't changed are left untouched, so re-running with nothing new is a no-op — no empty commit.
+
+```bash
+# Run after cloning a repository, or after adding a new remote workflow reference
+hyve workflow install
+```
+
+**Output:**
+
+```
+Resolving github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0 ...
+Locked github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0 (name=setup-monitoring, sha256=abc123...)
+✅ hyve.lock updated
+```
+
+<Info>
+  Directory-form sources expand into one `hyve.lock` entry per discovered `*.yaml` file, each independently content-hashed.
+</Info>
+
+---
+
+### hyve workflow update
+
+Re-resolve a remote workflow reference to its latest version and refresh its `hyve.lock` entry (or entries, for a directory source).
+
+```bash
+hyve workflow update <source> [flags]
+```
+
+<ParamField path="source" type="string" required>
+  Workflow source, e.g. `github.com/myorg/shared-workflows//setup-monitoring.yaml`. Unlike
+  `hyve module update`, version is part of the source string — there's no separate version
+  argument.
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Supply or override the source's path component, equivalent to `path:` in YAML.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve workflow update github.com/myorg/shared-workflows//setup-monitoring.yaml
+# Resolves latest version, updates hyve.lock
+```
+
+---
+
+### hyve workflow verify
+
+Verify that every workflow locked in `hyve.lock` still matches its recorded SHA256 in the local cache.
+
+```bash
+hyve workflow verify
+```
+
+**Output (success):**
+
+```
+✅ github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0 (name=setup-monitoring)
+✅ github.com/myorg/shared-workflows//deploy-base-apps.yaml (name=deploy-base-apps)
+✅ All locked workflows verified
+```
+
+**Output (failure):**
+
+```
+❌ github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0 (name=setup-monitoring): not cached — run `hyve workflow install`
+
+1 workflow(s) failed verification
+```
 
 ---
 
@@ -745,10 +911,40 @@ Workflow definitions are stored in:
     └── backup-database.yaml
 ```
 
+Remote workflows resolved via `hyve workflow install`/`run` are cached separately, keyed by content hash, at `~/.hyve/workflow-cache/<sha256>` — they are never written into the local `workflows/` directory.
+
+---
+
+## hyve.lock format
+
+Remote workflow references are locked in `hyve.lock`, in a `workflows` map alongside the existing `modules` map:
+
+```yaml
+version: 1
+modules:
+  github.com/hyve-modules/civo@v1.0.0:
+    source: github.com/hyve-modules/civo@v1.0.0
+    resolved: https://github.com/hyve-modules/civo/archive/v1.0.0.tar.gz
+    sha256: "abc123..."
+workflows:
+  github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0:
+    name: setup-monitoring
+    source: github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0
+    resolved: https://raw.githubusercontent.com/myorg/shared-workflows/v1.2.0/setup-monitoring.yaml
+    sha256: "def456..."
+```
+
+The `workflows` key is entirely absent from `hyve.lock` for repositories that only use local workflows — there's nothing to opt into.
+
+<Info>
+  `hyve.lock` is YAML, not JSON. Never edit it by hand — use `hyve workflow install`/`update`/`verify` (and the equivalent `hyve module` commands for modules, which share this same file).
+</Info>
+
 ---
 
 ## Related Commands
 
+- [hyve module](/docs/cli/module) - Modules share `hyve.lock` with remote workflows
 - [hyve cluster](/docs/cli/cluster) - Manage clusters where workflows run
 - [hyve template](/docs/cli/template) - Templates can include workflows
 - [hyve kubeconfig](/docs/cli/kubeconfig) - Manage cluster access for workflows
