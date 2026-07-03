@@ -191,6 +191,42 @@ kubectl get nodes
 
 ---
 
+### hyve cluster resources
+
+Show the resources Hyve currently tracks for a cluster — read-only, no live cluster calls.
+
+```bash
+hyve cluster resources <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster to inspect
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster resources production
+```
+
+**Output:**
+
+```
+Declared (spec.resources):
+  nginx-ingress  source=./resource-files/nginx-ingress.yaml namespace=ingress-nginx
+  cert-manager  helm chart=cert-manager version=v1.14.0 namespace=cert-manager
+
+Tracked (spec.appliedResources):
+  cert-manager  [helm]  appliedAt=2026-07-03T10:00:00Z  sha256=a1b2c3d4e5f6…  objects=6
+  nginx-ingress  [manifest]  appliedAt=2026-07-03T09:58:12Z  sha256=9f8e7d6c5b4a…  objects=2
+```
+
+<Info>
+  This reads `spec.resources`/`spec.appliedResources` directly from the cluster YAML — it does not run `kubectl diff` or contact the live cluster, so it works even offline. Use `hyve reconcile --dry-run` for a live drift preview. See [Cluster Resources](/docs/concepts/resources).
+</Info>
+
+---
+
 ## Cluster definition format
 
 Clusters are stored as YAML files in `clusters/<name>.yaml`:
@@ -223,6 +259,19 @@ spec:
       - drain-workloads
     afterDelete:
       - cleanup-network
+  resources:
+    - name: nginx-ingress
+      source: ./resource-files/nginx-ingress.yaml
+      namespace: ingress-nginx
+    - name: cert-manager
+      helm:
+        chart: cert-manager
+        repo: https://charts.jetstack.io
+        version: v1.14.0
+        namespace: cert-manager
+        values:
+          installCRDs: "true"
+  appliedResources: {}          # populated by reconciler — do not edit manually
   delete: false                 # set to true to mark for deletion
   pause: false                  # set to true to skip reconciliation
   expiresAt: ""                 # RFC 3339 auto-delete timestamp
@@ -273,7 +322,15 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.preReconcile" type="string[]">
-  Workflows to run at the start of every reconcile loop for this cluster, before any create/update/delete logic.
+  Workflows to run when the reconciler detects param drift on an already-ACTIVE cluster (i.e. `spec.params` changed since the last successful reconcile), immediately before the module's scale operation. Not run on every reconcile cycle — only when param drift is detected. Kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.resources" type="array">
+  Kubernetes manifests or Helm releases Hyve should own, drift-check, and re-apply on every reconcile cycle for an ACTIVE cluster — unconditionally, not gated by param drift. See [Cluster Resources](/docs/concepts/resources) for the full schema.
+</ParamField>
+
+<ParamField path="spec.appliedResources" type="object">
+  Populated by the reconciler after successfully applying a resource. Do not edit manually — mirrors `driverOutputs` at resource granularity. Use `hyve cluster resources <name>` to inspect it.
 </ParamField>
 
 <ParamField path="spec.delete" type="boolean" default="false">
@@ -298,7 +355,14 @@ hyve reconcile
 
 # CI/CD pipeline mode (use checked-out repo directly)
 hyve reconcile --path .
+
+# Preview without changing anything
+hyve reconcile --dry-run
 ```
+
+<ParamField path="--dry-run" type="boolean" default="false">
+  Makes the entire reconcile cycle read-only: cluster create/delete/scale, lifecycle workflows, and resource apply/delete are all skipped and logged as "would run" instead of executed. `spec.resources` drift is still resolved and diffed for real (both read-only operations) so it can be reported accurately — see [Cluster Resources](/docs/concepts/resources#dry-run-preview) for the report format. Nothing is committed to Git in dry-run mode.
+</ParamField>
 
 See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
 

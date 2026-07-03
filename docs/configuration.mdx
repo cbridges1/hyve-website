@@ -18,21 +18,23 @@ Place `hyve.yaml` at the root of your Hyve state repository to control reconcili
 ```yaml
 # hyve.yaml — placed at the root of your Hyve state repository
 reconcile:
-  mode: local          # "local" (default) or "cicd"
-  strictDelete: false  # set to true to delete unmanaged cloud clusters
+  mode: local                  # "local" (default) or "cicd"
+  strictDelete: false          # set to true to delete unmanaged cloud clusters
+  strictResourceDelete: false  # set to true to auto-prune orphaned spec.resources entries
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `reconcile.mode` | string | `local` | `local` — Hyve provisions clusters directly from the machine running `hyve reconcile`. `cicd` — Hyve validates and pushes desired state to Git; a CI/CD pipeline calls `hyve reconcile --path .` to provision. |
 | `reconcile.strictDelete` | bool | `false` | When `true`, any cloud cluster with no matching YAML definition in your `clusters/` directory is deleted during reconciliation. |
+| `reconcile.strictResourceDelete` | bool | `false` | When `true`, a [`spec.resources`](/docs/concepts/resources) entry removed from a cluster's YAML without `delete: true` is pruned automatically instead of just logged as orphaned. |
 
 <Info>
   If `hyve.yaml` is absent or a field is not set, Hyve uses the defaults shown above.
 </Info>
 
 <Warning>
-  Enable `strictDelete` only after ensuring your state repository contains definitions for every cluster you want to keep. Any cloud cluster without a matching YAML file will be permanently deleted during reconciliation.
+  Enable `strictDelete`/`strictResourceDelete` only after ensuring your state repository contains definitions for everything you want to keep. Any cloud cluster or resource without a matching YAML entry will be permanently deleted during reconciliation.
 </Warning>
 
 See the [CI/CD Workflow Guide](/docs/guides/cicd) for a complete walkthrough of CI/CD mode with GitHub Actions.

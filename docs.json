@@ -32,6 +32,7 @@
               "docs/concepts/clusters",
               "docs/concepts/templates",
               "docs/concepts/workflows",
+              "docs/concepts/resources",
               "docs/concepts/repositories",
               "docs/concepts/gitops"
             ]
@@ -42,6 +43,7 @@
               "docs/guides/git-management",
               "docs/guides/cluster-management",
               "docs/guides/workflow-management",
+              "docs/guides/resource-management",
               "docs/guides/template-management",
               "docs/guides/kubeconfig-management",
               "docs/guides/cicd",

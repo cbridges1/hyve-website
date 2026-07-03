@@ -400,12 +400,12 @@ spec:
 | `onCreate` | After cluster is ready | Yes | Yes | Setup monitoring, deploy apps, configure services |
 | `onDelete` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
 | `afterDelete` | After cluster is deleted | No | No | Destroy VPC, remove IAM roles, release IP ranges |
-| `preReconcile` | Every reconcile loop | Depends | Depends | Refresh credentials, sync config |
+| `preReconcile` | When param drift is detected on an ACTIVE cluster | Yes | Yes | Refresh credentials, sync config before scaling |
 
 <Note>
 `beforeCreate` and `afterDelete` run when no cluster exists, so kubeconfig injection is skipped. Workflows assigned to these hooks must not use `kubectl` or any tool that requires cluster access.
 
-`preReconcile` runs at the start of every reconcile cycle for the cluster, before any create/update/delete decisions are made.
+`preReconcile` runs immediately before the module's scale operation, only when the reconciler detects `spec.params` has changed since the last successful reconcile — it does **not** run on every reconcile cycle. If you need something to run unconditionally on every cycle for an ACTIVE cluster, that's what [`spec.resources`](/docs/concepts/resources) is for — it drift-checks and re-applies regardless of param drift, every time.
 </Note>
 
 ### Remote Workflow References

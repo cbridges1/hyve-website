@@ -1,0 +1,171 @@
+---
+title: 'Resource Management'
+description: 'Declare, preview, and drift-check in-cluster resources with spec.resources'
+---
+
+## Overview
+
+This guide walks through adding a Kubernetes manifest and a Helm release to a cluster, previewing changes before they apply, and cleanly removing a resource later. See [Cluster Resources](/docs/concepts/resources) for the concepts and full schema reference.
+
+## Declare a manifest resource
+
+Add a `resources` entry to a cluster (or template) YAML, pointing at a local manifest file:
+
+```yaml
+# clusters/production.yaml
+spec:
+  resources:
+    - name: nginx-ingress
+      source: ./resource-files/nginx-ingress.yaml
+      namespace: ingress-nginx
+```
+
+```yaml
+# resource-files/nginx-ingress.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-ingress-controller
+spec:
+  replicas: 2
+  # ...
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-controller
+spec:
+  type: LoadBalancer
+  # ...
+```
+
+A `source` can also be a remote reference — useful for sharing a manifest across repositories, the same way [remote workflow references](/docs/cli/workflow#remote-workflow-references) work:
+
+```yaml
+    - name: cert-manager-crds
+      source: github.com/myorg/manifests//cert-manager/crds.yaml@v1.14.0
+```
+
+Commit and run:
+
+```bash
+hyve reconcile
+```
+
+```
+[production] Resource nginx-ingress: drift detected (config changed) — applying
+```
+
+`spec.appliedResources` is now populated and committed — inspect it any time with:
+
+```bash
+hyve cluster resources production
+```
+
+## Declare a Helm resource
+
+```yaml
+spec:
+  resources:
+    - name: cert-manager
+      helm:
+        chart: cert-manager
+        repo: https://charts.jetstack.io
+        version: v1.14.0
+        namespace: cert-manager
+        values:
+          installCRDs: "true"
+```
+
+The next reconcile runs `helm upgrade --install`. Changing `values`, `version`, or `chart` is detected the same way a manifest content change is — it's hashed and compared, triggering a re-apply.
+
+<Info>
+  `helm` is expected to already be on `PATH`, the same way `kubectl` is — Hyve doesn't install it for you.
+</Info>
+
+## Preview before applying
+
+`hyve reconcile --dry-run` resolves and diffs everything for real (both read-only) but skips every mutating call — nothing is applied, deleted, or committed:
+
+```bash
+hyve reconcile --dry-run
+```
+
+```
+[production] DRY RUN: resource nginx-ingress drift detected (config changed) — would apply
+[production] DRY RUN: resource cert-manager drift detected (live drift) — would apply
+[production] DRY RUN: 2 resource(s) with drift, 0 unchanged
+```
+
+This is whole-cycle read-only, not just resources — a not-yet-created cluster is reported as "would create", not actually created, so `--dry-run` is safe to run broadly rather than only against clusters you already know are ACTIVE.
+
+## Removing a resource
+
+Prefer marking it for deletion over just deleting the YAML block:
+
+```yaml
+spec:
+  resources:
+    - name: nginx-ingress
+      source: ./resource-files/nginx-ingress.yaml
+      namespace: ingress-nginx
+      delete: true
+```
+
+```bash
+hyve reconcile
+```
+
+```
+[production] Resource nginx-ingress: delete:true — removing 2 tracked object(s)
+```
+
+The next commit shows the resource entry gone from `spec.resources` entirely — Hyve removes it automatically once deletion succeeds, the same way a cluster's own YAML file disappears once `spec.delete: true` finishes processing.
+
+If you remove the YAML block directly instead (skipping `delete: true`), Hyve treats it as an orphan and — by default — only warns:
+
+```
+[production] Warning: resource "nginx-ingress" is orphaned (removed from spec.resources without delete:true) — set delete:true to remove it, or reconcile.strictResourceDelete: true to auto-prune
+```
+
+Set `reconcile.strictResourceDelete: true` in `hyve.yaml` if you want orphans pruned automatically instead of just flagged — see [Cluster Resources → Removing a resource](/docs/concepts/resources#removing-a-resource) for the full safety rationale.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Resource keeps re-applying every reconcile">
+    Check `kubectl diff --server-side -f <manifest>` yourself — something outside Hyve (another controller, a mutating webhook that rewrites a field) is likely fighting with the applied state. Server-side apply's field ownership can also cause this if another tool applies the same fields with a different field manager.
+  </Accordion>
+
+  <Accordion title="\"exactly one of source or helm must be set\"">
+    A resource entry needs `source` or `helm`, not both and not neither. Check for a typo (e.g. `Source` vs `source` — YAML is case-sensitive) or a stray `helm:` block left over from converting a manifest resource to a Helm one.
+  </Accordion>
+
+  <Accordion title="Resource source resolves to a directory error">
+    `source` must name a single file — `.yaml`/`.yml` suffix required for a remote ref. There's no directory-expansion form for resources (unlike remote workflow installs) — split a directory of manifests into individual `resources` entries instead.
+  </Accordion>
+
+  <Accordion title="helm: command not found">
+    Install `helm` on the machine (or CI runner) that runs `hyve reconcile` — Hyve doesn't install tools for you, the same as `kubectl`.
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Cluster Resources" icon="cubes" href="/docs/concepts/resources" color="#22c55e">
+    Concepts and full schema reference
+  </Card>
+
+  <Card title="hyve cluster" icon="terminal" href="/docs/cli/cluster" color="#10b981">
+    CLI command reference
+  </Card>
+
+  <Card title="Workflow Management" icon="diagram-project" href="/docs/guides/workflow-management" color="#8b5cf6">
+    Imperative, hook-triggered automation
+  </Card>
+
+  <Card title="ArgoCD Integration" icon="rotate" href="/docs/guides/argocd" color="#eab308">
+    Continuous application delivery
+  </Card>
+</CardGroup>
