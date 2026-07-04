@@ -103,8 +103,8 @@ The resulting cluster YAML is committed to the state repository, reconciled, and
     Civo, AWS, GCP, and Azure behind the same YAML schema and CLI commands.
   </Card>
 
-  <Card title="Automatic kubeconfig sync" icon="key" color="#f43f5e">
-    Encrypted storage, automatic context merging, and cleanup on deletion.
+  <Card title="Automatic kubeconfig access" icon="key" color="#f43f5e">
+    `hyve cluster auth` merges a cluster's context into `~/.kube/config` directly via the module's own auth operation, with `hyve cluster deauth` to clean up on deletion.
   </Card>
 
   <Card title="Native cluster templates" icon="stamp" color="#06b6d4">

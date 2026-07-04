@@ -60,7 +60,6 @@
               "docs/cli/template",
               "docs/cli/workflow",
               "docs/cli/git",
-              "docs/cli/kubeconfig",
               "docs/cli/tui"
             ]
           }

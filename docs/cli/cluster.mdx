@@ -191,6 +191,38 @@ kubectl get nodes
 
 ---
 
+### hyve cluster deauth
+
+Remove a cluster's context, cluster, and user entries from `~/.kube/config` — the inverse of `hyve cluster auth`. Use this after a cluster has been deleted to keep your local kubeconfig tidy.
+
+```bash
+hyve cluster deauth <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the cluster context to remove
+</ParamField>
+
+**Example:**
+
+```bash
+hyve cluster deauth my-cluster
+```
+
+**Output:**
+
+```
+Removed cluster 'my-cluster' from /Users/username/.kube/config
+```
+
+If no kubeconfig file exists yet, this is a no-op:
+
+```
+No kubeconfig found at /Users/username/.kube/config
+```
+
+---
+
 ### hyve cluster resources
 
 Show the resources Hyve currently tracks for a cluster — read-only, no live cluster calls.
@@ -371,5 +403,4 @@ See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
 - [hyve module](/docs/cli/module) — Manage the modules that power cluster operations
 - [hyve template](/docs/cli/template) — Create cluster definitions from templates
 - [hyve workflow](/docs/cli/workflow) — Define and run lifecycle workflows
-- [hyve kubeconfig](/docs/cli/kubeconfig) — Manage kubeconfigs (legacy — prefer `hyve cluster auth`)
 - [hyve git](/docs/cli/git) — Manage Git repositories that store cluster definitions

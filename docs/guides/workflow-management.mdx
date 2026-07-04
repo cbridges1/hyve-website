@@ -991,11 +991,10 @@ spec:
     hyve workflow run my-workflow --logs --output
 
     # Test step command manually
-    hyve use my-cluster
+    hyve cluster auth my-cluster
     kubectl get nodes  # Test the actual command
 
     # Check cluster connectivity
-    hyve kubeconfig sync
     kubectl cluster-info
     ```
   </Accordion>

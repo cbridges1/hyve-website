@@ -21,9 +21,6 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="git" icon="git" href="/docs/cli/git" color="#f97316">
     Repository operations
   </Card>
-  <Card title="kubeconfig" icon="key" href="/docs/cli/kubeconfig" color="#f43f5e">
-    Cluster access
-  </Card>
   <Card title="tui" icon="terminal" href="/docs/cli/tui" color="#eab308">
     Guided TUI
   </Card>
@@ -67,6 +64,7 @@ hyve cluster list
 hyve cluster show <name>
 hyve cluster delete <name>
 hyve cluster auth <name>
+hyve cluster deauth <name>
 ```
 
 [Full reference →](/docs/cli/cluster)
@@ -138,23 +136,13 @@ hyve template validate <name>
 
 [Full reference →](/docs/cli/template)
 
-### kubeconfig
-
-```bash
-hyve kubeconfig remove <cluster>
-```
-
-Remove a context entry from `~/.kube/config`. To add cluster access, use `hyve cluster auth <name>`.
-
-[Full reference →](/docs/cli/kubeconfig)
-
 ### tui
 
 ```bash
 hyve tui
 ```
 
-Launches a full-screen guided TUI. Navigates all command groups — cluster, template, git, workflow, kubeconfig — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+Launches a full-screen guided TUI. Navigates all command groups — cluster, template, git, workflow — with menus, select lists populated from live data, and back navigation at every level. No flags required.
 
 [Full reference →](/docs/cli/tui)
 

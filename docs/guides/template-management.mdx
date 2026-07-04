@@ -291,8 +291,8 @@ hyve template execute prod-template prod-cluster-01
 Polling cluster status (this may take several minutes)...
 ✅ Cluster 'prod-cluster-01' is ready
 
-3️⃣ Syncing kubeconfig...
-✅ Kubeconfig synced and stored for cluster 'prod-cluster-01'
+3️⃣ Authenticating...
+✅ Merged 'prod-cluster-01' context into ~/.kube/config
 
 4️⃣ Executing 2 onCreate workflow(s)...
 
@@ -305,7 +305,7 @@ Polling cluster status (this may take several minutes)...
 ✅ Template execution completed!
 
 💡 Cluster 'prod-cluster-01' is now available
-💡 Use 'hyve kubeconfig sync' to get the kubeconfig
+💡 Use 'hyve cluster auth prod-cluster-01' to (re-)configure kubeconfig access
 💡 OnDestroy workflows will run when the cluster is deleted
 ```
 
@@ -1117,8 +1117,8 @@ hyve cluster modify prod-green --name prod-blue
     # Cluster is created but workflows failed
     # You can re-run workflows manually
 
-    # 1. Sync kubeconfig
-    hyve kubeconfig sync
+    # 1. Authenticate
+    hyve cluster auth my-cluster
 
     # 2. Run workflows individually
     hyve workflow run setup-monitoring --cluster my-cluster
