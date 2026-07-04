@@ -137,7 +137,7 @@ Set `reconcile.strictResourceDelete: true` in `hyve.yaml` if you want orphans pr
     Check `kubectl diff --server-side -f <manifest>` yourself — something outside Hyve (another controller, a mutating webhook that rewrites a field) is likely fighting with the applied state. Server-side apply's field ownership can also cause this if another tool applies the same fields with a different field manager.
   </Accordion>
 
-  <Accordion title="\"exactly one of source or helm must be set\"">
+  <Accordion title='"exactly one of source or helm must be set"'>
     A resource entry needs `source` or `helm`, not both and not neither. Check for a typo (e.g. `Source` vs `source` — YAML is case-sensitive) or a stray `helm:` block left over from converting a manifest resource to a Helm one.
   </Accordion>
 
