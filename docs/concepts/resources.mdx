@@ -7,6 +7,8 @@ description: 'Declarative in-cluster resources, drift-detected and re-applied on
 
 Modules provision the cluster itself — the control plane, node pools, the infrastructure layer. `spec.resources` covers the layer on top: Kubernetes manifests and Helm releases that Hyve should own, drift-check, and re-apply, using the same reconcile cadence it already uses for everything else.
 
+A module is still required even if you only care about this layer — there's no driverless cluster type. See [Adopting an existing cluster](/docs/concepts/modules#adopting-an-existing-cluster) for how to write a minimal module when the cluster itself is provisioned elsewhere.
+
 This is the same problem Terraform solves with its `kubernetes`/`helm` providers — declare a resource once, and have it continuously compared against both your desired config and the live cluster on every `plan`/`apply`. It is **not** a replacement for a continuous GitOps controller like Argo CD or Flux — see [ArgoCD Integration](/docs/guides/argocd) for that pattern, which remains the right choice when you want health checks, sync waves, and a UI. `spec.resources` is for the narrower case: a handful of foundational resources (an ingress controller, cert-manager, a couple of CRDs) that a team wants Hyve itself to own, alongside the cluster that hosts them.
 
 ## Two kinds of resource

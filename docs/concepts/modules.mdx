@@ -302,6 +302,52 @@ hyve template create my-template \
   --region us-east-1
 ```
 
+## Adopting an existing cluster
+
+Every `clusters/*.yaml` requires `spec.driver` — there is currently no "driverless" or resources-only cluster type. Even if all you want is `spec.resources` management (drift-detected manifests/Helm releases) against a Kubernetes cluster Hyve did not provision, the cluster definition still needs a module, because the reconciler always starts a cycle by resolving `spec.driver` and calling its `status` operation, and `KUBECONFIG` is only ever set as a side effect of that module's `auth` operation — there is no other path by which the reconciler acquires cluster credentials.
+
+This is a real limitation, not just a formality: someone who wants to use Hyve purely as a GitOps resource/drift manager (the `spec.resources` layer) against infrastructure managed elsewhere still has to write a module. In practice that module can be trivial:
+
+```yaml
+# status.yaml — always reports the cluster as active if it's reachable
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: status
+spec:
+  jobs:
+    - name: check
+      steps:
+        - name: report-status
+          script: |
+            if kubectl --kubeconfig /path/to/adopted-cluster.kubeconfig cluster-info >/dev/null 2>&1; then
+              echo "HYVE_CLUSTER_STATUS=active"
+            else
+              echo "HYVE_CLUSTER_STATUS=error"
+            fi
+```
+
+```yaml
+# auth.yaml — points KUBECONFIG at the already-existing kubeconfig for this cluster
+apiVersion: v1
+kind: ClusterAuth
+metadata:
+  name: adopted-auth
+spec:
+  methods:
+    - name: local
+      auth:
+        script: |
+          cp /path/to/adopted-cluster.kubeconfig ~/.kube/config
+      exports: KUBECONFIG
+```
+
+`create.yaml` and `delete.yaml` can be omitted entirely — since `status` always reports `active` (or `error`, never `not_found`), the reconciler never has a reason to call create, and `spec.delete: true` on an adopted cluster just runs `onDelete` workflows and removes the resources tracked in `spec.appliedResources`; it never calls a delete operation that doesn't exist. `hyve module validate` only requires at least one operation file to be present, so a `status.yaml` + `auth.yaml` pair is enough to pass validation.
+
+<Info>
+  This pattern trades away lifecycle management (Hyve will never create or destroy the underlying cluster) in exchange for using `spec.resources` against infrastructure provisioned by something else. See [Cluster Resources](/docs/concepts/resources) for what you get once auth is wired up this way.
+</Info>
+
 ## Related
 
 <CardGroup cols={2}>
