@@ -124,7 +124,11 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.onCreate" type="string[]">
-  Workflow names to run after the cluster is created and the module reports status `active`. The cluster exists; run `hyve cluster auth` first if your workflows need `kubectl` access.
+  Workflow names to run after the cluster is created and the module reports status `active`. The cluster exists; run `hyve cluster auth` first if your workflows need `kubectl` access. Runs **before** `spec.resources` applies for this cycle — a workflow here can't assume any resource-created object (a namespace, a Deployment) already exists.
+</ParamField>
+
+<ParamField path="spec.workflows.afterCreate" type="string[]">
+  Workflow names to run after the cluster is created, authenticated, and — unlike `onCreate` — after `spec.resources` has applied for this cycle. Use this when a workflow needs something a resource created (e.g. a namespace) to already exist, such as creating a Kubernetes Secret that a resource-managed Deployment references.
 </ParamField>
 
 <ParamField path="spec.workflows.onDelete" type="string[]">
@@ -155,7 +159,7 @@ spec:
     ```bash
     hyve reconcile
     ```
-    Runs `beforeCreate` workflows, calls the module's create operation, waits for `active` status, runs `onCreate` workflows.
+    Runs `beforeCreate` workflows, calls the module's create operation, waits for `active` status, runs `onCreate` workflows, applies `spec.resources`, then runs `afterCreate` workflows.
   </Step>
 
   <Step title="Authenticate">
@@ -209,10 +213,15 @@ Or use a template with a `schedule` to compute the expiry automatically at execu
 | Hook | When | Cluster exists? | Kubeconfig? |
 |------|------|-----------------|-------------|
 | `beforeCreate` | Before cloud provisioning | No | No |
-| `onCreate` | After cluster reaches `active` status | Yes | After auth |
+| `onCreate` | After cluster reaches `active` status, before `spec.resources` applies | Yes | After auth |
+| `afterCreate` | After cluster creation, after `spec.resources` has applied | Yes | After auth |
 | `onDelete` | Before cloud deprovisioning | Yes | Yes |
 | `afterDelete` | After cloud deprovisioning | No | No |
 | `preReconcile` | Start of every reconcile loop | Depends | Depends |
+
+<Info>
+  The full create-cycle order is: `beforeCreate` → create → `onCreate` → `spec.resources` → `afterCreate`. Only `onCreate` and `afterCreate` fire on cluster creation itself; both run once per creation, not on every subsequent reconcile of an already-`active` cluster (that's what [`spec.resources`](/docs/concepts/resources) and `preReconcile` are for).
+</Info>
 
 ### beforeCreate use cases
 
@@ -236,6 +245,18 @@ spec:
       - configure-networking   # Apply network policies
       - deploy-app             # Deploy application workloads
 ```
+
+### afterCreate use cases
+
+```yaml
+spec:
+  workflows:
+    afterCreate:
+      - create-app-secrets     # Create a Secret a resource-managed Deployment references
+      - point-dns-at-cluster   # DNS management once the app is actually deployed
+```
+
+Use `afterCreate` instead of `onCreate` whenever a workflow depends on something `spec.resources` creates — most commonly, a Kubernetes Secret whose real values can't be committed to Git as a resource, but which a resource-managed Deployment already expects to exist (in its own namespace, also resource-managed). `onCreate` runs too early for this: the namespace/Deployment don't exist yet.
 
 ### onDelete use cases
 

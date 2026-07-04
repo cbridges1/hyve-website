@@ -9,6 +9,8 @@ Modules provision the cluster itself — the control plane, node pools, the infr
 
 A module is still required even if you only care about this layer — there's no driverless cluster type. See [Adopting an existing cluster](/docs/concepts/modules#adopting-an-existing-cluster) for how to write a minimal module when the cluster itself is provisioned elsewhere.
 
+On the cycle that creates a cluster, the full order is `beforeCreate` → create → `onCreate` → `spec.resources` → `afterCreate` (see [Lifecycle workflow hooks](/docs/concepts/clusters#lifecycle-workflow-hooks)) — `afterCreate` is the hook to use for anything that needs a resource-created object (a namespace, a Deployment) to already exist.
+
 This is the same problem Terraform solves with its `kubernetes`/`helm` providers — declare a resource once, and have it continuously compared against both your desired config and the live cluster on every `plan`/`apply`. It is **not** a replacement for a continuous GitOps controller like Argo CD or Flux — see [ArgoCD Integration](/docs/guides/argocd) for that pattern, which remains the right choice when you want health checks, sync waves, and a UI. `spec.resources` is for the narrower case: a handful of foundational resources (an ingress controller, cert-manager, a couple of CRDs) that a team wants Hyve itself to own, alongside the cluster that hosts them.
 
 ## Two kinds of resource

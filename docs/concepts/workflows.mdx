@@ -228,7 +228,7 @@ All lifecycle hooks receive the following HYVE_* variables from the cluster defi
 
 Only the account variable that matches the cluster's provider is set — the others are left unset.
 
-`onCreate` and `onDelete` hooks additionally receive live cluster data:
+`onCreate`, `afterCreate`, and `onDelete` hooks additionally receive live cluster data:
 
 | Variable | Description |
 |----------|-------------|
@@ -366,6 +366,8 @@ spec:
     onCreate:
       - setup-monitoring
       - deploy-app
+    afterCreate:
+      - create-app-secrets
     onDelete:
       - backup-data
     afterDelete:
@@ -388,6 +390,8 @@ spec:
       - provision-network
     onCreate:
       - setup-monitoring
+    afterCreate:
+      - create-app-secrets
     onDelete:
       - backup-data
     afterDelete:
@@ -397,7 +401,8 @@ spec:
 | Hook | When It Runs | Cluster Exists? | Kubeconfig Available? | Typical Use Cases |
 |------|--------------|-----------------|----------------------|-------------------|
 | `beforeCreate` | Before cluster is created | No | No | Provision VPC, create IAM roles, allocate IP ranges |
-| `onCreate` | After cluster is ready | Yes | Yes | Setup monitoring, deploy apps, configure services |
+| `onCreate` | After cluster is ready, before `spec.resources` applies | Yes | Yes | Setup monitoring, deploy apps, configure services |
+| `afterCreate` | After cluster is ready, after `spec.resources` has applied | Yes | Yes | Create a Secret a resource-managed Deployment references, DNS pointing at a now-deployed app |
 | `onDelete` | Before cluster is deleted | Yes | Yes | Backup data, export logs, cleanup external resources |
 | `afterDelete` | After cluster is deleted | No | No | Destroy VPC, remove IAM roles, release IP ranges |
 | `preReconcile` | When param drift is detected on an ACTIVE cluster | Yes | Yes | Refresh credentials, sync config before scaling |
