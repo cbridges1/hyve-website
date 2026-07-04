@@ -61,7 +61,7 @@
               "docs/cli/workflow",
               "docs/cli/git",
               "docs/cli/kubeconfig",
-              "docs/cli/interactive",
+              "docs/cli/tui",
               "docs/cli/run"
             ]
           }

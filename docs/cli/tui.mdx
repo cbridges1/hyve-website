@@ -1,15 +1,14 @@
 ---
-title: 'hyve interactive'
+title: 'hyve tui'
 description: 'Guided terminal user interface for all Hyve commands'
 ---
 
-The `hyve interactive` command (alias: `hyve tui`) launches a full-screen terminal user interface that lets you navigate and execute any Hyve operation without memorising flags or command syntax.
+The `hyve tui` command launches a full-screen terminal user interface that lets you navigate and execute any Hyve operation without memorising flags or command syntax.
 
 ## Usage
 
 ```bash
-hyve interactive
-hyve tui          # alias
+hyve tui
 ```
 
 No flags or arguments are required. The TUI takes over the terminal and guides you step by step.
@@ -38,7 +37,6 @@ Hyve — what would you like to do?
   > cluster    — manage Kubernetes clusters
     template   — reusable cluster patterns
     git        — manage Git repositories
-    module     — manage versioned provider modules
     workflow   — automated pipelines
     kubeconfig — cluster access
     Quit
@@ -99,18 +97,6 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | Push | Commit message collected then changes pushed. |
 | Sync | Commit message collected; pulls then pushes. |
 
-### module
-
-| Action | Description |
-|--------|-------------|
-| Install | Lock all modules referenced by templates in `hyve.lock`. |
-| Add | Module source and version entered via form; locked in `hyve.lock`. |
-| Update | Module selected from locked list; updates to latest satisfying version. |
-| List | Prints all locked modules with digest and cache status. |
-| Info | Module selected; shows manifest, params, and requirements. |
-| Validate | Verifies all template modules are locked and cached. |
-| Remove | Module selected from locked list; requires confirmation. |
-
 ### workflow
 
 | Action | Description |
@@ -141,7 +127,6 @@ Wherever possible, the TUI populates select menus from live data rather than req
 | Template name | `templates/` directory in current repository |
 | Git repository | Local repository database |
 | Kubeconfig cluster | Stored kubeconfig database |
-| Module source | `hyve.lock` in current repository |
 
 ---
 
