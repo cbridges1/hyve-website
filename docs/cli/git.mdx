@@ -35,6 +35,10 @@ hyve git add [repository-name] --repo-url <url> [flags]
   Set this repository as the current active repository after adding
 </ParamField>
 
+<ParamField path="--path" type="string">
+  Custom local path for the repository clone. Defaults to `~/.hyve/repositories/<repository-name>` if omitted. Persisted — no need to pass `--path` again on future commands. Change it later with [`hyve git set-path`](#hyve-git-set-path).
+</ParamField>
+
 **Example:**
 
 ```bash
@@ -46,6 +50,11 @@ hyve git add staging \
   --repo-url https://github.com/company/hyve-staging.git \
   --username myuser \
   --set-current
+
+# Clone somewhere other than the default ~/.hyve/repositories/<name>
+hyve git add production \
+  --repo-url https://github.com/company/hyve-prod.git \
+  --path ~/code/hyve-prod
 ```
 
 **Output:**
@@ -161,6 +170,96 @@ Authentication: ✅ Global credentials configured (myuser)
 
 Testing connection...
 ✅ Connection successful
+```
+
+---
+
+### hyve git path
+
+Print a repository's absolute local filesystem path — nothing else is written to stdout, so it composes with shell substitution for quickly navigating to the repo.
+
+```bash
+hyve git path [flags]
+```
+
+<ParamField path="--repo" type="string">
+  Repository name. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+cd "$(hyve git path)"
+
+# A different repository
+cd "$(hyve git path --repo staging)"
+```
+
+**Output:**
+
+```
+/Users/username/.hyve/repositories/production
+```
+
+---
+
+### hyve git set-path
+
+Move a repository's local clone to a new location on disk and persist it — no `--path` flag is needed on any future command, the new location is remembered.
+
+```bash
+hyve git set-path <new-path> [flags]
+```
+
+<ParamField path="new-path" type="string" required>
+  Where to move the repository's local clone.
+</ParamField>
+
+<ParamField path="--repo" type="string">
+  Repository name to move. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git set-path ~/code/hyve-prod
+
+# A different repository
+hyve git set-path /Volumes/external/hyve-staging --repo staging
+```
+
+**Output:**
+
+```
+✅ Repository 'production' local path updated
+  Old: /Users/username/.hyve/repositories/production
+  New: /Users/username/code/hyve-prod
+
+💡 No --path flag needed going forward — this is persisted.
+```
+
+<Info>
+  If the repository already has a clone on disk, it's moved (renamed, or copied and removed if the new path is on a different volume) — not re-cloned. If the target path already exists and is non-empty, the command refuses to overwrite it.
+</Info>
+
+---
+
+### hyve git reset-path
+
+Move a repository's local clone back to the default location (`~/.hyve/repositories/<name>`), undoing a previous `hyve git set-path`.
+
+```bash
+hyve git reset-path [flags]
+```
+
+<ParamField path="--repo" type="string">
+  Repository name to reset. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git reset-path
 ```
 
 ---

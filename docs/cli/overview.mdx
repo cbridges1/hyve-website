@@ -105,10 +105,13 @@ Reconciliation mode and strict delete are controlled by `hyve.yaml` in your stat
 ### git
 
 ```bash
-hyve git add <name> --repo-url <url>
+hyve git add <name> --repo-url <url> [--path <dir>]
 hyve git list
 hyve git use <name>
 hyve git current
+hyve git path [--repo <name>]
+hyve git set-path <new-path> [--repo <name>]
+hyve git reset-path [--repo <name>]
 hyve git credentials --username <user> --password <token>
 hyve git remove <name>
 ```
