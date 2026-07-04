@@ -27,9 +27,6 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="tui" icon="terminal" href="/docs/cli/tui" color="#eab308">
     Guided TUI
   </Card>
-  <Card title="run" icon="bolt" href="/docs/cli/run" color="#8b5cf6">
-    Scoped command execution
-  </Card>
 </CardGroup>
 
 ## Command Structure
@@ -161,17 +158,6 @@ Launches a full-screen guided TUI. Navigates all command groups — cluster, tem
 
 [Full reference →](/docs/cli/tui)
 
-### run
-
-```bash
-hyve run --cluster <cluster> <command> [args...]
-hyve run --cluster <cluster> --string "<command string>"
-```
-
-Execute any command with `KUBECONFIG` scoped to a specific cluster — without permanently changing the active context.
-
-[Full reference →](/docs/cli/run)
-
 ---
 
 ## Environment Variables
@@ -217,9 +203,6 @@ hyve template execute my-template my-cluster
 # 6. Authenticate and connect
 hyve cluster auth my-cluster
 kubectl get nodes
-
-# Run a one-off command without changing active context
-hyve run --cluster my-cluster kubectl get pods -A
 ```
 
 ### CI/CD pipeline
