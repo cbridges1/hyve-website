@@ -73,6 +73,16 @@
           "anchor": "GitHub",
           "href": "https://github.com/cbridges1/hyve",
           "icon": "github"
+        },
+        {
+          "anchor": "Sample Repo",
+          "href": "https://github.com/cbridges1/hyve-sample-repo",
+          "icon": "flask"
+        },
+        {
+          "anchor": "Hyve Studio",
+          "href": "https://github.com/cbridges1/hyve-studio",
+          "icon": "window"
         }
       ]
     }
