@@ -79,7 +79,7 @@ For teams provisioning clusters repeatedly to the same pattern — a standard th
 Hyve has native cluster templates: define the shape of a cluster once, including its provider, region, node groups, and workflows, then instantiate it by name:
 
 ```bash
-hyve template execute staging-standard my-feature-cluster
+hyve cluster create my-feature-cluster --template staging-standard
 ```
 
 The resulting cluster YAML is committed to the state repository, reconciled, and the `onCreate` workflows run — all in one step.

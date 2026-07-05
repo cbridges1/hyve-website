@@ -166,7 +166,7 @@ Templates define the shape of a cluster — driver, region, and module-specific 
 Execute the template to create a cluster definition YAML and provision the cluster:
 
 ```bash
-hyve template execute my-civo-template my-cluster
+hyve cluster create my-cluster --template my-civo-template
 ```
 
 This writes `clusters/my-cluster.yaml` to your Git repository, commits it, and runs reconciliation to provision the cluster.

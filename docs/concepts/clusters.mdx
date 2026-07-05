@@ -92,7 +92,7 @@ spec:
 <ParamField path="spec.params" type="object">
   Module-specific key-value parameters. Each param is injected as `HYVE_PARAM_<UPPERCASED_KEY>` into module operations. The set of valid params is defined by the module's `module.yaml`.
 
-  Params are set when creating a template (`--set KEY=VALUE`) or can be overridden at execute time.
+  Params are set when creating a template (`--set KEY=VALUE`) or can be overridden at cluster-creation time.
 </ParamField>
 
 ### driverOutputs
@@ -150,7 +150,7 @@ spec:
 <Steps>
   <Step title="Execute a template">
     ```bash
-    hyve template execute my-civo-template my-cluster
+    hyve cluster create my-cluster --template my-civo-template
     ```
     Generates `clusters/my-cluster.yaml` and commits it to Git.
   </Step>
@@ -206,7 +206,7 @@ spec:
   expiresAt: "2026-09-01T00:00:00Z"
 ```
 
-Or use a template with a `schedule` to compute the expiry automatically at execute time.
+Or use a template with a `schedule` to compute the expiry automatically at cluster-creation time.
 
 ## Lifecycle workflow hooks
 

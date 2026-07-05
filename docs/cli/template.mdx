@@ -3,11 +3,11 @@ title: 'hyve template'
 description: 'Create and manage reusable cluster templates'
 ---
 
-The `hyve template` command group manages reusable cluster templates that define a driver (module), region, default params, and lifecycle workflows. Executing a template creates a cluster definition YAML and provisions the cluster.
+The `hyve template` command group manages reusable cluster templates that define a driver (module), region, default params, and lifecycle workflows. Creating a cluster from a template (via `hyve cluster create --template <name>`) generates a cluster definition YAML and provisions the cluster.
 
 ## Overview
 
-Templates capture the shape of a cluster. They reference a module (driver), specify a region, set default params, and optionally attach lifecycle workflows. Execute a template by name to stamp out a new cluster with all those settings applied.
+Templates capture the shape of a cluster. They reference a module (driver), specify a region, set default params, and optionally attach lifecycle workflows. Reference a template by name with [`hyve cluster create`](/docs/cli/cluster#hyve-cluster-create) to stamp out a new cluster with all those settings applied.
 
 ## Commands
 
@@ -64,7 +64,7 @@ hyve template create <template-name> [flags]
 </ParamField>
 
 <ParamField path="--schedule" type="string">
-  5-field cron expression. When the template is executed, the next occurrence is computed and written to the cluster's `spec.expiresAt`. Useful for ephemeral clusters that should auto-expire.
+  5-field cron expression. When a cluster is created from the template, the next occurrence is computed and written to the cluster's `spec.expiresAt`. Useful for ephemeral clusters that should auto-expire.
 
   Example: `"0 20 * * 5"` (every Friday at 20:00)
 </ParamField>
@@ -125,8 +125,8 @@ hyve template create dev-ephemeral \
 Template 'my-civo-template' created successfully.
 Path: ~/.hyve/repositories/production/templates/my-civo-template.yaml
 
-Execute with:
-  hyve template execute my-civo-template <cluster-name>
+Create a cluster from it with:
+  hyve cluster create <cluster-name> --template my-civo-template
 ```
 
 ---
@@ -201,83 +201,12 @@ spec:
 
 ---
 
-### hyve template execute
+### Creating a cluster from a template
 
-Create a cluster from a template. Generates the cluster YAML, commits it to Git, and runs reconciliation.
-
-```bash
-hyve template execute <template-name> <cluster-name> [flags]
-```
-
-<ParamField path="template-name" type="string" required>
-  Name of the template to execute
-</ParamField>
-
-<ParamField path="cluster-name" type="string" required>
-  Name for the new cluster
-</ParamField>
-
-<ParamField path="--region" type="string">
-  Override the template's default region for this cluster
-</ParamField>
-
-<ParamField path="--set" type="string (repeatable)">
-  Override or supply a param value for this specific cluster execution. Takes precedence over template defaults.
-
-  ```bash
-  --set node_count=5 --set instance_type=t3.large
-  ```
-</ParamField>
-
-**Examples:**
+Cluster creation lives under `hyve cluster` now, not `hyve template` — see [`hyve cluster create`](/docs/cli/cluster#hyve-cluster-create) for the full reference (flags, examples, output, and the step-by-step creation process).
 
 ```bash
-# Execute with template defaults
-hyve template execute my-civo-template prod-cluster-01
-
-# Override region and a param
-hyve template execute my-civo-template eu-cluster-01 \
-  --region FRA1 \
-  --set node_count=5
-
-# Override multiple params
-hyve template execute prod-eks staging-eks-01 \
-  --region us-west-2 \
-  --set node_count=2 \
-  --set instance_type=t3.small
-```
-
-**Execution process:**
-
-1. Load the template YAML
-2. Apply any `--region` and `--set` overrides
-3. Compute `spec.expiresAt` if the template has a `schedule`
-4. Generate the cluster YAML at `clusters/<cluster-name>.yaml`
-5. Commit the cluster YAML to Git
-6. Run reconciliation (create cluster via module, then run lifecycle workflows)
-
-**Output:**
-
-```
-Executing template 'my-civo-template' → cluster 'prod-cluster-01'
-
-Driver: github.com/hyve-modules/civo@v1.0.0
-Region: PHX1
-Params: node_size=g4s.kube.medium, node_count=3
-
-Cluster definition created: clusters/prod-cluster-01.yaml
-Committed and pushed to Git.
-
-Running reconciliation...
-[create] Provisioning cluster 'prod-cluster-01'...
-[status] Waiting for cluster to become active...
-[status] Cluster is active.
-[auth]   Updating kubeconfig...
-[onCreate] Running workflow: setup-monitoring
-[onCreate] setup-monitoring completed.
-
-Cluster 'prod-cluster-01' is ready.
-Run 'hyve cluster auth prod-cluster-01' to merge the kubeconfig.
+hyve cluster create <cluster-name> --template <template-name>
 ```
 
 ---
@@ -396,15 +325,15 @@ spec:
 </ParamField>
 
 <ParamField path="spec.region" type="string">
-  Default region. Can be overridden at execute time with `--region`.
+  Default region. Can be overridden at cluster-creation time with `--region`.
 </ParamField>
 
 <ParamField path="spec.params" type="object">
-  Default param values. Keys and types must match the module's `module.yaml` param declarations. Values can be overridden at execute time with `--set`.
+  Default param values. Keys and types must match the module's `module.yaml` param declarations. Values can be overridden at cluster-creation time with `--set`.
 </ParamField>
 
 <ParamField path="spec.schedule" type="string">
-  5-field cron expression (minute, hour, day-of-month, month, day-of-week). When the template is executed, the next occurrence is computed and written to `cluster.spec.expiresAt`. Leave blank for clusters that should not expire.
+  5-field cron expression (minute, hour, day-of-month, month, day-of-week). When a cluster is created from the template, the next occurrence is computed and written to `cluster.spec.expiresAt`. Leave blank for clusters that should not expire.
 </ParamField>
 
 <ParamField path="spec.workflows.beforeCreate" type="string[]">

@@ -127,7 +127,7 @@ hyve workflow validate <name>
 
 ```bash
 hyve template create <name> --driver <source> --driver-version <ver> --region <region> [--set KEY=VALUE]
-hyve template execute <template> <cluster-name> [--region <region>] [--set KEY=VALUE]
+hyve cluster create <cluster-name> --template <template> [--region <region>] [--set KEY=VALUE]
 hyve template list
 hyve template show <name>
 hyve template delete <name>
@@ -186,7 +186,7 @@ hyve template create my-template \
   --set node_size=g4s.kube.medium
 
 # 5. Create a cluster from the template
-hyve template execute my-template my-cluster
+hyve cluster create my-cluster --template my-template
 
 # 6. Authenticate and connect
 hyve cluster auth my-cluster

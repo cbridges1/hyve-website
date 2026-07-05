@@ -7,15 +7,96 @@ The `hyve cluster` command group manages Kubernetes cluster definitions stored i
 
 ## Overview
 
-Clusters are defined as YAML files in the `clusters/` directory of your Git state repository. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you list, inspect, mark for deletion, and authenticate into clusters.
+Clusters are defined as YAML files in the `clusters/` directory of your Git state repository. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you create, list, inspect, mark for deletion, and authenticate into clusters.
 
-To create clusters, use `hyve template execute` — which generates the cluster YAML and triggers reconciliation.
+To create a cluster, use `hyve cluster create <cluster-name> --template <template-name>` — it generates the cluster YAML from the named template and triggers reconciliation.
 
 <Note>
-  The old `hyve cluster add` and `hyve cluster modify` commands have been removed. Clusters now come from `hyve template execute`. To change cluster params, edit the YAML directly or update the template and re-execute.
+  The old `hyve cluster add` and `hyve cluster modify` commands have been removed, and cluster creation moved from `hyve template execute` to `hyve cluster create` (a template is still required — pass it with `--template`). To change cluster params, edit the YAML directly or update the template and re-run `hyve cluster create`.
 </Note>
 
 ## Commands
+
+### hyve cluster create
+
+Create a cluster from a template. Generates the cluster YAML, commits it to Git, and runs reconciliation.
+
+```bash
+hyve cluster create <cluster-name> --template <template-name> [flags]
+```
+
+<ParamField path="cluster-name" type="string" required>
+  Name for the new cluster
+</ParamField>
+
+<ParamField path="--template" type="string" required>
+  Name of the template to create the cluster from
+</ParamField>
+
+<ParamField path="--region" type="string">
+  Override the template's default region for this cluster
+</ParamField>
+
+<ParamField path="--set" type="string (repeatable)">
+  Override or supply a param value for this specific cluster. Takes precedence over template defaults.
+
+  ```bash
+  --set node_count=5 --set instance_type=t3.large
+  ```
+</ParamField>
+
+**Examples:**
+
+```bash
+# Create with template defaults
+hyve cluster create prod-cluster-01 --template my-civo-template
+
+# Override region and a param
+hyve cluster create eu-cluster-01 --template my-civo-template \
+  --region FRA1 \
+  --set node_count=5
+
+# Override multiple params
+hyve cluster create staging-eks-01 --template prod-eks \
+  --region us-west-2 \
+  --set node_count=2 \
+  --set instance_type=t3.small
+```
+
+**Creation process:**
+
+1. Load the template YAML
+2. Apply any `--region` and `--set` overrides
+3. Compute `spec.expiresAt` if the template has a `schedule`
+4. Generate the cluster YAML at `clusters/<cluster-name>.yaml`
+5. Commit the cluster YAML to Git
+6. Run reconciliation (create cluster via module, then run lifecycle workflows)
+
+**Output:**
+
+```
+🚀 Creating cluster 'prod-cluster-01' from template 'my-civo-template'...
+
+Driver: github.com/hyve-modules/civo@v1.0.0
+Region: PHX1
+Params: node_size=g4s.kube.medium, node_count=3
+
+Cluster definition created: clusters/prod-cluster-01.yaml
+Committed and pushed to Git.
+
+Running reconciliation...
+[create] Provisioning cluster 'prod-cluster-01'...
+[status] Waiting for cluster to become active...
+[status] Cluster is active.
+[auth]   Updating kubeconfig...
+[onCreate] Running workflow: setup-monitoring
+[onCreate] setup-monitoring completed.
+
+Cluster 'prod-cluster-01' is ready.
+Run 'hyve cluster auth prod-cluster-01' to merge the kubeconfig.
+```
+
+---
 
 ### hyve cluster list
 

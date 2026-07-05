@@ -160,14 +160,14 @@ Templates define the cluster shape, driver, region, and default params. Create o
 Execute a template to generate the cluster YAML and provision it:
 
 ```bash
-hyve template execute prod-civo my-prod-cluster
+hyve cluster create my-prod-cluster --template prod-civo
 ```
 
-**Override template defaults at execute time:**
+**Override template defaults at cluster-creation time:**
 
 ```bash
 # Override region and node count for this specific cluster
-hyve template execute prod-civo eu-cluster \
+hyve cluster create eu-cluster --template prod-civo \
   --region FRA1 \
   --set node_count=5
 ```
@@ -206,11 +206,11 @@ hyve git add development --repo-url https://github.com/company/hyve-dev.git
 hyve git use staging
 
 # Create cluster in staging
-hyve template execute prod-civo staging-cluster --set node_count=2
+hyve cluster create staging-cluster --template prod-civo --set node_count=2
 
 # Switch to production
 hyve git use production
-hyve template execute prod-civo prod-cluster-01
+hyve cluster create prod-cluster-01 --template prod-civo
 ```
 
 ## Scaling clusters
@@ -245,7 +245,7 @@ hyve template create prod-civo-large \
   --on-create setup-monitoring
 
 # Create a new cluster from the updated template
-hyve template execute prod-civo-large my-new-cluster
+hyve cluster create my-new-cluster --template prod-civo-large
 ```
 
 ## Pausing clusters
@@ -288,7 +288,7 @@ hyve template create dev-weekly \
   --set node_size=g4s.kube.small \
   --schedule "0 20 * * 5"   # auto-expires every Friday at 20:00
 
-hyve template execute dev-weekly my-dev-cluster
+hyve cluster create my-dev-cluster --template dev-weekly
 ```
 
 ## Deleting clusters
@@ -332,7 +332,7 @@ Deploy a new cluster alongside the existing one, test, then delete the old one:
 
 ```bash
 # Create green cluster
-hyve template execute prod-civo prod-green \
+hyve cluster create prod-green --template prod-civo \
   --set node_size=g4s.kube.large \
   --set node_count=3
 

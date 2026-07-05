@@ -231,12 +231,12 @@ spec:
   schedule: "0 20 * * 5"          # Optional: cron expression — auto-expire each cluster
                                    #   created from this template at the next occurrence
                                    #   (e.g. every Friday at 20:00). The next occurrence
-                                   #   is computed at execute time and written to
+                                   #   is computed at cluster-creation time and written to
                                    #   spec.expiresAt on the generated cluster.
 
   # AWS-specific fields (only when provider: aws)
   awsAccount: main-account         # Account alias from hyve config aws account add
-  awsVpcId: vpc-0abc123456789      # VPC ID (set here or override at execute time)
+  awsVpcId: vpc-0abc123456789      # VPC ID (set here or override at cluster-creation time)
   awsEksRoleName: k8srole          # EKS cluster role name
   awsNodeRoleName: k8snoderole     # EKS node role name
 
@@ -257,7 +257,7 @@ spec:
 Execute a template to create a new cluster:
 
 ```bash
-hyve template execute prod-template prod-cluster-01
+hyve cluster create prod-cluster-01 --template prod-template
 ```
 
 **This command:**
@@ -342,7 +342,7 @@ hyve template list
     OnCreate Workflows: edge-setup
 
 💡 Execute a template with:
-  hyve template execute <template-name> <cluster-name>
+  hyve cluster create <cluster-name> --template <template-name>
 ```
 
 ### Showing Template Details
@@ -486,8 +486,8 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute dev-template dev-feature-auth
-hyve template execute dev-template dev-feature-payments
+hyve cluster create dev-feature-auth --template dev-template
+hyve cluster create dev-feature-payments --template dev-template
 ```
 
 ### Staging Template
@@ -519,7 +519,7 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute staging-template staging-v2
+hyve cluster create staging-v2 --template staging-template
 ```
 
 ### Production Template
@@ -562,8 +562,8 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute production-template prod-us-east-01
-hyve template execute production-template prod-us-west-01
+hyve cluster create prod-us-east-01 --template production-template
+hyve cluster create prod-us-west-01 --template production-template
 ```
 
 ### AWS EKS Template
@@ -595,7 +595,7 @@ spec:
         role: worker
   clusterType: eks
   awsAccount: main-account    # account alias from hyve config aws account add
-  awsVpcId: vpc-0abc123456789 # VPC ID (set in template or override at execute time)
+  awsVpcId: vpc-0abc123456789 # VPC ID (set in template or override at cluster-creation time)
   awsEksRoleName: k8srole     # EKS cluster role name
   awsNodeRoleName: k8snoderole # EKS node role name
   ingress:
@@ -607,7 +607,7 @@ spec:
 ```
 
 <Info>
-  `awsVpcId` and role names can be set directly in the template YAML or overridden at execute time via `--vpc-id`, `--eks-role-name`, and `--node-role-name` flags. Role ARNs are constructed automatically from the role name and account ID at reconcile time.
+  `awsVpcId` and role names can be set directly in the template YAML or overridden at cluster-creation time via `--vpc-id`, `--eks-role-name`, and `--node-role-name` flags. Role ARNs are constructed automatically from the role name and account ID at reconcile time.
 </Info>
 
 <Info>
@@ -616,7 +616,7 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute aws-eks-template eks-prod-01
+hyve cluster create eks-prod-01 --template aws-eks-template
 ```
 
 ---
@@ -659,7 +659,7 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute gcp-gke-template gke-prod-01
+hyve cluster create gke-prod-01 --template gcp-gke-template
 ```
 
 ---
@@ -704,7 +704,7 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute azure-aks-template aks-prod-01
+hyve cluster create aks-prod-01 --template azure-aks-template
 ```
 
 ---
@@ -736,8 +736,8 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute edge-template edge-london-01
-hyve template execute edge-template edge-london-02
+hyve cluster create edge-london-01 --template edge-template
+hyve cluster create edge-london-02 --template edge-template
 ```
 
 ### Multi-Region Template
@@ -782,8 +782,8 @@ spec:
 
 **Usage:**
 ```bash
-hyve template execute us-east-template prod-us-east-api
-hyve template execute eu-template prod-eu-api
+hyve cluster create prod-us-east-api --template us-east-template
+hyve cluster create prod-eu-api --template eu-template
 ```
 
 ## Use Cases
@@ -803,9 +803,9 @@ hyve template execute eu-template prod-eu-api
   <Step title="Spin up environments on demand">
     ```bash
     # For each feature branch
-    hyve template execute feature-env feature-auth
-    hyve template execute feature-env feature-payments
-    hyve template execute feature-env feature-notifications
+    hyve cluster create feature-auth --template feature-env
+    hyve cluster create feature-payments --template feature-env
+    hyve cluster create feature-notifications --template feature-env
     ```
   </Step>
 
@@ -821,10 +821,10 @@ hyve template execute eu-template prod-eu-api
 
 ```bash
 # Create standardized production clusters
-hyve template execute production-template prod-api-01
-hyve template execute production-template prod-api-02
-hyve template execute production-template prod-web-01
-hyve template execute production-template prod-worker-01
+hyve cluster create prod-api-01 --template production-template
+hyve cluster create prod-api-02 --template production-template
+hyve cluster create prod-web-01 --template production-template
+hyve cluster create prod-worker-01 --template production-template
 
 # All clusters have:
 # - Same node configuration
@@ -844,9 +844,9 @@ hyve template create customer-template \
   --on-delete cleanup-tenant-data
 
 # Deploy for each customer
-hyve template execute customer-template customer-acme
-hyve template execute customer-template customer-globex
-hyve template execute customer-template customer-initech
+hyve cluster create customer-acme --template customer-template
+hyve cluster create customer-globex --template customer-template
+hyve cluster create customer-initech --template customer-template
 ```
 
 ### Testing Different Configurations
@@ -862,8 +862,8 @@ hyve template create test-talos \
   --nodes g4s.kube.medium
 
 # Execute and compare
-hyve template execute test-k3s test-k3s-cluster
-hyve template execute test-talos test-talos-cluster
+hyve cluster create test-k3s-cluster --template test-k3s
+hyve cluster create test-talos-cluster --template test-talos
 ```
 
 ## Best Practices
@@ -945,7 +945,7 @@ hyve template execute test-talos test-talos-cluster
     hyve template validate my-template
 
     # Then execute
-    hyve template execute my-template new-cluster
+    hyve cluster create new-cluster --template my-template
     ```
   </Accordion>
 
@@ -1042,20 +1042,20 @@ Deploy across multiple stages:
 
 ```bash
 # Development stage
-hyve template execute dev-template dev-app-v2
+hyve cluster create dev-app-v2 --template dev-template
 
 # Staging stage (after dev testing)
-hyve template execute staging-template staging-app-v2
+hyve cluster create staging-app-v2 --template staging-template
 
 # Production stage (after staging validation)
-hyve template execute prod-template prod-app-v2
+hyve cluster create prod-app-v2 --template prod-template
 ```
 
 ### Blue-Green with Templates
 
 ```bash
 # Create green environment
-hyve template execute production-template prod-green
+hyve cluster create prod-green --template production-template
 
 # Test green environment
 hyve workflow run test-suite --cluster prod-green
@@ -1096,11 +1096,11 @@ hyve cluster modify prod-green --name prod-blue
   </Accordion>
 
   <Accordion title="AWS VPC or Role Not Set">
-    **Problem:** `hyve template execute` fails because `awsVpcId` or `awsEksRoleName` is empty.
+    **Problem:** `hyve cluster create` fails because `awsVpcId` or `awsEksRoleName` is empty.
 
-    **Solution:** Set the values in the template YAML directly or override at execute time:
+    **Solution:** Set the values in the template YAML directly or override at cluster-creation time:
     ```bash
-    hyve template execute aws-template eks-prod-01 \
+    hyve cluster create eks-prod-01 --template aws-template \
       --vpc-id vpc-0abc123456789 \
       --eks-role-name eks-cluster-role \
       --node-role-name eks-node-role
@@ -1154,11 +1154,11 @@ hyve cluster modify prod-green --name prod-blue
     **Solutions:**
     ```bash
     # Use a different cluster name
-    hyve template execute prod-template prod-cluster-02
+    hyve cluster create prod-cluster-02 --template prod-template
 
     # Or delete existing cluster first
     hyve cluster delete prod-cluster-01
-    hyve template execute prod-template prod-cluster-01
+    hyve cluster create prod-cluster-01 --template prod-template
     ```
   </Accordion>
 
