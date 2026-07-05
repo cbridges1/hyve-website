@@ -21,6 +21,9 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="git" icon="git" href="/docs/cli/git" color="#f97316">
     Repository operations
   </Card>
+  <Card title="serve" icon="server" href="/docs/cli/serve" color="#ec4899">
+    REST + WebSocket API server
+  </Card>
   <Card title="tui" icon="terminal" href="/docs/cli/tui" color="#eab308">
     Guided TUI
   </Card>
@@ -136,6 +139,17 @@ hyve template validate <name>
 
 [Full reference →](/docs/cli/template)
 
+### serve
+
+```bash
+hyve serve [--port <port>] [--path <repo>] [--host <addr>] [--require-auth] [--open]
+hyve open
+```
+
+Runs hyve as a REST + WebSocket API server — the same operations available through the CLI, available over HTTP for a browser frontend or any other client. `hyve open` starts the server if one isn't already running and opens a configured frontend pointed at it.
+
+[Full reference →](/docs/cli/serve)
+
 ### tui
 
 ```bash
@@ -159,6 +173,9 @@ Launches a full-screen guided TUI. Navigates all command groups — cluster, tem
 | `HYVE_GIT_TOKEN` | Git authentication token for private repositories |
 | `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
 | `HYVE_PARAM_<KEY>` | Injected into module operations from `cluster.spec.params` |
+| `HYVE_PORT` | Port `hyve serve`/`hyve open` listen on. Equivalent to `--port` flag. |
+| `HYVE_AUTH_VALIDATE_URL` | Forward-auth validator endpoint for `hyve serve` (see [Server Mode](/docs/guides/server-mode#authentication)) |
+| `HYVE_AUTH_VALIDATE_TIMEOUT` | Timeout before the forward-auth validator is treated as unreachable (default `3s`) |
 
 See the [CI/CD guide](/docs/guides/cicd) for how to configure credentials in pipelines.
 

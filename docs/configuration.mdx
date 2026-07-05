@@ -39,6 +39,32 @@ reconcile:
 
 See the [CI/CD Workflow Guide](/docs/guides/cicd) for a complete walkthrough of CI/CD mode with GitHub Actions.
 
+### server (optional)
+
+Add a `server` block to configure `hyve serve` — hyve's REST + WebSocket API mode:
+
+```yaml
+server:
+  port: 8080                            # default; also settable via --port or HYVE_PORT
+  frontendUrl: "http://localhost:5173"  # opened by `hyve open`
+
+  auth:
+    mode: none        # none (default) | forward
+    forward:
+      validateUrl: ""  # also settable via HYVE_AUTH_VALIDATE_URL
+      timeout: "3s"    # also settable via HYVE_AUTH_VALIDATE_TIMEOUT
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `server.port` | `8080` | TCP port `hyve serve` listens on |
+| `server.frontendUrl` | — | URL `hyve open` navigates to |
+| `server.auth.mode` | `none` | `none` — no auth. `forward` — every request's `Authorization` header is forwarded to `validateUrl` for validation |
+| `server.auth.forward.validateUrl` | — | External endpoint hyve delegates token validation to |
+| `server.auth.forward.timeout` | `3s` | Timeout before the validator is treated as unreachable (fails closed) |
+
+See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference and authentication model.
+
 ## hyve.lock
 
 `hyve.lock` is a content-addressed YAML lock file at the root of your state repository. It is auto-managed by the `hyve module` and `hyve workflow` commands and should be committed to Git.

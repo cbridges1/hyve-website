@@ -1,27 +1,34 @@
 ---
 title: "Server Mode"
-description: "Run hyve as a REST API server and open Hyve Studio in your browser"
+description: "Run hyve as a REST + WebSocket API server and connect any frontend to it"
 ---
 
 ## Overview
 
-`hyve serve` starts a local REST API server backed by your configuration repository. It
-exposes endpoints for triggering reconciles, running workflows, listing clusters, and
-streaming execution output over WebSocket. Combined with `hyve open`, it launches
-**Hyve Studio** — a lightweight web UI for driving hyve from the browser.
+`hyve serve` runs the hyve engine as a local REST + WebSocket API service — the same operations available through the CLI become available over HTTP. Every route handler is a thin wrapper around the same internal packages the CLI already calls (the same code that backs `hyve cluster`, `hyve template`, `hyve workflow`, etc.) — there is no separate server-only business logic.
+
+The server is not a replacement for the CLI; both remain valid entry points. Its primary use cases are:
+
+- A locally-hosted web UI that communicates with the running server (see [Hyve Studio](#hyve-studio) below)
+- Any external tool that wants to call hyve as a service rather than shelling out to the CLI
+- Any tooling that needs programmatic access to hyve operations without embedding Go
+
+<Note>
+  hyve-server is deliberately consumer-agnostic. It exposes one generic API and has no special-cased knowledge of, or dependency on, any particular external tool or frontend — a hand-rolled UI, a script, a CI job, and a separate product are all just HTTP clients to it, indistinguishable from the server's point of view. See [Relationship to other tools](#relationship-to-other-tools).
+</Note>
 
 ## Quick Start
 
 ```bash
-# Start the server (defaults: port 8080, auth mode: none)
+# Start the server (defaults: port 8080, repo from the registered
+# current repository, no auth)
 hyve serve
 
-# Open Hyve Studio in your default browser
+# Open a configured frontend, starting the server first if needed
 hyve open
 ```
 
-`hyve open` opens `<frontendUrl>?server=http://localhost:<port>` so the UI knows which
-server to talk to. `frontendUrl` is read from `hyve.yaml`.
+See the [`hyve serve` CLI reference](/docs/cli/serve) for the full flag list.
 
 ## Configuration
 
@@ -29,210 +36,277 @@ Add a `server` block to your `hyve.yaml`:
 
 ```yaml
 server:
-  port: 8080                        # default
-  frontendUrl: "http://localhost:5173"
+  port: 8080                            # default; also settable via --port or HYVE_PORT
+  frontendUrl: "http://localhost:5173"  # opened by `hyve open`; appends ?server=<addr>
 
   auth:
-    mode: none                      # none | jwt (default: none)
-
-    # JWT options (only needed when mode: jwt)
-    jwt:
-      # Option A — symmetric secret
-      secret: "${JWT_SECRET}"
-
-      # Option B — JWKS endpoint (e.g. Keeper, Auth0, Keycloak)
-      jwksUrl: "https://auth.example.com/.well-known/jwks.json"
-
-      # Optional claims validation
-      issuer: "https://auth.example.com"
-      audience: "hyve"
+    mode: none        # none (default) | forward
+    forward:
+      validateUrl: ""  # also settable via HYVE_AUTH_VALIDATE_URL
+      timeout: "3s"    # also settable via HYVE_AUTH_VALIDATE_TIMEOUT
 ```
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `server.port` | `8080` | TCP port to listen on |
-| `server.frontendUrl` | — | URL `hyve open` navigates to |
-| `server.auth.mode` | `none` | Authentication mode |
-| `server.auth.jwt.secret` | — | Symmetric HS256 secret |
-| `server.auth.jwt.jwksUrl` | — | JWKS endpoint for RS256/ES256 keys |
-| `server.auth.jwt.issuer` | — | Expected `iss` claim |
-| `server.auth.jwt.audience` | — | Expected `aud` claim |
+| `server.frontendUrl` | — | URL `hyve open` navigates to; opens `http://localhost:<port>` directly if unset |
+| `server.auth.mode` | `none` | `none` — no auth required, binds to `127.0.0.1` only. `forward` — see [Authentication](#authentication) |
+| `server.auth.forward.validateUrl` | — | External endpoint every request's `Authorization` header is forwarded to for validation |
+| `server.auth.forward.timeout` | `3s` | Timeout before the validator is treated as unreachable (fails closed) |
+
+<Info>
+  If `hyve.yaml` has no `server` block, the server runs with defaults: port `8080`, `auth.mode: none`, bound to `127.0.0.1`.
+</Info>
 
 ## REST API
 
-All endpoints except `/health` and `/auth/check` require a valid Bearer token when
-`auth.mode` is `jwt`.
+All endpoints return JSON by default. Error responses follow `{ "error": "<message>" }`. Every YAML-backed resource (clusters, templates, workflows) supports content negotiation via `Accept`/`Content-Type: application/x-yaml` for exact, byte-for-byte round-tripping of the on-disk file — this is what a "view/edit the YAML" frontend panel should use. The full machine-readable spec is served at `GET /openapi.json` (unauthenticated, so clients can generate typed API clients without a token).
 
-### Health
+### Health and Auth Check
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Returns `{"status":"ok"}`. Never requires auth. |
-| `GET` | `/auth/check` | Returns `200` if the token is valid (or auth is `none`), `401` otherwise. Useful for frontend page-load checks. |
+|--------|------|--------------|
+| `GET` | `/health` | Always unauthenticated. `{"status":"ok","version":"..."}` |
+| `GET` | `/auth/check` | `200` if the token is valid (or `auth.mode` is `none`), `401` otherwise. For a frontend to verify its token on page load. |
+| `GET` | `/openapi.json` | OpenAPI 3.1 spec, always unauthenticated |
 
 ### Clusters
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/clusters` | List all clusters in the repository |
-| `GET` | `/clusters/{name}` | Get a single cluster |
+|--------|------|--------------|
+| `GET` | `/clusters` | List clusters |
+| `GET` | `/clusters/{name}` | Get a cluster |
+| `POST` | `/clusters` | Create — body: `{name, template, region?, params?}`; mirrors `hyve cluster create` |
+| `PUT` | `/clusters/{name}` | Full replace of the cluster YAML |
+| `PATCH` | `/clusters/{name}` | Partial update: `pause`, `delete`, `params`, `expiresAt` |
+| `DELETE` | `/clusters/{name}` | Sets `spec.delete: true` and triggers reconcile |
+| `GET` | `/clusters/{name}/resources` | `spec.resources` (declared) + `spec.appliedResources` (tracked) — read-only, no live cluster calls |
+| `POST` | `/clusters/{name}/kubeconfig` | Runs the module's auth operation, returns the resulting kubeconfig YAML; mirrors `hyve cluster auth` |
+| `DELETE` | `/clusters/{name}/kubeconfig` | Removes this cluster's entries from `~/.kube/config`; mirrors `hyve cluster deauth` |
 
-### Reconcile
+### Templates
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/reconcile` | Trigger a full reconcile across all clusters |
-| `POST` | `/reconcile/clusters/{name}` | Reconcile a single cluster |
-
-Both return an execution object:
-
-```json
-{ "id": "exec_abc123", "kind": "reconcile", "status": "running" }
-```
+|--------|------|--------------|
+| `GET` | `/templates` | List templates |
+| `GET` | `/templates/{name}` | Get a template |
+| `POST` | `/templates` | Create — body is Template YAML or JSON |
+| `PUT` | `/templates/{name}` | Full replace |
+| `DELETE` | `/templates/{name}` | Delete |
+| `POST` | `/templates/{name}/validate` | Checks the driver is locked and referenced workflows exist; mirrors `hyve template validate` |
 
 ### Workflows
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/workflows` | List available workflows |
-| `POST` | `/workflows/{name}/run` | Run a workflow |
+|--------|------|--------------|
+| `GET` | `/workflows` | List workflows |
+| `GET` | `/workflows/{name}` | Get a workflow |
+| `POST` | `/workflows` | Create — body is Workflow YAML or JSON |
+| `PUT` | `/workflows/{name}` | Full replace |
+| `DELETE` | `/workflows/{name}` | Delete |
+| `POST` | `/workflows/{name}/run` | Body: `{cluster?, inputs?}` → `{executionId}`; mirrors `hyve workflow run` |
+| `POST` | `/workflows/{name}/validate` | Mirrors `hyve workflow validate` |
+
+Remote workflow references are locked and content-addressed in `hyve.lock` the same way modules are. Source strings (e.g. `github.com/org/repo//path@version`) contain slashes, so these take the source in the request body rather than as a URL path segment:
+
+| Method | Path | Description |
+|--------|------|--------------|
+| `POST` | `/workflows/install` | Resolves every remote workflow reference in templates/clusters into `hyve.lock` → `{executionId}`; mirrors `hyve workflow install` |
+| `POST` | `/workflows/refs/update` | Body: `{source, path?}` — re-resolves one reference to latest; mirrors `hyve workflow update <source>` |
+| `GET` | `/workflows/refs/verify` | Verifies every locked workflow's cached content matches its sha256; mirrors `hyve workflow verify` |
+
+### Modules and Lock
+
+| Method | Path | Description |
+|--------|------|--------------|
+| `GET` | `/modules` | List locked modules |
+| `GET` | `/modules/{source}?version=` | Manifest, params, requirements; mirrors `hyve module info` |
+| `POST` | `/modules` | Body: `{source, version?}` — locks a module; mirrors `hyve module add` |
+| `POST` | `/modules/update` | Body: `{source, version}` — re-resolves, refreshing its sha256; mirrors `hyve module update` |
+| `POST` | `/modules/remove` | Body: `{source, version}`; mirrors `hyve module remove` |
+| `POST` | `/modules/validate` | Body: `{source, version}`; mirrors `hyve module validate` |
+| `POST` | `/modules/install` | Locks every module referenced by templates/clusters → `{executionId}`; mirrors `hyve module install` |
+| `POST` | `/modules/init` | Body: `{name}` — scaffolds a new module skeleton; mirrors `hyve module init` |
+| `GET` | `/lock` | Parsed `hyve.lock` contents |
+
+### Repository Configuration
+
+| Method | Path | Description |
+|--------|------|--------------|
+| `GET` | `/config` | Parsed `hyve.yaml` (`reconcile` + `server` sections) |
+| `PATCH` | `/config` | Partial update; writes through to `hyve.yaml` and commits. Changes to `server.*` only take effect on the next `hyve serve` restart. |
+
+### Git
+
+Scoped to the single repository the server is bound to (`--path`) — not the CLI's multi-repo management surface (`hyve git add`/`list`/`use`/`remove`, branch management), which has no meaning for a server already pointed at one repo.
+
+| Method | Path | Description |
+|--------|------|--------------|
+| `GET` | `/git/status` | Mirrors `hyve git status` for the bound repo |
+| `POST` | `/git/sync` | Body: `{message?}`; mirrors `hyve git sync` |
+
+### Reconcile
+
+| Method | Path | Description |
+|--------|------|--------------|
+| `POST` | `/reconcile` | Body: `{dryRun?}` → `{executionId}`; mirrors `hyve reconcile [--dry-run]` |
+| `POST` | `/reconcile/clusters/{name}` | Body: `{dryRun?}` — reconcile a single cluster |
 
 ### Executions
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/executions` | List recent executions |
-| `GET` | `/executions/{id}` | Get execution status |
-| `GET (WS)` | `/executions/{id}/stream` | Stream live output lines |
+Long-running operations (workflow runs, reconciles, module/workflow installs) return `{executionId}` immediately rather than blocking the request; poll or stream to follow progress.
 
-WebSocket frames are newline-delimited JSON:
+| Method | Path | Description |
+|--------|------|--------------|
+| `GET` | `/executions` | List recent executions, most recent first |
+| `GET` | `/executions/{id}` | Status + metadata |
+| `GET` | `/executions/{id}/logs` | Paginated log lines. `?since=<seq>` returns only lines after that sequence number. |
+| `GET` (WS) | `/executions/{id}/stream` | Streams `{seq, line, capturedAt}` as newline-delimited JSON. Replays stored lines first so late subscribers catch up, then streams live until the execution reaches a terminal state and the server closes the connection. |
 
 ```json
-{"line": "[INFO] Applying manifests..."}
-{"line": "[INFO] Rollout complete."}
+{ "seq": 1, "line": "[INFO] Applying manifests...", "capturedAt": "2026-07-05T14:32:01Z" }
+{ "seq": 2, "line": "[INFO] Rollout complete.", "capturedAt": "2026-07-05T14:32:04Z" }
 ```
 
 ## Authentication
 
-### `mode: none`
+Hyve does not validate credentials itself — it delegates the entire yes/no decision to an external HTTP endpoint you configure, and never inspects, decodes, or has any opinion about what the credential actually is (a JWT, an opaque token, an API key, whatever the calling system issues). This is the same pattern as nginx's `auth_request`, Traefik's `ForwardAuth`, or Envoy's `ext_authz`: hyve is the enforcement point, not the decision-maker.
 
-No token is required. Suitable for local development and trusted environments.
+Every protected route passes through this middleware inline — it forwards the incoming `Authorization` header as-is to `server.auth.forward.validateUrl` and interprets the response:
 
-### `mode: jwt`
+- **2xx** → request is valid, pass through to the handler
+- **Anything else (401, 403, ...)** → reject with `401`
+- **Network error or timeout talking to the validator** → fail closed, reject with `401`
 
-Every protected route passes through JWT middleware inline — there is no separate
-"validate token" step. The middleware extracts the `Authorization: Bearer <token>`
-header, validates the signature and optional claims (`iss`, `aud`), and either forwards
-the request or returns `401`. hyve never issues or refreshes tokens; that is the
-responsibility of the caller (e.g. Keeper).
+Hyve does not issue tokens, refresh them, manage users, or know anything about who validated the request beyond pass/fail — that's entirely the calling system's responsibility.
 
-The optional `/auth/check` endpoint applies the same middleware to a no-op handler,
-making it convenient for a frontend to verify its token on page load without making a
-full API request.
+### `none` mode (default — local development)
 
-**Symmetric secret (HS256):**
-```yaml
-server:
-  auth:
-    mode: jwt
-    jwt:
-      secret: "${JWT_SECRET}"
+No `Authorization` header is required, and no validator is called. The server binds to `127.0.0.1` only and refuses to start with `--host 0.0.0.0` unless `--require-auth` is also set — this prevents accidentally exposing an unauthenticated API on the network.
+
+### `forward` mode
+
+Every request must carry whatever credential the validator expects:
+
+```
+Authorization: Bearer <token>
 ```
 
-**JWKS (RS256/ES256) — for use with Keeper or an external IdP:**
-```yaml
-server:
-  auth:
-    mode: jwt
-    jwt:
-      jwksUrl: "https://keeper.example.com/.well-known/jwks.json"
-      issuer: "https://keeper.example.com"
-      audience: "hyve"
+Config precedence is `hyve.yaml` first, then environment variables:
+
+| Env var | Corresponds to |
+|---------|----------------|
+| `HYVE_AUTH_VALIDATE_URL` | `server.auth.forward.validateUrl` |
+| `HYVE_AUTH_VALIDATE_TIMEOUT` | `server.auth.forward.timeout` |
+
+## CORS
+
+The server allows cross-origin requests from any browser-based frontend — it reflects the request's `Origin` header and answers preflight `OPTIONS` requests directly, since the API is bearer-token-only (never cookie-based), which makes an open CORS policy safe here.
+
+## Building a Frontend
+
+Any web application can serve as a hyve frontend — no special client library is required, just the REST + WebSocket API above.
+
+### Connecting
+
+When launched via `hyve open`, the frontend receives the server address as a query parameter:
+
+```
+https://your-frontend.example.com?server=http://localhost:8080
+```
+
+```typescript
+const params = new URLSearchParams(window.location.search)
+const serverUrl = params.get('server') ?? 'http://localhost:8080'
+```
+
+### Auth token
+
+In `none` mode no token is needed. In `forward` mode, pass whatever token your validator expects — hyve forwards it verbatim without caring about its format:
+
+```
+https://your-frontend.example.com?server=http://localhost:8080&token=<token>
+```
+
+```typescript
+const token = params.get('token') ?? ''
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${serverUrl}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+```
+
+### Live execution output
+
+```typescript
+function streamExecution(executionId: string, onLine: (line: string) => void) {
+  const wsUrl = serverUrl.replace(/^http/, 'ws')
+  const ws = new WebSocket(`${wsUrl}/executions/${executionId}/stream`)
+  ws.onmessage = (e) => onLine(JSON.parse(e.data).line)
+  return () => ws.close()
+}
+```
+
+### Generating a typed client
+
+```bash
+# TypeScript
+npx openapi-typescript http://localhost:8080/openapi.json -o hyve.d.ts
+
+# Go
+oapi-codegen -package hyve http://localhost:8080/openapi.json > hyve_client.gen.go
 ```
 
 ## Hyve Studio
 
-Hyve Studio is a minimal React + Tailwind UI served separately (typically via
-`npm run dev` in the `studio/` directory of your repository). It connects to the hyve
-server at the URL passed in the `?server=` query parameter, with an optional
-`?token=` parameter for JWT mode.
-
-`hyve open` constructs this URL automatically:
-
-```
-http://localhost:5173?server=http://localhost:8080
-```
-
-### Running Studio locally
+[Hyve Studio](https://github.com/cbridges1/hyve-studio) is a reference frontend for the server — a React + Tailwind app covering every endpoint above (clusters, templates, workflows, modules, git, config, reconcile, and a live executions browser). It's a separate repository, not bundled with hyve itself.
 
 ```bash
-cd studio
+git clone https://github.com/cbridges1/hyve-studio.git
+cd hyve-studio
 npm install
 npm run dev
 ```
 
-Then in a separate terminal:
+Then, in a separate terminal:
 
 ```bash
 hyve serve
-hyve open   # opens http://localhost:5173?server=http://localhost:8080
+hyve open   # opens the running Studio instance, pointed at the server
 ```
 
-### Studio features
+## What This Is Not
 
-- **Clusters** — list clusters with per-cluster reconcile trigger and live log streaming
-- **Reconcile** — trigger a full reconcile with live output
-- **Workflows** — list and run workflows with live log streaming
-- Server connection status shown in the sidebar
+**Not a multi-user server.** hyve in server mode has no concept of users, roles, or audit trails. It runs as a single-process service under the caller's own identity, either locally or inside a container managed by whatever deploys it. Multi-user access control, if a caller needs it, is entirely that caller's responsibility.
 
-## Docker
+**Not a scheduler.** The server does not poll for work or trigger reconcile on a schedule. Callers trigger reconcile explicitly — a user via `hyve reconcile`, an external caller via the API, or a CI/CD pipeline.
 
-```bash
-# Build
-docker build -t hyve .
+## Relationship to other tools
 
-# Run (mount your config repo)
-docker run -p 8080:8080 \
-  -v /path/to/config-repo:/repo \
-  -e JWT_SECRET=mysecret \
-  hyve serve --repo /repo
-```
-
-## Usage with Keeper
-
-When Keeper manages the hyve container, it:
-
-1. Starts the hyve container with `auth.mode: jwt`
-2. Issues short-lived JWTs signed with its private key
-3. Passes the token to the frontend via the `?token=` URL parameter
-4. Subscribes to `/executions/{id}/stream` to relay logs into its own audit trail
-
-The hyve server validates tokens against Keeper's JWKS endpoint. hyve never stores
-users, sessions, or tokens — it only validates.
-
-```yaml
-server:
-  auth:
-    mode: jwt
-    jwt:
-      jwksUrl: "http://keeper:3000/.well-known/jwks.json"
-      issuer: "keeper"
-      audience: "hyve"
-```
+hyve-server is deliberately consumer-agnostic. It exposes one generic REST + WebSocket API; it has no concept of, no special code path for, and no dependency on any particular external tool. A hand-rolled frontend, a script, a CI job, and a separate product are all just HTTP clients to it, indistinguishable from hyve-server's point of view — including Hyve Studio itself, which is built entirely on top of the API documented above with no privileged integration.
 
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="hyve serve CLI Reference" icon="terminal" href="/docs/cli/serve" color="#ec4899">
+    Flags and usage for `hyve serve` / `hyve open`
+  </Card>
+
   <Card title="Configuration" icon="gear" href="/docs/configuration" color="#22c55e">
     Full hyve.yaml reference
   </Card>
 
   <Card title="CI/CD & Remote Workflows" icon="rocket" href="/docs/guides/cicd" color="#8b5cf6">
     Running workflows in CI pipelines
-  </Card>
-
-  <Card title="CLI Reference" icon="terminal" href="/docs/cli/overview" color="#10b981">
-    All hyve commands
   </Card>
 
   <Card title="Workflow Concepts" icon="diagram-project" href="/docs/concepts/workflows" color="#eab308">

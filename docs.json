@@ -60,6 +60,7 @@
               "docs/cli/template",
               "docs/cli/workflow",
               "docs/cli/git",
+              "docs/cli/serve",
               "docs/cli/tui"
             ]
           }

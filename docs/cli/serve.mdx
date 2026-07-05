@@ -1,0 +1,78 @@
+---
+title: 'hyve serve'
+description: 'Run hyve as a local REST + WebSocket API server'
+---
+
+The `hyve serve` command runs the hyve engine as a REST + WebSocket API service — the same operations available through the CLI become available over HTTP, for a browser-based frontend or any other HTTP client. `hyve open` is a small companion command that starts the server (if one isn't already running) and opens a frontend pointed at it.
+
+<Note>
+  The server is a second entry point onto the same engine the CLI uses — every route handler is a thin wrapper around the same internal logic `hyve cluster`, `hyve template`, `hyve workflow`, etc. already call. It has no special-cased knowledge of any particular frontend or external tool; anything that can make HTTP requests can drive it. See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference, the forward-auth model, and how to build a frontend against it.
+</Note>
+
+## Usage
+
+```bash
+# Start with defaults — port 8080, repo from the registered current
+# repository (or the working directory if none is registered), no auth
+hyve serve
+
+# Custom port and explicit repo path
+hyve serve --port 9000 --path /path/to/repo
+
+# Require auth regardless of hyve.yaml (forward-auth's validateUrl must
+# be configured — see the Server Mode guide)
+hyve serve --require-auth
+
+# Start the server and open a configured frontend
+hyve serve --open
+```
+
+```bash
+# Opens the frontend configured at server.frontendUrl in hyve.yaml,
+# starting the server first if one isn't already running on the target
+# port
+hyve open
+```
+
+## Flags
+
+<ParamField path="--port" type="int" default="8080">
+  Port to listen on. Falls back to `server.port` in `hyve.yaml`, then the `HYVE_PORT` environment variable, then `8080`.
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Path to the hyve repository root. When omitted, resolves to the registered current repository (the same one every other `hyve` command uses — see `hyve git use`), falling back to the working directory only if no repository is registered.
+</ParamField>
+
+<ParamField path="--host" type="string" default="127.0.0.1">
+  Bind address. Set to `0.0.0.0` to listen on all interfaces (required in Docker). Refuses to start on `0.0.0.0` unless `--require-auth` is also set — see [Authentication](/docs/guides/server-mode#authentication).
+</ParamField>
+
+<ParamField path="--require-auth" type="boolean" default="false">
+  Reject unauthenticated requests regardless of `hyve.yaml`'s `server.auth.mode` — promotes the effective auth mode to `forward` even if `hyve.yaml` says `none`. A `validateUrl` must be configured (in `hyve.yaml` or `HYVE_AUTH_VALIDATE_URL`) or the server refuses to start.
+</ParamField>
+
+<ParamField path="--open" type="boolean" default="false">
+  `hyve serve` only: open a browser to `server.frontendUrl` (or `http://<host>:<port>` directly if unset) once the server starts listening.
+</ParamField>
+
+`hyve open` accepts the same `--port`/`--path`/`--host`/`--require-auth` flags as `hyve serve` (used to resolve where the server should run, or already is running), but has no `--open` flag of its own — opening a browser is always what it does.
+
+## What `hyve open` actually does
+
+1. Resolves `--port`/`--path` the same way `hyve serve` does.
+2. Sends `GET /health` to `http://<host>:<port>`. If a server is already listening there, it just opens the browser — it does not start a second server.
+3. If nothing responds, it starts a server (equivalent to `hyve serve --open`) and opens the browser once it's up.
+
+The browser is pointed at `server.frontendUrl` from `hyve.yaml`, with `?server=http://<host>:<port>` appended so the frontend knows which server to talk to. If `frontendUrl` isn't set, it opens `http://<host>:<port>` directly.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Server Mode Guide" icon="server" href="/docs/guides/server-mode" color="#3b82f6">
+    Full REST API reference, forward-auth model, and building a frontend
+  </Card>
+  <Card title="Configuration" icon="gear" href="/docs/configuration" color="#22c55e">
+    The `server` block in `hyve.yaml`
+  </Card>
+</CardGroup>

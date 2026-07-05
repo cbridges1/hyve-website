@@ -38,7 +38,6 @@ Hyve — what would you like to do?
     template   — reusable cluster patterns
     git        — manage Git repositories
     workflow   — automated pipelines
-    kubeconfig — cluster access
     Quit
 ```
 
@@ -52,10 +51,12 @@ Selecting any section drills down into a sub-menu for that command group. Select
 
 | Action | Description |
 |--------|-------------|
+| Create a cluster | Template selected from list; cluster name, region, and optional param overrides collected. |
 | List clusters | Prints all cluster definitions in the current repository with driver and status. |
 | Show cluster | Cluster selected from list; displays full YAML definition. |
-| Delete a cluster | Cluster selected from list; sets `spec.delete: true` and reconciles. Lifecycle hooks run automatically. |
 | Configure kubeconfig (auth) | Cluster selected from list; runs module auth operation to merge kubeconfig into `~/.kube/config`. |
+| Remove kubeconfig context (deauth) | Cluster selected from list; strips the context entry from `~/.kube/config`. |
+| Delete a cluster | Cluster selected from list; sets `spec.delete: true` and reconciles. Lifecycle hooks run automatically. |
 
 ### template
 
@@ -63,10 +64,13 @@ Selecting any section drills down into a sub-menu for that command group. Select
 |--------|-------------|
 | List templates | Prints all templates in the current repository. |
 | Show template | Template selected from list; displays full definition. |
-| Execute template | Template selected from list; cluster name and optional param overrides collected. |
 | Create template | Driver source, driver version, region, and params collected via form. |
 | Validate template | Template selected from list; checks driver is locked and workflows exist. |
 | Delete template | Template selected from list; requires confirmation. |
+
+<Note>
+  Creating a cluster from a template lives in the **cluster** menu (`Create a cluster`), not the template menu — matching `hyve cluster create --template <template>` on the command line.
+</Note>
 
 ### git
 
@@ -108,11 +112,9 @@ Selecting any section drills down into a sub-menu for that command group. Select
 | Validate | Workflow selected from list; reports errors and warnings. |
 | Delete | Workflow selected from list; requires confirmation. |
 
-### kubeconfig
-
-| Action | Description |
-|--------|-------------|
-| Remove | Cluster selected from list; requires confirmation. Strips the context entry from `~/.kube/config`. |
+<Note>
+  Kubeconfig auth/deauth are actions within the **cluster** menu (`Configure kubeconfig (auth)` / `Remove kubeconfig context (deauth)`), not a separate top-level menu.
+</Note>
 
 ---
 
@@ -122,11 +124,10 @@ Wherever possible, the TUI populates select menus from live data rather than req
 
 | Field | Source |
 |-------|--------|
-| Cluster name | YAML files in `clusters/` directory of current repository |
+| Cluster name (including for kubeconfig auth/deauth) | YAML files in `clusters/` directory of current repository |
 | Workflow name | `workflows/` directory in current repository |
 | Template name | `templates/` directory in current repository |
 | Git repository | Local repository database |
-| Kubeconfig cluster | Stored kubeconfig database |
 
 ---
 
