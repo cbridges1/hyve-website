@@ -293,8 +293,8 @@ Before you begin, ensure you have:
       --on-create setup-monitoring,deploy-app \
       --on-delete backup-data
 
-    # Execute the template
-    hyve template execute prod-template prod-cluster-01
+    # Create a cluster from the template
+    hyve cluster create prod-cluster-01 --template prod-template
     ```
   </Accordion>
 

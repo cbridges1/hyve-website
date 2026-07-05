@@ -114,8 +114,8 @@ Template path: /Users/username/.hyve/repositories/production/templates/prod-temp
   OnCreate Workflows: setup-monitoring, deploy-app
   OnDestroy Workflows: backup-data, cleanup
 
-💡 Execute this template with:
-  hyve template execute prod-template <cluster-name>
+💡 Create a cluster from this template with:
+  hyve cluster create <cluster-name> --template prod-template
 ```
 
 ---
@@ -153,8 +153,8 @@ hyve template list
   dev-template
     Region: PHX1 | Nodes: g4s.kube.small | Type: k3s
 
-💡 Execute a template with:
-  hyve template execute <template-name> <cluster-name>
+💡 Create a cluster from a template with:
+  hyve cluster create <cluster-name> --template <template-name>
 ```
 
 ---
@@ -234,115 +234,43 @@ hyve template delete old-template
 
 ---
 
-### hyve template execute
+### hyve cluster create
 
-Create a cluster from a template and run associated workflows.
+Create a cluster from a template and run associated workflows. This command lives under `hyve cluster` (not `hyve template`) — see the [Cluster CLI reference](/cli/cluster) for the full command.
 
 ```bash
-hyve template execute [template-name] [cluster-name]
+hyve cluster create [cluster-name] --template [template-name]
 ```
-
-<ParamField path="template-name" type="string" required>
-  Name of the template to execute
-</ParamField>
 
 <ParamField path="cluster-name" type="string" required>
   Name for the new cluster
 </ParamField>
 
-**Provider-specific flags** (override template values; required if not set in the template):
+<ParamField path="--template" type="string" required>
+  Name of the template to create the cluster from
+</ParamField>
 
-| Flag | Short | Provider | Description |
-|------|-------|----------|-------------|
-| `--org` | `-o` | Civo | Civo organization alias |
-| `--account` | `-a` | AWS | AWS account alias |
-| `--vpc-id` | `-v` | AWS | AWS VPC ID |
-| `--eks-role-name` | `-e` | AWS | AWS EKS cluster role name |
-| `--node-role-name` | `-n` | AWS | AWS node role name |
-| `--subscription` | `-s` | Azure | Azure subscription alias |
-| `--resource-group` | `-g` | Azure | Azure resource group name |
-| `--project` | `-p` | GCP | GCP project alias |
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--template` | `-t` | Template to create the cluster from (required) |
+| `--region` | `-r` | Override the template's default region |
+| `--set` | | Override driver params (repeatable): `KEY=VALUE` |
 
 **Example:**
 
 ```bash
-# Civo template (org set in template YAML — no flags needed)
-hyve template execute prod-template prod-cluster-01
+hyve cluster create prod-cluster-01 --template prod-template
 
-# Civo template with org override
-hyve template execute prod-template prod-cluster-01 --org my-org
-
-# AWS template with all required flags
-hyve template execute aws-template eks-prod-01 \
-  --account prod \
-  --vpc-id vpc-0abc123456789 \
-  --eks-role-name eks-role \
-  --node-role-name node-role
-
-# Azure template with overrides
-hyve template execute azure-template aks-prod-01 \
-  --subscription prod-sub \
-  --resource-group hyve-rg
+# With a region override and driver param overrides
+hyve cluster create prod-cluster-01 --template prod-template \
+  --region NYC1 \
+  --set node_count=5
 ```
-
-**Output:**
-
-```
-🚀 Executing template 'prod-template' to create cluster 'prod-cluster-01'...
-
-📋 Template Details:
-  Provider: civo
-  Region: NYC1
-  Nodes: g4s.kube.large, g4s.kube.large, g4s.kube.large
-  Cluster Type: k3s
-  OnCreate Workflows: setup-monitoring, deploy-app
-  OnDestroy Workflows: backup-data
-
-✅ Cluster definition created: /Users/username/.hyve/repositories/production/clusters/prod-cluster-01.yaml
-
-1️⃣ Creating cluster...
-✅ Cluster 'prod-cluster-01' created successfully (ID: abc123)
-
-2️⃣ Waiting for cluster to be ready...
-Polling cluster status (this may take several minutes)...
-✅ Cluster 'prod-cluster-01' is ready
-
-3️⃣ Syncing kubeconfig...
-✅ Kubeconfig synced and stored for cluster 'prod-cluster-01'
-
-4️⃣ Executing 2 onCreate workflow(s)...
-
-[1/2] Running workflow: setup-monitoring
-[10:30:45][INFO][install-prometheus] Starting job 'install-prometheus'
-[10:31:20][INFO][install-prometheus] Job completed successfully
-[10:31:20][INFO][install-grafana] Starting job 'install-grafana'
-[10:31:45][INFO][install-grafana] Job completed successfully
-✅ Workflow 'setup-monitoring' completed successfully
-
-[2/2] Running workflow: deploy-app
-[10:32:00][INFO][pre-deployment] Starting job 'pre-deployment'
-[10:32:05][INFO][pre-deployment] Job completed successfully
-[10:32:05][INFO][deploy] Starting job 'deploy'
-[10:32:30][INFO][deploy] Job completed successfully
-✅ Workflow 'deploy-app' completed successfully
-
-✅ Template execution completed!
-
-💡 Cluster 'prod-cluster-01' is now available
-💡 Use 'hyve kubeconfig sync' to get the kubeconfig
-💡 OnDestroy workflows will run when the cluster is deleted
-```
-
-**Execution Process:**
-
-1. **Create Cluster Definition**: Generate YAML file from template
-2. **Provision Cluster**: Create cluster in cloud provider
-3. **Wait for Ready**: Poll cluster status until ready
-4. **Sync Kubeconfig**: Retrieve and store kubeconfig
-5. **Execute Workflows**: Run each workflow in sequence
 
 <Info>
-  Template execution is idempotent. If the cluster already exists, it will be reused and workflows will run on the existing cluster.
+  Cluster creation is idempotent. If the cluster already exists, it will be reused and workflows will run on the existing cluster.
 </Info>
 
 ---
@@ -641,7 +569,7 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute production-ha prod-us-east-01
+hyve cluster create prod-us-east-01 --template production-ha
 ```
 
 ---
@@ -671,7 +599,7 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute dev-minimal dev-feature-auth
+hyve cluster create dev-feature-auth --template dev-minimal
 ```
 
 ---
@@ -696,9 +624,9 @@ hyve template create eu-central \
   --on-create setup-monitoring
 
 # Deploy clusters from templates
-hyve template execute us-east prod-us-east-01
-hyve template execute us-west prod-us-west-01
-hyve template execute eu-central prod-eu-central-01
+hyve cluster create prod-us-east-01 --template us-east
+hyve cluster create prod-us-west-01 --template us-west
+hyve cluster create prod-eu-central-01 --template eu-central
 ```
 
 ---
@@ -888,10 +816,10 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute aws-eks-standard eks-prod-01
+hyve cluster create eks-prod-01 --template aws-eks-standard
 
 # Override VPC and roles at execution time:
-hyve template execute aws-eks-standard eks-prod-01 \
+hyve cluster create eks-prod-01 --template aws-eks-standard \
   --vpc-id vpc-0def987654321 \
   --eks-role-name prod-eks-role
 ```
@@ -938,7 +866,7 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute aws-eks-automated eks-prod-01
+hyve cluster create eks-prod-01 --template aws-eks-automated
 # No --vpc-id or role flags needed — the beforeCreate workflow provisions everything
 ```
 
@@ -981,7 +909,7 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute gcp-gke-standard gke-prod-01
+hyve cluster create gke-prod-01 --template gcp-gke-standard
 ```
 
 ---
@@ -1025,7 +953,7 @@ spec:
 **Execute:**
 
 ```bash
-hyve template execute azure-aks-standard aks-prod-01
+hyve cluster create aks-prod-01 --template azure-aks-standard
 ```
 
 ---

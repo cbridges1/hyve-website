@@ -178,7 +178,7 @@ Execute a template to create a cluster:
 
 ```bash
 # Execute template
-hyve template execute prod-template my-prod-cluster
+hyve cluster create my-prod-cluster --template prod-template
 
 # This will:
 # 1. Create cluster 'my-prod-cluster' using template specs
@@ -442,10 +442,10 @@ Create identical environments quickly:
 
 ```bash
 # Create production cluster
-hyve template execute prod-template prod-cluster-01
+hyve cluster create prod-cluster-01 --template prod-template
 
 # Create another production cluster
-hyve template execute prod-template prod-cluster-02
+hyve cluster create prod-cluster-02 --template prod-template
 
 # Both clusters identical: same size, region, and workflows
 ```
@@ -484,15 +484,15 @@ Deploy to multiple regions with same configuration:
 
 ```bash
 # US East
-hyve template execute prod-template us-east-prod
+hyve cluster create us-east-prod --template prod-template
 # Edit template to change region to NYC1
 
 # US West
-hyve template execute prod-template us-west-prod
+hyve cluster create us-west-prod --template prod-template
 # Edit template to change region to PHX1
 
 # EU
-hyve template execute prod-template eu-prod
+hyve cluster create eu-prod --template prod-template
 # Edit template to change region to FRA1
 ```
 
@@ -503,11 +503,11 @@ Test changes in development before production:
 ```bash
 # Create test cluster from template
 hyve git use development
-hyve template execute prod-template test-new-config
+hyve cluster create test-new-config --template prod-template
 
 # If successful, use in production
 hyve git use production
-hyve template execute prod-template prod-new-cluster
+hyve cluster create prod-new-cluster --template prod-template
 ```
 
 ## Best Practices
@@ -569,7 +569,7 @@ hyve template execute prod-template prod-new-cluster
 
     # Use specific version
     git checkout prod-template-v1.0
-    hyve template execute prod-template my-cluster
+    hyve cluster create my-cluster --template prod-template
     ```
   </Accordion>
 
@@ -579,12 +579,12 @@ hyve template execute prod-template prod-new-cluster
     ```bash
     # Test in development
     hyve git use development
-    hyve template execute new-template test-cluster
+    hyve cluster create test-cluster --template new-template
 
     # Verify workflows run successfully
     # Then use in production
     hyve git use production
-    hyve template execute new-template prod-cluster
+    hyve cluster create prod-cluster --template new-template
     ```
   </Accordion>
 </AccordionGroup>
@@ -713,7 +713,7 @@ spec:
 
 ```bash
 # Create production cluster
-hyve template execute production-complete prod-app-01
+hyve cluster create prod-app-01 --template production-complete
 
 # Output:
 # [INFO] Creating cluster 'prod-app-01' from template 'production-complete'
