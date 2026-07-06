@@ -1,0 +1,61 @@
+---
+interface Props {
+  title?: string;
+  icon?: string;
+}
+const { title } = Astro.props as Props;
+---
+<div class="mintlify-step">
+  <div class="mintlify-step-marker"></div>
+  <div class="mintlify-step-content">
+    {title && <p class="mintlify-step-title">{title}</p>}
+    <slot />
+  </div>
+</div>
+<style>
+  .mintlify-step {
+    display: flex;
+    gap: 1rem;
+    position: relative;
+    padding-bottom: 1.5rem;
+  }
+  .mintlify-step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 0.65rem;
+    top: 1.7rem;
+    bottom: 0;
+    width: 1px;
+    background: var(--sl-color-gray-5);
+  }
+  .mintlify-step-marker {
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    background: var(--sl-color-black);
+    border: 1px solid var(--sl-color-gray-5);
+    counter-increment: mintlify-step;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .mintlify-step-marker::before {
+    content: counter(mintlify-step);
+  }
+  .mintlify-step-content {
+    flex: 1;
+    min-width: 0;
+    padding-top: 0.1rem;
+  }
+  .mintlify-step-title {
+    font-weight: 600;
+    margin: 0 0 0.4rem 0;
+  }
+  .mintlify-step-content :global(p:first-child) {
+    margin-top: 0;
+  }
+</style>

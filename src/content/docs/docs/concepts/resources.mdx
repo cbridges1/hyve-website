@@ -1,0 +1,135 @@
+---
+title: "'Cluster Resources'"
+description: "'Declarative in-cluster resources, drift-detected and re-applied on every reconcile'"
+---
+
+import Card from '../../../../components/mintlify/Card.astro';
+import CardGroup from '../../../../components/mintlify/CardGroup.astro';
+import ParamField from '../../../../components/mintlify/ParamField.astro';
+
+## Overview
+
+Modules provision the cluster itself — the control plane, node pools, the infrastructure layer. `spec.resources` covers the layer on top: Kubernetes manifests and Helm releases that Hyve should own, drift-check, and re-apply, using the same reconcile cadence it already uses for everything else.
+
+A module is still required even if you only care about this layer — there's no driverless cluster type. See [Adopting an existing cluster](/docs/concepts/modules#adopting-an-existing-cluster) for how to write a minimal module when the cluster itself is provisioned elsewhere.
+
+On the cycle that creates a cluster, the full order is `beforeCreate` → create → `onCreate` → `spec.resources` → `afterCreate` (see [Lifecycle workflow hooks](/docs/concepts/clusters#lifecycle-workflow-hooks)) — `afterCreate` is the hook to use for anything that needs a resource-created object (a namespace, a Deployment) to already exist.
+
+This is the same problem Terraform solves with its `kubernetes`/`helm` providers — declare a resource once, and have it continuously compared against both your desired config and the live cluster on every `plan`/`apply`. It is **not** a replacement for a continuous GitOps controller like Argo CD or Flux — see [ArgoCD Integration](/docs/guides/argocd) for that pattern, which remains the right choice when you want health checks, sync waves, and a UI. `spec.resources` is for the narrower case: a handful of foundational resources (an ingress controller, cert-manager, a couple of CRDs) that a team wants Hyve itself to own, alongside the cluster that hosts them.
+
+## Two kinds of resource
+
+A `spec.resources` entry is either a raw manifest or a Helm release — exactly one of `source` or `helm` must be set.
+
+```yaml
+spec:
+  resources:
+    - name: nginx-ingress
+      source: ./resource-files/nginx-ingress.yaml
+      namespace: ingress-nginx
+
+    - name: cert-manager-crds
+      source: github.com/myorg/manifests//cert-manager/crds.yaml@v1.14.0
+
+    - name: cert-manager
+      helm:
+        chart: cert-manager
+        repo: https://charts.jetstack.io
+        version: v1.14.0
+        namespace: cert-manager
+        values:
+          installCRDs: "true"
+```
+
+`source` reuses the exact same source-string convention as `spec.driver.source` and remote workflow references: a local path, or `github.com/<org>/<repo>[//<path>][@<version>]`. It always names a single file — there's no directory-expansion form, since each resource needs one clear identity to track and prune. Omit the version to track the latest commit; unlike modules and workflows, resources aren't locked in `hyve.lock` — they're meant to be freshly checked every reconcile cycle by design, so drift in the *source itself* (someone pushed a new commit to the manifest repo) is exactly the kind of drift this feature is built to catch.
+
+### Field reference
+
+<ParamField path="name" type="string" required>
+  Identifies this resource within `spec.resources`/`spec.appliedResources`. Must be unique within a cluster. For a Helm resource this also doubles as the Helm release name.
+</ParamField>
+
+<ParamField path="source" type="string">
+  A local path or remote ref, resolving to exactly one manifest file. Mutually exclusive with `helm`.
+</ParamField>
+
+<ParamField path="namespace" type="string">
+  Applied via `kubectl apply/diff -n <namespace>` as a default. An object's own `metadata.namespace` still wins per normal kubectl behavior. Only meaningful with `source` — a Helm resource uses `helm.namespace` instead.
+</ParamField>
+
+<ParamField path="delete" type="boolean" default="false">
+  Marks this resource for removal. See [Removing a resource](#removing-a-resource) below.
+</ParamField>
+
+<ParamField path="helm" type="object">
+  Declares this resource as a Helm chart release instead of a raw manifest. Mutually exclusive with `source`. Sub-fields: `chart` (required), `repo`, `version`, `namespace`, `values` (a flat string map, passed as `--set key=value`).
+</ParamField>
+
+## Drift detection
+
+On every reconcile cycle, for an ACTIVE cluster, resource reconciliation runs **unconditionally** — unlike `spec.workflows.preReconcile`, which only fires when param drift is detected (see [Workflows](/docs/concepts/workflows#lifecycle-workflows)). For each declared resource, in list order:
+
+1. **Config drift** — the resource's current content hash (of the resolved manifest bytes, or of the Helm chart/version/values configuration) is compared against what was hashed at last apply.
+2. **Live drift** — `kubectl diff --server-side` (manifest resources) or `helm template` piped into the same diff (Helm resources) checks whether the *live* object has changed out-of-band — someone ran `kubectl edit`, for instance.
+
+Either kind of drift triggers a re-apply (`kubectl apply --server-side`, or `helm upgrade --install`). If neither has drifted, the resource is left alone. A failure — apply, delete, or resolve — stops the loop for that cluster with no rollback (whatever already applied this cycle stays applied) and fails the reconcile cycle so it's retried next time, rather than silently continuing past a broken resource.
+
+What Hyve applied is recorded in `spec.appliedResources`, keyed by resource name — reconciler-owned, never hand-edit, the same convention as `spec.driverOutputs`. Inspect it with [`hyve cluster resources <name>`](/docs/cli/cluster#hyve-cluster-resources).
+
+## Removing a resource
+
+Two mechanisms, mirroring how whole-cluster deletion already works:
+
+| | Mechanism | Safe by default? |
+|---|---|---|
+| **Explicit** | Set `delete: true` on the resource entry | Yes — always honored |
+| **Implicit** | Just remove the YAML block | No — only acted on if `strictResourceDelete: true` |
+
+**Explicit (`delete: true`)** is the recommended path. On the next reconcile, Hyve removes the tracked objects (`kubectl delete`, or `helm uninstall` for a Helm resource), drops the `spec.appliedResources` entry, and removes the resource entry itself from `spec.resources` — self-cleaning, the same way a cluster's YAML file is removed once `spec.delete: true` finishes processing. This works regardless of `strictResourceDelete`.
+
+**Implicit** is what happens if a resource entry just disappears from `spec.resources` without ever being marked `delete: true` — the reconciler notices an orphan (tracked in `spec.appliedResources` but no longer declared) and, by default, only logs a warning. Set `reconcile.strictResourceDelete: true` in `hyve.yaml` to have orphans pruned automatically instead:
+
+```yaml
+# hyve.yaml
+reconcile:
+  strictDelete: false          # whole-cluster prune (existing)
+  strictResourceDelete: false  # in-cluster resource prune (default: off)
+```
+
+This mirrors `strictDelete`'s existing default — safety first, opt into automatic pruning once you trust the workflow.
+
+## Dry-run preview
+
+`hyve reconcile --dry-run` makes the whole cycle read-only: resolution and diffing still run for real (both are read-only), but every mutating call is skipped and logged instead.
+
+```
+[production] Resource nginx-ingress: drift detected (config changed) — applying
+```
+becomes, under `--dry-run`:
+```
+[production] DRY RUN: resource nginx-ingress drift detected (config changed) — would apply
+...
+[production] DRY RUN: 2 resource(s) with drift, 3 unchanged
+```
+
+See [`hyve reconcile --dry-run`](/docs/cli/cluster#reconciliation) — it also covers cluster create/delete/scale and lifecycle workflows, not just resources, so it's safe to run against a repo with pending changes anywhere.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve cluster" icon="terminal" href="/docs/cli/cluster" color="#10b981">
+    `hyve cluster resources` command reference
+  </Card>
+
+  <Card title="Workflows" icon="diagram-project" href="/docs/concepts/workflows" color="#22c55e">
+    Imperative, hook-triggered automation
+  </Card>
+
+  <Card title="ArgoCD Integration" icon="rotate" color="#8b5cf6" href="/docs/guides/argocd">
+    Continuous application delivery, for when you outgrow spec.resources
+  </Card>
+
+  <Card title="Resource Management Guide" icon="list-check" href="/docs/guides/resource-management" color="#eab308">
+    Step-by-step walkthrough
+  </Card>
+</CardGroup>

@@ -1,0 +1,311 @@
+---
+title: "CLI Overview"
+description: "Complete reference for the Hyve command-line interface"
+---
+
+import Card from '../../../../components/mintlify/Card.astro';
+import CardGroup from '../../../../components/mintlify/CardGroup.astro';
+import Tabs from '../../../../components/mintlify/Tabs.astro';
+import Tab from '../../../../components/mintlify/Tab.astro';
+import Accordion from '../../../../components/mintlify/Accordion.astro';
+import AccordionGroup from '../../../../components/mintlify/AccordionGroup.astro';
+
+The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templates using GitOps principles.
+
+<CardGroup cols={3}>
+  <Card title="cluster" icon="server" href="/docs/cli/cluster" color="#3b82f6">
+    Cluster lifecycle
+  </Card>
+  <Card title="module" icon="cube" href="/docs/cli/module" color="#8b5cf6">
+    Provider modules
+  </Card>
+  <Card title="template" icon="stamp" href="/docs/cli/template" color="#06b6d4">
+    Reusable cluster patterns
+  </Card>
+  <Card title="workflow" icon="diagram-project" href="/docs/cli/workflow" color="#22c55e">
+    Automated pipelines
+  </Card>
+  <Card title="git" icon="git" href="/docs/cli/git" color="#f97316">
+    Repository operations
+  </Card>
+  <Card title="serve" icon="server" href="/docs/cli/serve" color="#ec4899">
+    REST + WebSocket API server
+  </Card>
+  <Card title="tui" icon="terminal" href="/docs/cli/tui" color="#eab308">
+    Guided TUI
+  </Card>
+</CardGroup>
+
+## Command Structure
+
+```bash
+hyve <command> <subcommand> [arguments] [flags]
+
+hyve --help
+hyve cluster --help
+hyve cluster add --help
+```
+
+## Global Flags
+
+These flags are accepted by every command:
+
+| Flag | Description |
+|------|-------------|
+| `--home <dir>` | Override the Hyve data directory (default: `~/.hyve`). Also configurable via the `HYVE_HOME` environment variable. |
+
+```bash
+# Use a custom data directory for this invocation
+hyve --home /tmp/hyve-test reconcile
+
+# Or set it persistently via environment variable
+export HYVE_HOME=/tmp/hyve-test
+hyve reconcile
+```
+
+---
+
+## Commands
+
+### cluster
+
+```bash
+hyve cluster list
+hyve cluster show <name>
+hyve cluster delete <name>
+hyve cluster auth <name>
+hyve cluster deauth <name>
+```
+
+[Full reference →](/docs/cli/cluster)
+
+### module
+
+```bash
+hyve module install
+hyve module add <source>[@<version>]
+hyve module update <source>
+hyve module list
+hyve module info <source>
+hyve module validate
+hyve module remove <source>
+hyve module init <name>
+```
+
+[Full reference →](/docs/cli/module)
+
+### reconcile
+
+```bash
+# Local mode — provisions clusters from this machine
+hyve reconcile
+
+# CI/CD pipeline mode — uses a checked-out repo path directly
+hyve reconcile --path .
+hyve reconcile --path /path/to/repo
+```
+
+Reconciliation mode and strict delete are controlled by `hyve.yaml` in your state repository. See the [CI/CD guide](/docs/guides/cicd).
+
+### git
+
+```bash
+hyve git add <name> --repo-url <url> [--path <dir>]
+hyve git list
+hyve git use <name>
+hyve git current
+hyve git path [--repo <name>]
+hyve git set-path <new-path> [--repo <name>]
+hyve git reset-path [--repo <name>]
+hyve git credentials --username <user> --password <token>
+hyve git remove <name>
+```
+
+[Full reference →](/docs/cli/git)
+
+### workflow
+
+```bash
+hyve workflow run <name> [--cluster <cluster>]
+hyve workflow list
+hyve workflow validate <name>
+```
+
+[Full reference →](/docs/cli/workflow)
+
+### template
+
+```bash
+hyve template create <name> --driver <source> --driver-version <ver> --region <region> [--set KEY=VALUE]
+hyve cluster create <cluster-name> --template <template> [--region <region>] [--set KEY=VALUE]
+hyve template list
+hyve template show <name>
+hyve template delete <name>
+hyve template validate <name>
+```
+
+[Full reference →](/docs/cli/template)
+
+### serve
+
+```bash
+hyve serve [--port <port>] [--path <repo>] [--host <addr>] [--require-auth] [--open]
+hyve open
+```
+
+Runs hyve as a REST + WebSocket API server — the same operations available through the CLI, available over HTTP for a browser frontend or any other client. `hyve open` starts the server if one isn't already running and opens a configured frontend pointed at it.
+
+[Full reference →](/docs/cli/serve)
+
+### tui
+
+```bash
+hyve tui
+```
+
+Launches a full-screen guided TUI. Navigates all command groups — cluster, template, git, workflow — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+
+[Full reference →](/docs/cli/tui)
+
+---
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CIVO_TOKEN` | Civo API token (read by the Civo module) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (read by the EKS module via the AWS SDK chain) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (read by the GKE module via ADC) |
+| `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Azure service principal (read by the AKS module) |
+| `HYVE_GIT_TOKEN` | Git authentication token for private repositories |
+| `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
+| `HYVE_PARAM_<KEY>` | Injected into module operations from `cluster.spec.params` |
+| `HYVE_PORT` | Port `hyve serve`/`hyve open` listen on. Equivalent to `--port` flag. |
+| `HYVE_AUTH_VALIDATE_URL` | Forward-auth validator endpoint for `hyve serve` (see [Server Mode](/docs/guides/server-mode#authentication)) |
+| `HYVE_AUTH_VALIDATE_TIMEOUT` | Timeout before the forward-auth validator is treated as unreachable (default `3s`) |
+
+See the [CI/CD guide](/docs/guides/cicd) for how to configure credentials in pipelines.
+
+---
+
+## Common Workflows
+
+### Initial setup
+
+```bash
+# 1. Authenticate with cloud provider CLI (example: Civo)
+civo apikey save my-token YOUR_CIVO_TOKEN && civo apikey use my-token
+
+# 2. Add state repository
+hyve git add production --repo-url https://github.com/company/hyve-state.git
+
+# 3. Install a module
+hyve module add github.com/hyve-modules/civo@v1.0.0
+
+# 4. Create a template
+hyve template create my-template \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.medium
+
+# 5. Create a cluster from the template
+hyve cluster create my-cluster --template my-template
+
+# 6. Authenticate and connect
+hyve cluster auth my-cluster
+kubectl get nodes
+```
+
+### CI/CD pipeline
+
+```yaml
+# hyve.yaml in state repository root
+reconcile:
+  mode: cicd
+  strictDelete: true
+```
+
+```bash
+# Engineer pushes desired state (no cloud credentials needed locally)
+hyve reconcile
+
+# Pipeline step — provisions the actual cloud resources
+hyve reconcile --path .
+```
+
+### Delete a cluster
+
+```bash
+# Sets spec.delete: true, commits, runs reconciliation (runs lifecycle hooks)
+hyve cluster delete my-cluster
+```
+
+---
+
+## Shell Completion
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    eval "$(hyve completion bash)"
+    ```
+  </Tab>
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    eval "$(hyve completion zsh)"
+    ```
+  </Tab>
+  <Tab title="Fish">
+    ```bash
+    hyve completion fish | source
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="hyve: command not found">
+    ```bash
+    sudo mv hyve /usr/local/bin/
+    # or
+    export PATH=$PATH:/path/to/hyve
+    ```
+  </Accordion>
+
+  <Accordion title="No active repository configured">
+    ```bash
+    hyve git add production --repo-url https://github.com/company/hyve-state.git
+    ```
+  </Accordion>
+
+  <Accordion title="API authentication failed">
+    ```bash
+    # Civo — authenticate with the Civo CLI (writes ~/.civo.json)
+    civo apikey save my-token YOUR_CIVO_TOKEN
+    civo apikey use my-token
+    # or set env var: export CIVO_TOKEN=your_token
+    # AWS
+    aws configure
+    # GCP
+    gcloud auth application-default login
+    # Azure
+    az login
+    ```
+  </Accordion>
+
+  <Accordion title="Module not found">
+    ```bash
+    # Install all modules referenced by templates
+    hyve module install
+
+    # Or add the specific module
+    hyve module add github.com/hyve-modules/civo@v1.0.0
+    ```
+  </Accordion>
+</AccordionGroup>

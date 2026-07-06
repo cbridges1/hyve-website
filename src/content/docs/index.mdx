@@ -1,0 +1,172 @@
+---
+title: "Hyve"
+description: "GitOps-first Kubernetes cluster management CLI"
+template: splash
+hero:
+  title: Hyve
+  tagline: GitOps-first Kubernetes cluster management
+  actions:
+    - text: Get Started
+      link: /docs/quickstart
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/cbridges1/hyve
+      icon: external
+      variant: secondary
+---
+
+import Card from '../../components/mintlify/Card.astro';
+import CardGroup from '../../components/mintlify/CardGroup.astro';
+import Steps from '../../components/mintlify/Steps.astro';
+import Step from '../../components/mintlify/Step.astro';
+import Accordion from '../../components/mintlify/Accordion.astro';
+import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
+
+<p style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 3rem' }}>
+  Define clusters as YAML, commit to Git, and reconcile. Hyve manages the full lifecycle — create, scale, delete — across any cloud provider via a modular driver system.
+</p>
+
+## How it works
+
+<Steps>
+  <Step title="Install a module">
+    Modules are versioned, self-contained packages that implement cluster operations — create, delete, status, auth — using shell scripts or workflow YAMLs. No cloud SDKs embedded in Hyve.
+
+    ```bash
+    hyve module add github.com/hyve-modules/civo@v1.0.0
+    ```
+  </Step>
+
+  <Step title="Create a template">
+    Templates capture your cluster shape, driver, region, and params. One template, infinite clusters.
+
+    ```bash
+    hyve template create my-civo-template \
+      --driver github.com/hyve-modules/civo \
+      --driver-version v1.0.0 \
+      --region PHX1 \
+      --set node_size=g4s.kube.medium
+    ```
+  </Step>
+
+  <Step title="Create a cluster from the template">
+    Create a cluster from the template to generate a cluster YAML and commit it to your Git state repository.
+
+    ```bash
+    hyve cluster create my-cluster --template my-civo-template
+    ```
+  </Step>
+
+  <Step title="Reconcile">
+    Reconcile reads Git, calls the module, and provisions the cluster. The same command works locally or from a CI/CD pipeline.
+
+    ```bash
+    hyve reconcile
+    ```
+  </Step>
+</Steps>
+
+## Features
+
+<CardGroup cols={3}>
+  <Card title="GitOps Native" icon="code-branch" color="#3b82f6">
+    All cluster state lives in Git. Every change is version-controlled, reviewed through pull requests, and rolled back with a revert commit.
+  </Card>
+
+  <Card title="Module System" icon="cube" color="#8b5cf6">
+    Modules are versioned packages for any cloud provider. Install once, reference from any template. No cloud SDKs are bundled into Hyve itself.
+  </Card>
+
+  <Card title="Lifecycle Hooks" icon="gears" color="#22c55e">
+    `beforeCreate`, `onCreate`, `onDelete`, `afterDelete` — run arbitrary workflows at each stage of a cluster's lifecycle, automatically, every time.
+  </Card>
+
+  <Card title="Cluster Templates" icon="file-code" color="#06b6d4">
+    Define the shape of a cluster once. Execute the template by name to stamp out clusters consistently across environments.
+  </Card>
+
+  <Card title="Any Provider" icon="cloud" color="#f97316">
+    First-party modules for Civo, AWS EKS, GCP GKE, and Azure AKS. Community modules for anything else. Your credentials stay in your environment.
+  </Card>
+
+  <Card title="Variable Injection" icon="brackets-curly" color="#eab308">
+    Module params are injected as `HYVE_PARAM_*` environment variables. Workflow outputs flow back as `HYVE_KEY=value` lines and are persisted for the next reconcile.
+  </Card>
+</CardGroup>
+
+## Why Hyve?
+
+<AccordionGroup>
+  <Accordion title="Git is your state backend — no S3, no Terraform Cloud">
+    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. Full change history, pull request reviews, and rollbacks are inherent in Git — no extra backend to operate or pay for.
+  </Accordion>
+
+  <Accordion title="Continuous reconciliation — no plan files or approval gates">
+    Commit a cluster YAML and it is created. Remove it and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command handles all three cases without separate plan/apply cycles.
+  </Accordion>
+
+  <Accordion title="Lifecycle hooks — no extra orchestration">
+    After a cluster becomes active, you typically need to install controllers, run smoke tests, or notify a team channel. In Hyve, `onCreate` and `onDelete` hooks run automatically as part of the same reconcile cycle — define once, run every time.
+  </Accordion>
+
+  <Accordion title="Modules, not embedded SDKs">
+    Old-style GitOps tools embed cloud SDKs. If your provider isn't supported, you're stuck. Hyve modules are external packages that shell out to any CLI tool you already have configured. Your credentials, your tools, your control.
+  </Accordion>
+
+  <Accordion title="Automatic kubeconfig management">
+    Run `hyve cluster auth my-cluster` to merge any cluster's kubeconfig into `~/.kube/config`. The module handles the authentication call; Hyve manages the merge.
+  </Accordion>
+
+  <Accordion title="Native cluster templates — no Terragrunt required">
+    For teams provisioning clusters to the same pattern, Hyve has native templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreate` workflows run — all in one step.
+  </Accordion>
+</AccordionGroup>
+
+## First-party modules
+
+<CardGroup cols={2}>
+  <Card title="Civo" icon="cloud" color="#3b82f6" href="https://github.com/hyve-modules/civo">
+    `github.com/hyve-modules/civo` — Fast K3s and Talos clusters on Civo Cloud
+  </Card>
+
+  <Card title="AWS EKS" icon="aws" color="#f97316" href="https://github.com/hyve-modules/eks">
+    `github.com/hyve-modules/eks` — Amazon Elastic Kubernetes Service
+  </Card>
+
+  <Card title="GCP GKE" icon="google" color="#22c55e" href="https://github.com/hyve-modules/gke">
+    `github.com/hyve-modules/gke` — Google Kubernetes Engine
+  </Card>
+
+  <Card title="Azure AKS" icon="microsoft" color="#8b5cf6" href="https://github.com/hyve-modules/aks">
+    `github.com/hyve-modules/aks` — Azure Kubernetes Service
+  </Card>
+</CardGroup>
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#3b82f6">
+    Up and running in under 5 minutes
+  </Card>
+
+  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    Learn how the module system works
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/docs/cli/overview" color="#10b981">
+    Complete command reference
+  </Card>
+
+  <Card title="Guides" icon="map" href="/docs/guides/cluster-management" color="#f97316">
+    Cluster management guides
+  </Card>
+
+  <Card title="hyve-sample-repo" icon="flask" href="https://github.com/cbridges1/hyve-sample-repo" color="#ec4899">
+    Clone a complete, runnable example — no cloud credentials needed
+  </Card>
+
+  <Card title="Hyve Studio" icon="window" href="https://github.com/cbridges1/hyve-studio" color="#eab308">
+    A browser UI for hyve serve, built entirely on its public API
+  </Card>
+</CardGroup>

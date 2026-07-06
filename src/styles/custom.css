@@ -1,0 +1,149 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/*
+ * Color mapping from the original Mintlify docs.json:
+ *   colors.primary = #000000  -> accent color in light mode
+ *   colors.light   = #FFFFFF  -> accent color in dark mode
+ *   colors.dark    = #9C9C9C  -> buttons / hover states, both modes
+ * Grays are de-hued (saturation 0) to match Mintlify's neutral black/white/gray
+ * look instead of Starlight's default blue-tinted grayscale.
+ */
+
+:root {
+  --sl-font: 'Inter', system-ui, sans-serif;
+  --sl-text-h1: 2.75rem;
+
+  /* dark mode neutrals + backgrounds */
+  --sl-color-white: hsl(0, 0%, 100%);
+  --sl-color-gray-1: hsl(0, 0%, 93%);
+  --sl-color-gray-2: hsl(0, 0%, 78%);
+  --sl-color-gray-3: hsl(0, 0%, 61%);
+  --sl-color-gray-4: hsl(0, 0%, 42%);
+  --sl-color-gray-5: hsl(0, 0%, 26%);
+  --sl-color-gray-6: hsl(0, 0%, 15%);
+  --sl-color-black: hsl(0, 0%, 6%);
+
+  --sl-color-accent-low: hsl(0, 0%, 22%);
+  --sl-color-accent: #ffffff;
+  --sl-color-accent-high: #ffffff;
+  --sl-color-hover: #9c9c9c;
+
+  --sl-color-bg: var(--sl-color-black);
+  --sl-color-bg-nav: var(--sl-color-black);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-color-hairline: hsl(0, 0%, 20%);
+  --sl-color-hairline-light: hsl(0, 0%, 20%);
+  --sl-color-hairline-shade: var(--sl-color-black);
+}
+
+:root[data-theme='light'] {
+  --sl-color-white: hsl(0, 0%, 6%);
+  --sl-color-gray-1: hsl(0, 0%, 15%);
+  --sl-color-gray-2: hsl(0, 0%, 26%);
+  --sl-color-gray-3: hsl(0, 0%, 42%);
+  --sl-color-gray-4: hsl(0, 0%, 61%);
+  --sl-color-gray-5: hsl(0, 0%, 85%);
+  --sl-color-gray-6: hsl(0, 0%, 95%);
+  --sl-color-gray-7: hsl(0, 0%, 98%);
+  --sl-color-black: hsl(0, 0%, 100%);
+
+  --sl-color-accent-low: hsl(0, 0%, 90%);
+  --sl-color-accent: #000000;
+  --sl-color-accent-high: #000000;
+  --sl-color-text-accent: #000000;
+  --sl-color-hover: #9c9c9c;
+
+  --sl-color-bg: var(--sl-color-black);
+  --sl-color-bg-nav: var(--sl-color-black);
+  --sl-color-bg-sidebar: var(--sl-color-black);
+  --sl-color-hairline: hsl(0, 0%, 90%);
+  --sl-color-hairline-light: hsl(0, 0%, 92%);
+  --sl-color-hairline-shade: hsl(0, 0%, 90%);
+}
+
+/* Rounder, weightier buttons to match Mintlify's pill-ish CTAs */
+.sl-link-button {
+  border-radius: 0.6rem !important;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.sl-link-button.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+.sl-link-button.secondary:hover {
+  transform: translateY(-1px);
+}
+
+/* Hero spacing closer to Mintlify's generous whitespace */
+.hero {
+  padding-block: 3rem 2rem;
+}
+.hero h1 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.hero .tagline {
+  font-size: 1.25rem;
+  opacity: 0.75;
+}
+
+/* Sidebar: subtle rounded highlight on the active/hovered link, like Mintlify's nav */
+nav.sidebar a {
+  border-radius: 0.4rem;
+}
+nav.sidebar a[aria-current='page'] {
+  background-color: var(--sl-color-accent-low);
+  font-weight: 600;
+}
+nav.sidebar a:hover {
+  color: var(--sl-color-hover);
+}
+
+/* Header "Docs" link */
+.docs-header-link {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  color: var(--sl-color-text);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 0.4rem 0;
+}
+.docs-header-link:hover {
+  color: var(--sl-color-hover);
+}
+.docs-header-link svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* Code blocks: slightly more rounded corners */
+.expressive-code .frame {
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+
+/* Headings a touch tighter, matching Mintlify's condensed heading rhythm */
+.sl-markdown-content h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+}
+
+/* Homepage (template: splash) only — center section headings and add breathing
+   room between sections so it reads as a landing page, not an article. */
+:root:not([data-has-sidebar]) .sl-markdown-content h2 {
+  text-align: center;
+  font-size: var(--sl-text-3xl);
+  margin-top: 4.5rem;
+  margin-bottom: 0.5rem;
+}
+:root:not([data-has-sidebar]) .sl-markdown-content > h2 + p {
+  text-align: center;
+  color: var(--sl-color-gray-3);
+  max-width: 40rem;
+  margin-inline: auto;
+}

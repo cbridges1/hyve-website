@@ -1,0 +1,81 @@
+---
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  title?: string;
+  icon?: string;
+  color?: string;
+  href?: string;
+  horizontal?: boolean;
+}
+const { title, icon: rawIcon, color = '#000000', href } = Astro.props as Props;
+
+// A handful of Mintlify's Font Awesome 5-era icon slugs don't exist in the FA6 sets we ship;
+// map them to the closest FA6 equivalent.
+const ICON_ALIASES: Record<string, string> = {
+  'brackets-curly': 'code',
+  'file-check': 'file-circle-check',
+  'shield-check': 'shield-halved',
+  window: 'window-maximize',
+};
+const icon = rawIcon ? (ICON_ALIASES[rawIcon] ?? rawIcon) : undefined;
+
+const BRAND_ICONS = new Set(['aws', 'google', 'microsoft', 'git', 'github', 'gitlab', 'bitbucket', 'docker', 'kubernetes', 'linux', 'apple', 'windows']);
+const iconName = icon ? `fa6-${BRAND_ICONS.has(icon) ? 'brands' : 'solid'}:${icon}` : undefined;
+
+const Tag = href ? 'a' : 'div';
+---
+<Tag class="mintlify-card" href={href} style={`--card-accent: ${color}`}>
+  {iconName && (
+    <div class="mintlify-card-icon">
+      <Icon name={iconName} />
+    </div>
+  )}
+  {title && <p class="mintlify-card-title">{title}</p>}
+  <div class="mintlify-card-body"><slot /></div>
+</Tag>
+<style>
+  .mintlify-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.4rem;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    background: var(--sl-color-bg);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  a.mintlify-card:hover {
+    border-color: var(--card-accent, var(--sl-color-gray-2));
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+  }
+  .mintlify-card-icon {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--card-accent, #000);
+    font-size: 1.35rem;
+    margin-bottom: 0.6rem;
+  }
+  .mintlify-card-icon :global(svg) {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+  .mintlify-card-title {
+    font-weight: 600;
+    margin: 0 0 0.35rem 0;
+    color: var(--sl-color-white);
+  }
+  .mintlify-card-body {
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-2);
+  }
+  .mintlify-card-body :global(p) {
+    margin: 0;
+  }
+</style>

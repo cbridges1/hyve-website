@@ -1,0 +1,748 @@
+---
+title: "'hyve git'"
+description: "'Complete reference for all Git repository management commands'"
+---
+
+import Info from '../../../../components/mintlify/Info.astro';
+import Warning from '../../../../components/mintlify/Warning.astro';
+import ParamField from '../../../../components/mintlify/ParamField.astro';
+
+The `hyve git` command group manages Git repositories for state management in Hyve. All cluster configurations, workflows, and templates are stored in Git repositories, enabling GitOps workflows and version control.
+
+## Overview
+
+Hyve requires at least one Git repository for storing cluster state. You can configure multiple repositories for different environments (e.g., production, staging, development) and switch between them.
+
+## Commands
+
+### hyve git add
+
+Add a new Git repository configuration for state management.
+
+```bash
+hyve git add [repository-name] --repo-url <url> [flags]
+```
+
+<ParamField path="repository-name" type="string" required>
+  Friendly identifier for the repository. Used when switching between repositories.
+</ParamField>
+
+<ParamField path="--repo-url" type="string" required>
+  Git repository URL (HTTPS or SSH format)
+</ParamField>
+
+<ParamField path="--username" type="string">
+  Git username for authentication (stored in repository config)
+</ParamField>
+
+<ParamField path="--set-current" type="boolean" default="false">
+  Set this repository as the current active repository after adding
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Custom local path for the repository clone. Defaults to `~/.hyve/repositories/<repository-name>` if omitted. Persisted — no need to pass `--path` again on future commands. Change it later with [`hyve git set-path`](#hyve-git-set-path).
+</ParamField>
+
+**Example:**
+
+```bash
+# Add a production repository
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+
+# Add with username and set as current
+hyve git add staging \
+  --repo-url https://github.com/company/hyve-staging.git \
+  --username myuser \
+  --set-current
+
+# Clone somewhere other than the default ~/.hyve/repositories/<name>
+hyve git add production \
+  --repo-url https://github.com/company/hyve-prod.git \
+  --path ~/code/hyve-prod
+```
+
+**Output:**
+
+```
+Adding Git repository 'production': https://github.com/company/hyve-prod.git
+Testing Git repository connection...
+✅ Git repository connected successfully!
+Repository 'production' added successfully!
+Repository URL: https://github.com/company/hyve-prod.git
+Local path: /Users/username/.hyve/repositories/production
+Authentication: ✅ Global credentials configured
+
+💡 Tips:
+  - Use 'hyve git list' to see all repositories
+  - Use 'hyve git use <name>' to switch repositories
+  - Use 'hyve git credentials' to manage global Git authentication
+```
+
+---
+
+### hyve git list
+
+List all configured Git repositories and their status.
+
+```bash
+hyve git list
+```
+
+**Example:**
+
+```bash
+hyve git list
+```
+
+**Output:**
+
+```
+📁 Configured Git repositories (3):
+
+  production (current) ⭐
+    URL: https://github.com/company/hyve-prod.git
+    Local: /Users/username/.hyve/repositories/production
+    User: myuser
+    Added: 2024-01-15 10:30
+
+  staging
+    URL: https://github.com/company/hyve-staging.git
+    Local: /Users/username/.hyve/repositories/staging
+    Added: 2024-01-14 09:15
+
+  development
+    URL: https://github.com/company/hyve-dev.git
+    Local: /Users/username/.hyve/repositories/development
+    Added: 2024-01-13 14:45
+
+🔑 Authentication: ✅ Global credentials configured (myuser)
+🔑 Environment Fallback: ✅ HYVE_GIT_TOKEN configured
+```
+
+---
+
+### hyve git use
+
+Switch to a different Git repository as the current active repository.
+
+```bash
+hyve git use [repository-name]
+```
+
+<ParamField path="repository-name" type="string" required>
+  Name of the repository to switch to
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git use staging
+```
+
+**Output:**
+
+```
+✅ Switched to repository 'staging'
+Repository URL: https://github.com/company/hyve-staging.git
+Local path: /Users/username/.hyve/repositories/staging
+```
+
+---
+
+### hyve git status
+
+Show current Git configuration status and test repository connection.
+
+```bash
+hyve git status
+```
+
+**Example:**
+
+```bash
+hyve git status
+```
+
+**Output:**
+
+```
+✅ Current repository: production
+Repository URL: https://github.com/company/hyve-prod.git
+Local path: /Users/username/.hyve/repositories/production
+Username: myuser
+Authentication: ✅ Global credentials configured (myuser)
+
+Testing connection...
+✅ Connection successful
+```
+
+---
+
+### hyve git path
+
+Print a repository's absolute local filesystem path — nothing else is written to stdout, so it composes with shell substitution for quickly navigating to the repo.
+
+```bash
+hyve git path [flags]
+```
+
+<ParamField path="--repo" type="string">
+  Repository name. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+cd "$(hyve git path)"
+
+# A different repository
+cd "$(hyve git path --repo staging)"
+```
+
+**Output:**
+
+```
+/Users/username/.hyve/repositories/production
+```
+
+---
+
+### hyve git set-path
+
+Move a repository's local clone to a new location on disk and persist it — no `--path` flag is needed on any future command, the new location is remembered.
+
+```bash
+hyve git set-path <new-path> [flags]
+```
+
+<ParamField path="new-path" type="string" required>
+  Where to move the repository's local clone.
+</ParamField>
+
+<ParamField path="--repo" type="string">
+  Repository name to move. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git set-path ~/code/hyve-prod
+
+# A different repository
+hyve git set-path /Volumes/external/hyve-staging --repo staging
+```
+
+**Output:**
+
+```
+✅ Repository 'production' local path updated
+  Old: /Users/username/.hyve/repositories/production
+  New: /Users/username/code/hyve-prod
+
+💡 No --path flag needed going forward — this is persisted.
+```
+
+<Info>
+  If the repository already has a clone on disk, it's moved (renamed, or copied and removed if the new path is on a different volume) — not re-cloned. If the target path already exists and is non-empty, the command refuses to overwrite it.
+</Info>
+
+---
+
+### hyve git reset-path
+
+Move a repository's local clone back to the default location (`~/.hyve/repositories/<name>`), undoing a previous `hyve git set-path`.
+
+```bash
+hyve git reset-path [flags]
+```
+
+<ParamField path="--repo" type="string">
+  Repository name to reset. Defaults to the current repository.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git reset-path
+```
+
+---
+
+### hyve git remove
+
+Remove a Git repository configuration from storage.
+
+```bash
+hyve git remove [repository-name]
+```
+
+<ParamField path="repository-name" type="string" required>
+  Name of the repository to remove
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git remove development
+```
+
+**Output:**
+
+```
+✅ Repository 'development' removed successfully
+Current repository is now: production
+```
+
+---
+
+### hyve git reset
+
+Remove all Git repository configurations and revert to local state directory.
+
+```bash
+hyve git reset
+```
+
+**Example:**
+
+```bash
+hyve git reset
+```
+
+**Output:**
+
+```
+✅ All Git configurations reset
+Add a Git repository to continue using Hyve: hyve git add <name> --repo-url <url>
+```
+
+<Warning>
+  This command removes all repository configurations. Local clones in `~/.hyve/repositories/` are preserved.
+</Warning>
+
+---
+
+### hyve git credentials
+
+Manage global Git credentials for authentication.
+
+```bash
+hyve git credentials [flags]
+```
+
+<ParamField path="--username" type="string">
+  Git username for authentication
+</ParamField>
+
+<ParamField path="--password" type="string">
+  Git password or personal access token
+</ParamField>
+
+<ParamField path="--clear" type="boolean" default="false">
+  Clear all stored credentials
+</ParamField>
+
+**Examples:**
+
+```bash
+# Store credentials
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# View current credentials
+hyve git credentials
+
+# Clear credentials
+hyve git credentials --clear
+```
+
+**Output (store):**
+
+```
+✅ Global Git credentials stored securely
+Username: myuser
+Password: ✅ Stored and encrypted
+```
+
+**Output (view):**
+
+```
+✅ Global Git credentials:
+Username: myuser
+Password: ✅ Stored and encrypted
+Updated: 2024-01-15 10:30:45
+
+💡 Environment token also available as fallback
+```
+
+<Info>
+  Credentials are encrypted using AES-GCM and stored in `~/.hyve/credentials.db`. You can also use the `HYVE_GIT_TOKEN` environment variable as a fallback.
+</Info>
+
+---
+
+### hyve git credentials-migrate
+
+Migrate credentials encryption from hostname-based keys to portable keys.
+
+```bash
+hyve git credentials-migrate [old-hostname]
+```
+
+<ParamField path="old-hostname" type="string" required>
+  Hostname that was used when credentials were originally encrypted
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git credentials-migrate "old-macbook.local"
+```
+
+**Output:**
+
+```
+🔄 Starting credentials encryption migration
+🔑 Old hostname: old-macbook.local
+
+✅ Migration completed successfully!
+
+📝 Your credentials have been re-encrypted with the new portable key format.
+💡 Your credentials will now work across different machines without hostname dependencies.
+```
+
+<Info>
+  Use this command when moving the Hyve database to a new machine or after hostname changes.
+</Info>
+
+---
+
+## Branch Management
+
+### hyve git branch list
+
+List all branches in the current Git repository.
+
+```bash
+hyve git branch list
+```
+
+**Example:**
+
+```bash
+hyve git branch list
+```
+
+**Output:**
+
+```
+🌿 Branches in repository 'production':
+
+* main (a1b2c3d)
+  feature/new-cluster (e4f5g6h)
+  hotfix/cluster-config (i7j8k9l)
+
+💡 Commands:
+  hyve git branch create <name>    # Create new branch
+  hyve git branch switch <name>    # Switch to branch
+  hyve git branch delete <name>    # Delete branch
+```
+
+---
+
+### hyve git branch create
+
+Create a new branch from the current HEAD.
+
+```bash
+hyve git branch create [branch-name] [flags]
+```
+
+<ParamField path="branch-name" type="string" required>
+  Name of the new branch to create
+</ParamField>
+
+<ParamField path="--switch" type="boolean" default="false">
+  Switch to the new branch after creating it
+</ParamField>
+
+<ParamField path="--push" type="boolean" default="false">
+  Push the branch to remote after creating it
+</ParamField>
+
+**Example:**
+
+```bash
+# Create and switch to new branch
+hyve git branch create feature/add-monitoring --switch
+
+# Create, switch, and push
+hyve git branch create feature/new-env --switch --push
+```
+
+**Output:**
+
+```
+Creating branch 'feature/add-monitoring' from 'main'...
+✅ Branch 'feature/add-monitoring' created successfully
+✅ Switched to branch 'feature/add-monitoring'
+```
+
+---
+
+### hyve git branch delete
+
+Delete a branch from the local repository.
+
+```bash
+hyve git branch delete [branch-name] [flags]
+```
+
+<ParamField path="branch-name" type="string" required>
+  Name of the branch to delete
+</ParamField>
+
+<ParamField path="--force" type="boolean" default="false">
+  Force delete the branch (even if unmerged)
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git branch delete feature/old-feature --force
+```
+
+**Output:**
+
+```
+Deleting branch 'feature/old-feature'...
+✅ Branch 'feature/old-feature' deleted successfully
+
+💡 The branch has been deleted locally.
+💡 To delete from remote, use: git push origin --delete feature/old-feature
+```
+
+---
+
+### hyve git branch switch
+
+Switch to a different branch (git checkout).
+
+```bash
+hyve git branch switch [branch-name] [flags]
+```
+
+<ParamField path="branch-name" type="string" required>
+  Name of the branch to switch to
+</ParamField>
+
+<ParamField path="--pull" type="boolean" default="false">
+  Pull latest changes after switching
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git branch switch main --pull
+```
+
+**Output:**
+
+```
+Switching from 'feature/add-monitoring' to 'main'...
+✅ Switched to branch 'main'
+Pulling latest changes...
+✅ Pulled latest changes
+
+💡 Your working directory now reflects the 'main' branch
+💡 Changes made will be tracked on this branch
+```
+
+---
+
+## Synchronization
+
+### hyve git pull
+
+Pull the latest changes from the remote repository for the current branch.
+
+```bash
+hyve git pull
+```
+
+**Example:**
+
+```bash
+hyve git pull
+```
+
+**Output:**
+
+```
+Pulling latest changes from 'main'...
+✅ Successfully pulled latest changes
+
+💡 Your local branch is now up to date with remote
+```
+
+---
+
+### hyve git push
+
+Stage all changes, commit with a message, and push to remote.
+
+```bash
+hyve git push [commit-message]
+```
+
+<ParamField path="commit-message" type="string">
+  Commit message. If not provided, a default message will be generated based on changes.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git push "Add new production cluster configuration"
+```
+
+**Output:**
+
+```
+📝 Changes detected: 2 files changed, 45 insertions(+)
+Committing changes to 'main'...
+✅ Changes committed successfully
+Pushing to remote 'main'...
+✅ Changes pushed successfully
+
+💡 Branch 'main' is now synchronized with remote
+```
+
+<Info>
+  This command combines `git add .`, `git commit -m "message"`, and `git push` for convenience.
+</Info>
+
+---
+
+### hyve git sync
+
+Pull latest changes from remote and push any local changes.
+
+```bash
+hyve git sync [commit-message]
+```
+
+<ParamField path="commit-message" type="string">
+  Commit message for local changes. If not provided, you'll be prompted.
+</ParamField>
+
+**Example:**
+
+```bash
+hyve git sync "Sync cluster configurations"
+```
+
+**Output:**
+
+```
+🔄 Syncing branch 'main' with remote...
+
+1. Pulling latest changes from remote...
+✅ Pulled latest changes
+
+2. Local changes detected: 3 files changed, 67 insertions(+)
+
+3. Committing local changes...
+✅ Changes committed
+
+4. Pushing to remote...
+✅ Changes pushed
+
+✅ Branch 'main' is now fully synchronized
+```
+
+---
+
+## Authentication
+
+Hyve supports multiple authentication methods for Git operations:
+
+1. **Global Credentials** (Recommended): Store credentials securely using `hyve git credentials`
+2. **Environment Variable**: Set `HYVE_GIT_TOKEN` with your personal access token
+3. **Repository-specific Username**: Provide username with `--username` flag when adding repository
+
+### Priority Order
+
+1. Global credentials (username + password from `hyve git credentials`)
+2. Environment token (`HYVE_GIT_TOKEN`)
+3. No authentication (for public repositories)
+
+---
+
+## Storage
+
+All Git repository metadata is stored in:
+
+```
+~/.hyve/
+├── repositories.db      # Repository configurations (SQLite)
+├── credentials.db       # Encrypted credentials (AES-GCM)
+└── repositories/        # Cloned repository storage
+    ├── production/
+    │   ├── clusters/
+    │   ├── workflows/
+    │   └── templates/
+    └── staging/
+```
+
+---
+
+## Common Use Cases
+
+### Multi-Environment Setup
+
+```bash
+# Add repositories for each environment
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+hyve git add staging --repo-url https://github.com/company/hyve-staging.git
+hyve git add development --repo-url https://github.com/company/hyve-dev.git
+
+# Switch between environments
+hyve git use production  # Work with production clusters
+hyve git use staging     # Switch to staging
+```
+
+### Feature Branch Workflow
+
+```bash
+# Create feature branch
+hyve git branch create feature/add-monitoring --switch
+
+# Make changes to cluster configs
+hyve cluster add monitoring-cluster --provider civo --region PHX1
+
+# Commit and push changes
+hyve git push "Add monitoring cluster configuration"
+
+# Switch back to main
+hyve git branch switch main
+```
+
+### Credential Management
+
+```bash
+# Store credentials securely
+hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
+
+# Or use environment variable
+export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
+
+# Verify authentication
+hyve git status
+```
+
+---
+
+## Related Commands
+
+- [hyve cluster](/docs/cli/cluster) - Manage cluster definitions stored in Git
+- [hyve workflow](/docs/cli/workflow) - Manage workflows stored in Git
+- [hyve template](/docs/cli/template) - Manage templates stored in Git
