@@ -38,6 +38,18 @@
   --sl-color-hairline-shade: var(--sl-color-black);
 }
 
+/* Starlight widens --sl-content-width to 67.5rem on any page without a sidebar
+   (i.e. template: splash, like the homepage) — see Page.astro's
+   `html:not([data-has-sidebar])` rule. Left unopposed, that makes the
+   homepage's cards/steps/accordions sprawl far wider than the docs pages.
+   43rem (matching the docs prose width) read as too cramped for a landing
+   page, so give the homepage its own middle-ground width instead. Override
+   with a selector specific enough to win: :root:not([data-has-sidebar]) has
+   higher specificity than Starlight's html:not([data-has-sidebar]). */
+:root:not([data-has-sidebar]) {
+  --sl-content-width: 60rem;
+}
+
 :root[data-theme='light'] {
   --sl-color-white: hsl(0, 0%, 6%);
   --sl-color-gray-1: hsl(0, 0%, 15%);
