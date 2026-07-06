@@ -4,9 +4,10 @@ description: "GitOps-first Kubernetes cluster management CLI"
 template: splash
 hero:
   title: Hyve
-  tagline: GitOps-first Kubernetes cluster management
+  tagline: Kubernetes clusters as YAML in Git — created, scaled, and deleted by one reconcile loop.
   image:
     file: ../../assets/banner.svg
+    alt: Worker bees in hard hats assembling the Hyve logo block by block
   actions:
     - text: Get Started
       link: /docs/quickstart
@@ -25,11 +26,54 @@ import Step from '../../components/mintlify/Step.astro';
 import Accordion from '../../components/mintlify/Accordion.astro';
 import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
 
-<p style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 3rem' }}>
-  Define clusters as YAML, commit to Git, and reconcile. Hyve manages the full lifecycle — create, scale, delete — across any cloud provider via a modular driver system.
-</p>
+<div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
+  Define clusters as YAML, commit to Git, and reconcile. Hyve manages the full lifecycle — create, scale, delete — across any cloud provider via a modular driver system. No state backend, no plan files, no embedded SDKs.
+</div>
+
+<div style={{ maxWidth: '480px', margin: '0 auto 1rem' }}>
+```bash
+go install github.com/cbridges1/hyve@latest
+```
+</div>
+
+<div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem', margin: '0 auto 3rem', maxWidth: '640px' }}>
+  {['Civo', 'AWS EKS', 'GCP GKE', 'Azure AKS', '+ community modules'].map((p) => (
+    <span style={{ border: '1px solid var(--sl-color-hairline)', borderRadius: '999px', padding: '0.25rem 0.9rem', fontSize: '0.85rem', color: 'var(--sl-color-gray-2)' }}>{p}</span>
+  ))}
+</div>
+
+## Clusters as code
+
+The Git repository is the single source of truth. A cluster is one YAML file: commit it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted.
+
+```yaml
+# clusters/my-cluster.yaml — committed to your Git state repo
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: us-east-1
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v1.0.0
+  params:
+    instance_type: t3.medium
+    node_count: "3"
+  workflows:
+    onCreate:
+      - deploy-monitoring
+    onDelete:
+      - drain-workloads
+```
+
+<div style={{ textAlign: 'center', color: 'var(--sl-color-gray-3)', maxWidth: '40rem', margin: '0.5rem auto 0' }}>
+  Then `hyve reconcile` makes reality match the repo — locally or from CI. Change history, reviews, and rollbacks are just Git.
+</div>
 
 ## How it works
+
+From nothing to a running cluster in four commands.
 
 <Steps>
   <Step title="Install a module">
@@ -71,6 +115,8 @@ import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
 
 ## Features
 
+Everything needed to run cluster fleets from a Git repo — nothing you have to operate on the side.
+
 <CardGroup cols={3}>
   <Card title="GitOps Native" icon="code-branch" color="#3b82f6">
     All cluster state lives in Git. Every change is version-controlled, reviewed through pull requests, and rolled back with a revert commit.
@@ -99,6 +145,8 @@ import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
 
 ## Why Hyve?
 
+How Hyve compares to Terraform-style provisioning and SDK-based GitOps tools.
+
 <AccordionGroup>
   <Accordion title="Git is your state backend — no S3, no Terraform Cloud">
     Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. Full change history, pull request reviews, and rollbacks are inherent in Git — no extra backend to operate or pay for.
@@ -126,6 +174,8 @@ import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
 </AccordionGroup>
 
 ## Get started
+
+Pick your entry point — the quickstart takes about five minutes.
 
 <CardGroup cols={2}>
   <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#3b82f6">
