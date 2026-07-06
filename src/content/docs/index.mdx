@@ -5,6 +5,8 @@ template: splash
 hero:
   title: Hyve
   tagline: GitOps-first Kubernetes cluster management
+  image:
+    file: ../../assets/banner.svg
   actions:
     - text: Get Started
       link: /docs/quickstart
@@ -122,26 +124,6 @@ import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
     For teams provisioning clusters to the same pattern, Hyve has native templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreate` workflows run — all in one step.
   </Accordion>
 </AccordionGroup>
-
-## First-party modules
-
-<CardGroup cols={2}>
-  <Card title="Civo" icon="cloud" color="#3b82f6" href="https://github.com/hyve-modules/civo">
-    `github.com/hyve-modules/civo` — Fast K3s and Talos clusters on Civo Cloud
-  </Card>
-
-  <Card title="AWS EKS" icon="aws" color="#f97316" href="https://github.com/hyve-modules/eks">
-    `github.com/hyve-modules/eks` — Amazon Elastic Kubernetes Service
-  </Card>
-
-  <Card title="GCP GKE" icon="google" color="#22c55e" href="https://github.com/hyve-modules/gke">
-    `github.com/hyve-modules/gke` — Google Kubernetes Engine
-  </Card>
-
-  <Card title="Azure AKS" icon="microsoft" color="#8b5cf6" href="https://github.com/hyve-modules/aks">
-    `github.com/hyve-modules/aks` — Azure Kubernetes Service
-  </Card>
-</CardGroup>
 
 ## Get started
 

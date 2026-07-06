@@ -12,6 +12,8 @@
 :root {
   --sl-font: 'Inter', system-ui, sans-serif;
   --sl-text-h1: 2.75rem;
+  /* Mintlify's mint theme keeps prose noticeably narrower than Starlight's 45rem default. */
+  --sl-content-width: 43rem;
 
   /* dark mode neutrals + backgrounds */
   --sl-color-white: hsl(0, 0%, 100%);
@@ -79,6 +81,14 @@
 .hero {
   padding-block: 3rem 2rem;
 }
+
+/* Hero banner image: frame the brand banner so it reads as a landing-page
+   banner rather than a plain inline image. */
+.hero > img {
+  border-radius: 1rem;
+  box-shadow: var(--sl-shadow-lg);
+  border: 1px solid var(--sl-color-hairline);
+}
 .hero h1 {
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -88,12 +98,17 @@
   opacity: 0.75;
 }
 
-/* Sidebar: subtle rounded highlight on the active/hovered link, like Mintlify's nav */
+/* Sidebar: subtle rounded highlight on the active/hovered link, like Mintlify's nav.
+   NOTE: background and text color are set together here, explicitly, rather than
+   letting one of them fall back to Starlight's own --sl-color-text-invert — that
+   variable resolves to the same value as --sl-color-accent-low in dark mode, which
+   made the active item's text invisible against its own highlight. */
 nav.sidebar a {
   border-radius: 0.4rem;
 }
 nav.sidebar a[aria-current='page'] {
-  background-color: var(--sl-color-accent-low);
+  background-color: var(--sl-color-accent-low) !important;
+  color: var(--sl-color-white) !important;
   font-weight: 600;
 }
 nav.sidebar a:hover {
