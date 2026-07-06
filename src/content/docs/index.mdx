@@ -2,11 +2,13 @@
 title: "Hyve"
 description: "GitOps-first Kubernetes cluster management CLI"
 template: splash
+editUrl: false
 hero:
   title: Hyve
-  tagline: Kubernetes clusters as YAML in Git — created, scaled, and deleted by one reconcile loop.
+  tagline: A Git-based Terraform, purpose-built for Kubernetes clusters — state in your repo, lifecycle in one CLI.
   image:
-    file: ../../assets/banner.svg
+    dark: ../../assets/banner-dark.svg
+    light: ../../assets/banner-light.svg
     alt: Worker bees in hard hats assembling the Hyve logo block by block
   actions:
     - text: Get Started
@@ -27,7 +29,7 @@ import Accordion from '../../components/mintlify/Accordion.astro';
 import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
 
 <div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
-  Define clusters as YAML, commit to Git, and reconcile. Hyve manages the full lifecycle — create, scale, delete — across any cloud provider via a modular driver system. No state backend, no plan files, no embedded SDKs.
+  Define clusters as YAML, commit to Git, and reconcile. Hyve manages the full lifecycle — create, scale, delete — across any cloud provider via a modular driver system. No state backend, no plan files, no embedded SDKs. And it slots into the provisioning you already run: lifecycle workflows shell out to Terraform, Helm, or any CLI, so nothing gets replaced.
 </div>
 
 <div style={{ maxWidth: '480px', margin: '0 auto 1rem' }}>
@@ -44,7 +46,7 @@ go install github.com/cbridges1/hyve@latest
 
 ## Clusters as code
 
-The Git repository is the single source of truth. A cluster is one YAML file: commit it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted.
+Terraform-style declarative provisioning, with the Git repository as the state backend. A cluster is one YAML file: commit it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted.
 
 ```yaml
 # clusters/my-cluster.yaml — committed to your Git state repo
@@ -145,9 +147,13 @@ Everything needed to run cluster fleets from a Git repo — nothing you have to 
 
 ## Why Hyve?
 
-How Hyve compares to Terraform-style provisioning and SDK-based GitOps tools.
+Think of it as a Git-based Terraform built specifically for clusters — and designed to work alongside the IaC you already have.
 
 <AccordionGroup>
+  <Accordion title="Keep your existing Terraform — Hyve drives the cluster, your IaC drives the rest">
+    Hyve doesn't replace Terraform for VPCs, IAM roles, or databases — it's purpose-built for the cluster lifecycle and runs alongside general-purpose IaC. A `beforeCreate` workflow can run `terraform init && terraform apply` to provision supporting infrastructure before the cluster comes up, and `afterDelete` can tear it down. See [Why Hyve](/docs/why-hyve) for the full comparison.
+  </Accordion>
+
   <Accordion title="Git is your state backend — no S3, no Terraform Cloud">
     Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. Full change history, pull request reviews, and rollbacks are inherent in Git — no extra backend to operate or pay for.
   </Accordion>

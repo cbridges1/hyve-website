@@ -82,12 +82,19 @@
   padding-block: 3rem 2rem;
 }
 
-/* Hero banner image: frame the brand banner so it reads as a landing-page
-   banner rather than a plain inline image. */
+/* Hero banner image: the default Starlight sizing (max 20-25rem) is tuned for
+   a small product screenshot. Ours is a wide illustrated scene, so give it
+   noticeably more room and let it take a bigger share of the hero grid. */
 .hero > img {
-  border-radius: 1rem;
-  box-shadow: var(--sl-shadow-lg);
-  border: 1px solid var(--sl-color-hairline);
+  width: min(85%, 34rem) !important;
+}
+@media (min-width: 50rem) {
+  .hero {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hero > img {
+    width: min(100%, 42rem) !important;
+  }
 }
 .hero h1 {
   font-weight: 800;
