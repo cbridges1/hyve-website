@@ -75,11 +75,19 @@
   --sl-color-hairline-shade: hsl(0, 0%, 90%);
 }
 
-/* Rounder, weightier buttons to match Mintlify's pill-ish CTAs */
+/* Rounder, weightier buttons to match Mintlify's pill-ish CTAs. Starlight's
+   default desktop padding (0.9375rem 1.25rem) makes these pill buttons quite
+   tall; trim it down for a more compact, Mintlify-like CTA height. */
 .sl-link-button {
   border-radius: 0.6rem !important;
   font-weight: 600;
+  padding: 0.5rem 1.1rem !important;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@media (min-width: 50rem) {
+  .sl-link-button {
+    padding: 0.55rem 1.2rem !important;
+  }
 }
 .sl-link-button.primary:hover {
   transform: translateY(-1px);
@@ -142,6 +150,20 @@ nav.sidebar a[aria-current='page'] {
 }
 nav.sidebar a:hover {
   color: var(--sl-color-hover);
+}
+
+/* Header/nav bar: Starlight's default header border-bottom uses
+   --sl-color-hairline-shade, which this theme deliberately sets equal to
+   --sl-color-bg-nav (both black in dark mode, both white in light mode) —
+   so the default border is invisible. Give the header its own visible
+   divider using --sl-color-hairline instead, already used elsewhere on the
+   site as a visible hairline.
+   NOTE: must be the `header` element selector, not plain `.header` — our
+   own Header.astro component also has an inner <div class="header"> nested
+   inside Starlight's outer <header class="header">, and a bare `.header`
+   rule matches both, producing a doubled border. */
+header.header {
+  border-bottom: 1px solid var(--sl-color-hairline) !important;
 }
 
 /* Header "Docs" link */
