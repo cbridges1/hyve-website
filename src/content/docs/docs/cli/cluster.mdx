@@ -275,6 +275,47 @@ kubectl get nodes
   Auth is implemented by the module — specifically the `auth.yaml` file in the module directory. A module can declare multiple named auth methods (e.g. `local` for interactive flows, `headless` for non-interactive environments). See [Modules](/docs/concepts/modules) for the `auth.yaml` schema.
 </Info>
 
+<Info>
+  After every auth run, Hyve automatically removes duplicate cluster/context/user entries sharing the same name in `~/.kube/config`, keeping only the one the module's tool just wrote. This prevents the duplicate entries some tools leave behind when run repeatedly without their own merge flag (e.g. `civo kubernetes config` without `--merge`).
+</Info>
+
+---
+
+### hyve cluster auth sync
+
+Remove stale local kubeconfig entries for clusters that no longer exist in the repository — a bulk cleanup, in contrast to `hyve cluster deauth` which targets one cluster at a time.
+
+```bash
+hyve cluster auth sync [--dry-run]
+```
+
+<ParamField path="--dry-run" type="boolean" default="false">
+  Report which contexts would be removed without modifying `~/.kube/config`.
+</ParamField>
+
+**How it works:** loads every cluster definition from `clusters/` in the current repository, reads the context names in `~/.kube/config`, and removes any context (plus its associated cluster and user entries) whose name doesn't match a known cluster.
+
+**Examples:**
+
+```bash
+# Preview what would be removed
+hyve cluster auth sync --dry-run
+
+# Remove stale entries
+hyve cluster auth sync
+```
+
+**Output:**
+
+```
+Removed stale context 'old-cluster'
+Removed stale context 'decommissioned-eks'
+```
+
+```
+No stale kubeconfig entries found
+```
+
 ---
 
 ### hyve cluster deauth

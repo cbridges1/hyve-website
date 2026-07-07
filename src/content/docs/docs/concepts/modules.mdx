@@ -214,6 +214,10 @@ spec:
 
 Single-method `auth.yaml` files using the legacy `spec.bootstrap` / `spec.verify` shape continue to work without modification. Hyve wraps them internally as a single method named `"default"`.
 
+<Info>
+  After every auth run, Hyve deduplicates `~/.kube/config` itself — for each of `clusters`, `contexts`, and `users`, only the last entry with a given name is kept. This is a tool-agnostic safety net for modules whose underlying CLI doesn't merge cleanly on repeated runs (e.g. `civo kubernetes config` without `--merge`), and requires no changes to the auth script. Use `hyve cluster auth sync` to additionally remove entries for clusters no longer in the repository — see [Kubeconfig Management](/docs/guides/kubeconfig-management#sync-stale-entries-in-bulk).
+</Info>
+
 ## hyve.lock — content addressing
 
 `hyve.lock` maps each `source@version` reference to a SHA256 digest and download URL:
@@ -307,50 +311,48 @@ hyve template create my-template \
   --region us-east-1
 ```
 
-## Adopting an existing cluster
+## Auth-only modules
 
-Every `clusters/*.yaml` requires `spec.driver` — there is currently no "driverless" or resources-only cluster type. Even if all you want is `spec.resources` management (drift-detected manifests/Helm releases) against a Kubernetes cluster Hyve did not provision, the cluster definition still needs a module, because the reconciler always starts a cycle by resolving `spec.driver` and calling its `status` operation, and `KUBECONFIG` is only ever set as a side effect of that module's `auth` operation — there is no other path by which the reconciler acquires cluster credentials.
-
-This is a real limitation, not just a formality: someone who wants to use Hyve purely as a GitOps resource/drift manager (the `spec.resources` layer) against infrastructure managed elsewhere still has to write a module. In practice that module can be trivial:
+Every `clusters/*.yaml` requires `spec.driver` — there is no "driverless" cluster type. But not every cluster needs to be *provisionable* by Hyve. For a cluster that already exists and was never meant to be created or destroyed by Hyve — a local `k3d` cluster, or any pre-existing cluster you just want to track and hand out kubeconfig access for — declare the module `metadata.type: authOnly` and implement only `auth.yaml` (plus, optionally, `status.yaml` if you want Hyve to detect the cluster disappearing).
 
 ```yaml
-# status.yaml — always reports the cluster as active if it's reachable
+# module.yaml
 apiVersion: v1
-kind: Workflow
+kind: Module
 metadata:
-  name: status
-spec:
-  jobs:
-    - name: check
-      steps:
-        - name: report-status
-          script: |
-            if kubectl --kubeconfig /path/to/adopted-cluster.kubeconfig cluster-info >/dev/null 2>&1; then
-              echo "HYVE_CLUSTER_STATUS=active"
-            else
-              echo "HYVE_CLUSTER_STATUS=error"
-            fi
+  name: k3d-auth
+  version: 0.1.0
+  description: Kubeconfig access for a local k3d cluster
+  type: authOnly
 ```
 
 ```yaml
-# auth.yaml — points KUBECONFIG at the already-existing kubeconfig for this cluster
+# auth.yaml — merges the k3d cluster's kubeconfig
 apiVersion: v1
 kind: ClusterAuth
 metadata:
-  name: adopted-auth
+  name: k3d-auth
 spec:
   methods:
     - name: local
       auth:
         script: |
-          cp /path/to/adopted-cluster.kubeconfig ~/.kube/config
+          k3d kubeconfig merge "$HYVE_CLUSTER_NAME" --kubeconfig-merge-default
       exports: KUBECONFIG
 ```
 
-`create.yaml` and `delete.yaml` can be omitted entirely — since `status` always reports `active` (or `error`, never `not_found`), the reconciler never has a reason to call create, and `spec.delete: true` on an adopted cluster just runs `onDelete` workflows and removes the resources tracked in `spec.appliedResources`; it never calls a delete operation that doesn't exist. `hyve module validate` only requires at least one operation file to be present, so a `status.yaml` + `auth.yaml` pair is enough to pass validation.
+Scaffold this shape directly with `hyve module init <name> --auth-only`, which writes only `module.yaml` (with `type: authOnly` set) and `auth.sh` — no `create`/`delete`/`status`/`scale` stubs.
+
+**What changes for an `authOnly` module:**
+
+- The reconciler treats a missing (or empty) `HYVE_CLUSTER_STATUS` as `ACTIVE` instead of skipping the cluster with "Unhandled status" — so `hyve reconcile` runs the auth operation and applies `spec.resources` every cycle without needing a `status.yaml` that manually reports `active`.
+- `spec.delete: true` still works: it runs any `onDelete` workflows, calls the (absent) delete operation as a no-op, and removes the cluster's YAML from the repository — deregistering it from Hyve without touching the real cluster.
+- `hyve module validate` requires `auth.yaml`/`auth.sh` to be present specifically for `authOnly` modules, rather than accepting any single operation file.
+
+If a module also declares `spec.requirements.tools` (e.g. `k3d`), Hyve checks each tool is on `PATH` before running any operation and fails with a clear error if one is missing — useful for surfacing "install k3d first" instead of an opaque shell failure.
 
 <Info>
-  This pattern trades away lifecycle management (Hyve will never create or destroy the underlying cluster) in exchange for using `spec.resources` against infrastructure provisioned by something else. See [Cluster Resources](/docs/concepts/resources) for what you get once auth is wired up this way.
+  This still trades away lifecycle management — Hyve will never create or destroy the underlying cluster — in exchange for kubeconfig access and, optionally, `spec.resources` management against infrastructure provisioned elsewhere. See [Cluster Resources](/docs/concepts/resources) for what you get once auth is wired up this way.
 </Info>
 
 ## Related

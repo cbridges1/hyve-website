@@ -11,7 +11,7 @@ import ParamField from '../../../../components/mintlify/ParamField.astro';
 
 Modules provision the cluster itself — the control plane, node pools, the infrastructure layer. `spec.resources` covers the layer on top: Kubernetes manifests and Helm releases that Hyve should own, drift-check, and re-apply, using the same reconcile cadence it already uses for everything else.
 
-A module is still required even if you only care about this layer — there's no driverless cluster type. See [Adopting an existing cluster](/docs/concepts/modules#adopting-an-existing-cluster) for how to write a minimal module when the cluster itself is provisioned elsewhere.
+A module is still required even if you only care about this layer — there's no driverless cluster type. See [Auth-only modules](/docs/concepts/modules#auth-only-modules) for how to write a minimal module when the cluster itself is provisioned elsewhere.
 
 On the cycle that creates a cluster, the full order is `beforeCreate` → create → `onCreate` → `spec.resources` → `afterCreate` (see [Lifecycle workflow hooks](/docs/concepts/clusters#lifecycle-workflow-hooks)) — `afterCreate` is the hook to use for anything that needs a resource-created object (a namespace, a Deployment) to already exist.
 

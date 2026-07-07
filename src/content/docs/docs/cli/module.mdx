@@ -244,11 +244,15 @@ hyve module remove github.com/hyve-modules/civo
 Scaffold a new module directory with the standard file structure.
 
 ```bash
-hyve module init <name>
+hyve module init <name> [--auth-only]
 ```
 
 <ParamField path="name" type="string" required>
   Name for the new module directory
+</ParamField>
+
+<ParamField path="--auth-only" type="boolean" default="false">
+  Scaffold only `module.yaml` (with `metadata.type: authOnly`) and `auth.sh`, skipping `create.sh`/`delete.sh`/`status.sh`/`scale.sh`. Use this for a module that only configures kubeconfig access to an already-existing, non-provisionable cluster (e.g. k3d) rather than one Hyve creates and destroys. See [Auth-only modules](/docs/concepts/modules#auth-only-modules).
 </ParamField>
 
 **Example:**
@@ -273,6 +277,22 @@ Created module scaffold at ./my-provider/
 Edit module.yaml to define your module's metadata and params.
 ```
 
+**Auth-only example:**
+
+```bash
+hyve module init k3d-auth --auth-only
+```
+
+```
+Created module scaffold at ./k3d-auth/
+
+  k3d-auth/
+    module.yaml     — Module manifest (metadata.type: authOnly)
+    auth.sh         — Merge the existing cluster's kubeconfig
+
+Edit auth.sh to point at your cluster's kubeconfig (e.g. `k3d kubeconfig merge`).
+```
+
 ---
 
 ## Module directory structure
@@ -289,6 +309,10 @@ Every module is a directory with a standard set of files:
   scale.yaml       — kind: Workflow; optional; adjusts node count
   README.md
 ```
+
+<Info>
+  A module with `metadata.type: authOnly` only needs `module.yaml` and `auth.yaml`/`auth.sh` — `create`/`delete`/`status`/`scale` can be omitted entirely. See [Auth-only modules](/docs/concepts/modules#auth-only-modules).
+</Info>
 
 ### module.yaml
 
