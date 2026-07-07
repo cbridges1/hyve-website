@@ -94,6 +94,16 @@
   padding-block: 3rem 2rem;
 }
 
+/* Starlight's generic prose spacing (markdown.css) adds margin-top: 1rem to any
+   element preceded by a sibling, anywhere in .sl-markdown-content — not just
+   direct children. That reaches into CardGroup and margins every card except
+   the first one in each row, making the first card in a row visibly taller
+   under grid's align-items: stretch. The grid's own `gap` already spaces cards,
+   so drop this stray margin entirely. */
+.mintlify-card-group > .mintlify-card {
+  margin-top: 0 !important;
+}
+
 /* Hero banner image: the default Starlight sizing (max 20-25rem) is tuned for
    a small product screenshot. Ours is a wide illustrated scene, so give it
    noticeably more room and let it take a bigger share of the hero grid. */

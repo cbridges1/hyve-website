@@ -4,7 +4,13 @@ import starlight from '@astrojs/starlight';
 import icon from 'astro-icon';
 
 export default defineConfig({
-  site: 'https://docs.hyve.dev',
+  site: 'https://cbridges1.github.io',
+  // GitHub Pages serves this as a project site at /hyve-docs/, so the CI build
+  // (where GitHub Actions sets CI=true) needs that base path. Local dev/build
+  // skip it so localhost keeps working at the root. Note: this must stay a
+  // plain object passed to defineConfig, not the (command) => ({...}) function
+  // form — that form broke Starlight's MDX content-entry resolution in `astro dev`.
+  base: process.env.CI ? '/hyve-docs' : '/',
   integrations: [
     icon(),
     starlight({
