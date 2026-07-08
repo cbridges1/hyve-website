@@ -5,7 +5,7 @@
          banner-dark.svg is identical except for these values. */
       svg {
         --block: #09090B;
-        --hex: #e4e4e4;
+        --hex: #a1a1a1;
         --ground: #d4d4d4;
         --slot: #a1a1a1;
         --guide: #c4c4c4;
@@ -72,12 +72,12 @@
       <rect x="21" y="-19" width="4" height="5" rx="2" fill="#FF9F1C"/>
     </g>
 
-    <!-- faint hex for the background texture -->
-    <path id="hex" d="M 20 0 L 40 11.5 L 40 34.5 L 20 46 L 0 34.5 L 0 11.5 Z" fill="none" stroke="var(--hex)" stroke-width="1.5"/>
+    <!-- hex for the background texture -->
+    <path id="hex" d="M 20 0 L 40 11.5 L 40 34.5 L 20 46 L 0 34.5 L 0 11.5 Z" fill="none" stroke="var(--hex)" stroke-width="2"/>
   </defs>
 
-  <!-- faint honeycomb texture (background is transparent so the banner blends into the page) -->
-  <g opacity="0.5">
+  <!-- honeycomb texture (background is transparent so the banner blends into the page) -->
+  <g opacity="0.9">
     <use href="#hex" x="70" y="80"/>
     <use href="#hex" x="130" y="520"/>
     <use href="#hex" x="820" y="150"/>

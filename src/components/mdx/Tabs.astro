@@ -1,13 +1,13 @@
 ---
 const groupId = `tabs-${Math.random().toString(36).slice(2, 9)}`;
 ---
-<div class="mintlify-tabs" data-group={groupId}>
+<div class="mdx-tabs" data-group={groupId}>
   <slot />
 </div>
 <script>
-  document.querySelectorAll('.mintlify-tabs').forEach((group) => {
+  document.querySelectorAll('.mdx-tabs').forEach((group) => {
     const groupId = group.getAttribute('data-group');
-    const inputs = group.querySelectorAll(':scope > .mintlify-tab-input');
+    const inputs = group.querySelectorAll(':scope > .mdx-tab-input');
     inputs.forEach((input, i) => {
       input.setAttribute('name', groupId || 'tabs');
       if (i === 0) input.checked = true;
@@ -15,7 +15,7 @@ const groupId = `tabs-${Math.random().toString(36).slice(2, 9)}`;
   });
 </script>
 <style>
-  .mintlify-tabs {
+  .mdx-tabs {
     display: flex;
     flex-wrap: wrap;
     margin: 1rem 0;

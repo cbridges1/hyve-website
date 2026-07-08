@@ -5,7 +5,7 @@
          banner-light.svg is identical except for these values. */
       svg {
         --block: #ffffff;
-        --hex: #2a2a2a;
+        --hex: #5c5c5c;
         --ground: #2f2f2f;
         --slot: #5c5c5c;
         --guide: #454545;
@@ -73,11 +73,11 @@
     </g>
 
     <!-- faint hex for the background texture -->
-    <path id="hex" d="M 20 0 L 40 11.5 L 40 34.5 L 20 46 L 0 34.5 L 0 11.5 Z" fill="none" stroke="var(--hex)" stroke-width="1.5"/>
+    <path id="hex" d="M 20 0 L 40 11.5 L 40 34.5 L 20 46 L 0 34.5 L 0 11.5 Z" fill="none" stroke="var(--hex)" stroke-width="2"/>
   </defs>
 
-  <!-- faint honeycomb texture (background is transparent so the banner blends into the page) -->
-  <g opacity="0.5">
+  <!-- honeycomb texture (background is transparent so the banner blends into the page) -->
+  <g opacity="0.9">
     <use href="#hex" x="70" y="80"/>
     <use href="#hex" x="130" y="520"/>
     <use href="#hex" x="820" y="150"/>

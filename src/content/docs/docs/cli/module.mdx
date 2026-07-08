@@ -3,15 +3,19 @@ title: "'hyve module'"
 description: "'Manage versioned modules that implement cluster operations'"
 ---
 
-import Info from '../../../../components/mintlify/Info.astro';
-import Warning from '../../../../components/mintlify/Warning.astro';
-import ParamField from '../../../../components/mintlify/ParamField.astro';
+import Info from '../../../../components/mdx/Info.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
 
 The `hyve module` command group installs, locks, updates, and inspects modules — the versioned packages that implement cluster create, delete, status, and auth operations for any cloud provider.
 
 ## Overview
 
 Modules are the extensibility mechanism in Hyve. Each module is a versioned directory containing shell scripts and workflow YAMLs that implement cluster lifecycle operations. Hyve calls into the active module for every reconcile operation.
+
+<Info>
+  The operation files are shell entry points, not a requirement that the logic itself be written in shell — a `create.sh` can be a one-liner that calls out to Python, a compiled binary, Terraform, or anything else. See [Modules — What is a module?](/docs/concepts/modules#what-is-a-module) for the full explanation.
+</Info>
 
 Module sources take one of two forms:
 

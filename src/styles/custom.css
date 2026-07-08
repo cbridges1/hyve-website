@@ -108,7 +108,7 @@
    the first one in each row, making the first card in a row visibly taller
    under grid's align-items: stretch. The grid's own `gap` already spaces cards,
    so drop this stray margin entirely. */
-.mintlify-card-group > .mintlify-card {
+.mdx-card-group > .mdx-card {
   margin-top: 0 !important;
 }
 

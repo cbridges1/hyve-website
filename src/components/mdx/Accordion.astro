@@ -6,36 +6,36 @@ interface Props {
 }
 const { title, defaultOpen = false } = Astro.props as Props;
 ---
-<details class="mintlify-accordion" open={defaultOpen}>
-  <summary class="mintlify-accordion-summary">{title}</summary>
-  <div class="mintlify-accordion-body">
+<details class="mdx-accordion" open={defaultOpen}>
+  <summary class="mdx-accordion-summary">{title}</summary>
+  <div class="mdx-accordion-body">
     <slot />
   </div>
 </details>
 <style>
-  .mintlify-accordion {
+  .mdx-accordion {
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0.5rem;
     padding: 0.75rem 1rem;
   }
-  .mintlify-accordion-summary {
+  .mdx-accordion-summary {
     cursor: pointer;
     font-weight: 600;
     list-style: none;
   }
-  .mintlify-accordion-summary::-webkit-details-marker {
+  .mdx-accordion-summary::-webkit-details-marker {
     display: none;
   }
-  .mintlify-accordion-summary::before {
+  .mdx-accordion-summary::before {
     content: '▸';
     display: inline-block;
     margin-right: 0.5rem;
     transition: transform 0.15s ease;
   }
-  .mintlify-accordion[open] > .mintlify-accordion-summary::before {
+  .mdx-accordion[open] > .mdx-accordion-summary::before {
     transform: rotate(90deg);
   }
-  .mintlify-accordion-body {
+  .mdx-accordion-body {
     padding-top: 0.75rem;
     font-size: 0.9rem;
   }

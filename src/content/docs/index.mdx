@@ -5,7 +5,7 @@ template: splash
 editUrl: false
 hero:
   title: Hyve
-  tagline: A Git-based Terraform, purpose-built for Kubernetes clusters — state in your repo, lifecycle in one CLI.
+  tagline: A Git-based tool, purpose-built for Kubernetes clusters — state in your repo, lifecycle in one CLI.
   image:
     dark: ../../assets/banner-dark.svg
     light: ../../assets/banner-light.svg
@@ -21,12 +21,12 @@ hero:
       variant: secondary
 ---
 
-import Card from '../../components/mintlify/Card.astro';
-import CardGroup from '../../components/mintlify/CardGroup.astro';
-import Steps from '../../components/mintlify/Steps.astro';
-import Step from '../../components/mintlify/Step.astro';
-import Accordion from '../../components/mintlify/Accordion.astro';
-import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
+import Card from '../../components/mdx/Card.astro';
+import CardGroup from '../../components/mdx/CardGroup.astro';
+import Steps from '../../components/mdx/Steps.astro';
+import Step from '../../components/mdx/Step.astro';
+import Accordion from '../../components/mdx/Accordion.astro';
+import AccordionGroup from '../../components/mdx/AccordionGroup.astro';
 
 <div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
   Define clusters as YAML, commit to Git, and reconcile — Hyve handles the full lifecycle across any cloud provider, and slots into the Terraform, Helm, or CI you already run.
@@ -79,7 +79,7 @@ From nothing to a running cluster in four commands.
 
 <Steps>
   <Step title="Install a module">
-    Modules are versioned, self-contained packages that implement cluster operations — create, delete, status, auth — using shell scripts or workflow YAMLs. No cloud SDKs embedded in Hyve.
+    Modules are versioned, self-contained packages that implement cluster operations — create, delete, status, auth. Each operation is invoked as a shell entry point, but can call out to any language or tool internally — only the output contract matters. No cloud SDKs embedded in Hyve.
 
     ```bash
     hyve module add github.com/hyve-modules/civo@v1.0.0

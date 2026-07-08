@@ -5,21 +5,21 @@ interface Props {
 }
 const { title } = Astro.props as Props;
 ---
-<div class="mintlify-step">
-  <div class="mintlify-step-marker"></div>
-  <div class="mintlify-step-content">
-    {title && <p class="mintlify-step-title">{title}</p>}
+<div class="mdx-step">
+  <div class="mdx-step-marker"></div>
+  <div class="mdx-step-content">
+    {title && <p class="mdx-step-title">{title}</p>}
     <slot />
   </div>
 </div>
 <style>
-  .mintlify-step {
+  .mdx-step {
     display: flex;
     gap: 1rem;
     position: relative;
     padding-bottom: 1.5rem;
   }
-  .mintlify-step:not(:last-child)::before {
+  .mdx-step:not(:last-child)::before {
     content: '';
     position: absolute;
     left: 0.65rem;
@@ -28,14 +28,14 @@ const { title } = Astro.props as Props;
     width: 1px;
     background: var(--sl-color-gray-5);
   }
-  .mintlify-step-marker {
+  .mdx-step-marker {
     flex-shrink: 0;
     width: 1.35rem;
     height: 1.35rem;
     border-radius: 50%;
     background: var(--sl-color-black);
     border: 1px solid var(--sl-color-gray-5);
-    counter-increment: mintlify-step;
+    counter-increment: mdx-step;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -43,19 +43,19 @@ const { title } = Astro.props as Props;
     font-weight: 600;
     color: var(--sl-color-white);
   }
-  .mintlify-step-marker::before {
-    content: counter(mintlify-step);
+  .mdx-step-marker::before {
+    content: counter(mdx-step);
   }
-  .mintlify-step-content {
+  .mdx-step-content {
     flex: 1;
     min-width: 0;
     padding-top: 0.1rem;
   }
-  .mintlify-step-title {
+  .mdx-step-title {
     font-weight: 600;
     margin: 0 0 0.4rem 0;
   }
-  .mintlify-step-content :global(p:first-child) {
+  .mdx-step-content :global(p:first-child) {
     margin-top: 0;
   }
 </style>

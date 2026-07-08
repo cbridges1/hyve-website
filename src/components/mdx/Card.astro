@@ -36,17 +36,17 @@ const iconName = icon ? `fa6-${BRAND_ICONS.has(icon) ? 'brands' : 'solid'}:${ico
 
 const Tag = href ? 'a' : 'div';
 ---
-<Tag class="mintlify-card" href={href} style={`--card-accent: ${color}`}>
+<Tag class="mdx-card" href={href} style={`--card-accent: ${color}`}>
   {iconName && (
-    <div class="mintlify-card-icon">
+    <div class="mdx-card-icon">
       <Icon name={iconName} />
     </div>
   )}
-  {title && <p class="mintlify-card-title">{title}</p>}
-  <div class="mintlify-card-body"><slot /></div>
+  {title && <p class="mdx-card-title">{title}</p>}
+  <div class="mdx-card-body"><slot /></div>
 </Tag>
 <style>
-  .mintlify-card {
+  .mdx-card {
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -58,12 +58,12 @@ const Tag = href ? 'a' : 'div';
     background: var(--sl-color-bg);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   }
-  a.mintlify-card:hover {
+  a.mdx-card:hover {
     border-color: var(--card-accent, var(--sl-color-gray-2));
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
     transform: translateY(-1px);
   }
-  .mintlify-card-icon {
+  .mdx-card-icon {
     width: 2rem;
     height: 2rem;
     display: flex;
@@ -73,20 +73,20 @@ const Tag = href ? 'a' : 'div';
     font-size: 1.35rem;
     margin-bottom: 0.6rem;
   }
-  .mintlify-card-icon :global(svg) {
+  .mdx-card-icon :global(svg) {
     width: 1.35rem;
     height: 1.35rem;
   }
-  .mintlify-card-title {
+  .mdx-card-title {
     font-weight: 600;
     margin: 0 0 0.35rem 0;
     color: var(--sl-color-white);
   }
-  .mintlify-card-body {
+  .mdx-card-body {
     font-size: 0.9rem;
     color: var(--sl-color-gray-2);
   }
-  .mintlify-card-body :global(p) {
+  .mdx-card-body :global(p) {
     margin: 0;
   }
 </style>

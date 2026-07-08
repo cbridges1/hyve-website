@@ -3,10 +3,10 @@ title: "Modules"
 description: "Versioned, self-contained packages that implement cluster operations for any cloud provider"
 ---
 
-import Card from '../../../../components/mintlify/Card.astro';
-import CardGroup from '../../../../components/mintlify/CardGroup.astro';
-import Info from '../../../../components/mintlify/Info.astro';
-import Warning from '../../../../components/mintlify/Warning.astro';
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
 
 ## What is a module?
 
@@ -20,11 +20,15 @@ A module is a versioned directory that implements the cluster lifecycle operatio
 
 Hyve does not embed any cloud SDKs. All cloud operations are delegated to modules, which in turn invoke whatever CLI tools are already installed in your environment (the Civo CLI, AWS CLI, gcloud, az, etc.).
 
+<Info>
+  Operations don't have to be written *in* shell — they just have to be invoked as a shell entry point. Hyve always runs the operation file (`create.yaml`, `create.sh`, or a bare `create`) through `/bin/sh`, but that file can be a one-line wrapper that calls out to a Python script, a compiled Go binary, Terraform, Pulumi, or anything else — the implementation language is entirely up to you. The only real requirement is the output contract: print `HYVE_KEY=value` lines (and `HYVE_CLUSTER_STATUS=<value>` for `status`) to stdout. See [Outputs protocol](#outputs-protocol).
+</Info>
+
 ## Why modules?
 
 The module system decouples Hyve's core reconciliation logic from cloud-provider specifics:
 
-- **Any provider** — if you can write a shell script that creates a Kubernetes cluster, you can write a module for it
+- **Any provider, any implementation** — if you can produce the right `HYVE_KEY=value` outputs, you can write a module for it, in whatever language or tool fits the provider best
 - **Your credentials stay in your environment** — modules read credentials from the same env vars and config files that your cloud CLIs use; Hyve never stores them
 - **Versioned and locked** — modules are pinned in `hyve.lock` with a SHA256 content digest, ensuring reproducible reconciles across your team and CI/CD
 - **Composable** — modules can be combined with lifecycle workflows (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`) for full pipeline automation

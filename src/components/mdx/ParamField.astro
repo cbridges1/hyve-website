@@ -12,56 +12,56 @@ const props = Astro.props as Props;
 const name = props.path ?? props.query ?? props.body ?? props.header ?? '';
 const { type, required = false, default: defaultValue } = props;
 ---
-<div class="mintlify-paramfield">
-  <div class="mintlify-paramfield-head">
-    <code class="mintlify-paramfield-name">{name}</code>
-    {type && <span class="mintlify-paramfield-type">{type}</span>}
-    {required && <span class="mintlify-paramfield-required">required</span>}
-    {defaultValue && <span class="mintlify-paramfield-default">default: {defaultValue}</span>}
+<div class="mdx-paramfield">
+  <div class="mdx-paramfield-head">
+    <code class="mdx-paramfield-name">{name}</code>
+    {type && <span class="mdx-paramfield-type">{type}</span>}
+    {required && <span class="mdx-paramfield-required">required</span>}
+    {defaultValue && <span class="mdx-paramfield-default">default: {defaultValue}</span>}
   </div>
-  <div class="mintlify-paramfield-body">
+  <div class="mdx-paramfield-body">
     <slot />
   </div>
 </div>
 <style>
-  .mintlify-paramfield {
+  .mdx-paramfield {
     border-top: 1px solid var(--sl-color-gray-5);
     padding: 0.75rem 0;
   }
-  .mintlify-paramfield-head {
+  .mdx-paramfield-head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.35rem;
   }
-  .mintlify-paramfield-name {
+  .mdx-paramfield-name {
     font-weight: 600;
     font-size: 0.9rem;
   }
-  .mintlify-paramfield-type {
+  .mdx-paramfield-type {
     font-size: 0.8rem;
     color: var(--sl-color-gray-3);
   }
-  .mintlify-paramfield-required {
+  .mdx-paramfield-required {
     font-size: 0.7rem;
     color: var(--sl-color-orange);
     border: 1px solid currentColor;
     border-radius: 0.25rem;
     padding: 0 0.35rem;
   }
-  .mintlify-paramfield-default {
+  .mdx-paramfield-default {
     font-size: 0.75rem;
     color: var(--sl-color-gray-3);
   }
-  .mintlify-paramfield-body {
+  .mdx-paramfield-body {
     font-size: 0.9rem;
     color: var(--sl-color-gray-2);
   }
-  .mintlify-paramfield-body :global(p:first-child) {
+  .mdx-paramfield-body :global(p:first-child) {
     margin-top: 0;
   }
-  .mintlify-paramfield-body :global(p:last-child) {
+  .mdx-paramfield-body :global(p:last-child) {
     margin-bottom: 0;
   }
 </style>

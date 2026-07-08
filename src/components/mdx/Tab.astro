@@ -5,13 +5,13 @@ interface Props {
 const { title } = Astro.props as Props;
 const inputId = `tab-${Math.random().toString(36).slice(2, 9)}`;
 ---
-<input type="radio" class="mintlify-tab-input" id={inputId} style="display:none" />
-<label for={inputId} class="mintlify-tab-label">{title}</label>
-<div class="mintlify-tab-panel">
+<input type="radio" class="mdx-tab-input" id={inputId} style="display:none" />
+<label for={inputId} class="mdx-tab-label">{title}</label>
+<div class="mdx-tab-panel">
   <slot />
 </div>
 <style>
-  .mintlify-tab-label {
+  .mdx-tab-label {
     display: inline-block;
     padding: 0.4rem 0.9rem;
     cursor: pointer;
@@ -21,16 +21,16 @@ const inputId = `tab-${Math.random().toString(36).slice(2, 9)}`;
     color: var(--sl-color-gray-2);
     order: 1;
   }
-  .mintlify-tab-panel {
+  .mdx-tab-panel {
     display: none;
     order: 99;
     width: 100%;
   }
-  .mintlify-tab-input:checked + .mintlify-tab-label {
+  .mdx-tab-input:checked + .mdx-tab-label {
     border-bottom-color: var(--sl-color-accent);
     color: var(--sl-color-white);
   }
-  .mintlify-tab-input:checked + .mintlify-tab-label + .mintlify-tab-panel {
+  .mdx-tab-input:checked + .mdx-tab-label + .mdx-tab-panel {
     display: block;
   }
 </style>

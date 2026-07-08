@@ -2,7 +2,7 @@
 
 Documentation site for Hyve, built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build).
 
-Migrated from a Mintlify site. Mintlify-only components (`Card`, `CardGroup`, `Tabs`/`Tab`, `Steps`/`Step`, `Accordion`/`AccordionGroup`, `Info`/`Note`/`Warning`/`Tip`, `Frame`, `ParamField`) were reimplemented as local Astro components in `src/components/mintlify/` so page content needed minimal changes — each page just imports the components it uses.
+Migrated from a Mintlify site. Mintlify-only components (`Card`, `CardGroup`, `Tabs`/`Tab`, `Steps`/`Step`, `Accordion`/`AccordionGroup`, `Info`/`Note`/`Warning`/`Tip`, `Frame`, `ParamField`) were reimplemented as local Astro components in `src/components/mdx/` so page content needed minimal changes — each page just imports the components it uses.
 
 ## Development
 
@@ -23,7 +23,7 @@ npm run preview
 ## Structure
 
 - `src/content/docs/` — documentation pages (mdx), mirrors the original `/docs/...` URL structure
-- `src/components/mintlify/` — Mintlify-compatible component shims, including real Font Awesome icons on `Card` via `astro-icon` + `@iconify-json/fa6-solid`/`fa6-brands` (a handful of FA5-era Mintlify icon slugs are aliased to their closest FA6 equivalent — see `ICON_ALIASES` in `Card.astro`)
+- `src/components/mdx/` — Mintlify-compatible component shims, including real Font Awesome icons on `Card` via `astro-icon` + `@iconify-json/fa6-solid`/`fa6-brands` (a handful of FA5-era Mintlify icon slugs are aliased to their closest FA6 equivalent — see `ICON_ALIASES` in `Card.astro`)
 - `src/assets/`, `public/` — logo, favicon, images
 - `astro.config.mjs` — site config and sidebar navigation
 - `src/styles/custom.css` — Inter font, accent colors, button/card/sidebar polish to sit closer to Mintlify's "mint" theme
