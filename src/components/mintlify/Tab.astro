@@ -1,0 +1,36 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props as Props;
+const inputId = `tab-${Math.random().toString(36).slice(2, 9)}`;
+---
+<input type="radio" class="mintlify-tab-input" id={inputId} style="display:none" />
+<label for={inputId} class="mintlify-tab-label">{title}</label>
+<div class="mintlify-tab-panel">
+  <slot />
+</div>
+<style>
+  .mintlify-tab-label {
+    display: inline-block;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--sl-color-gray-2);
+    order: 1;
+  }
+  .mintlify-tab-panel {
+    display: none;
+    order: 99;
+    width: 100%;
+  }
+  .mintlify-tab-input:checked + .mintlify-tab-label {
+    border-bottom-color: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+  .mintlify-tab-input:checked + .mintlify-tab-label + .mintlify-tab-panel {
+    display: block;
+  }
+</style>

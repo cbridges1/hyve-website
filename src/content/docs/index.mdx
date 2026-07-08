@@ -1,0 +1,210 @@
+---
+title: "Hyve"
+description: "GitOps-first Kubernetes cluster management CLI"
+template: splash
+editUrl: false
+hero:
+  title: Hyve
+  tagline: A Git-based Terraform, purpose-built for Kubernetes clusters — state in your repo, lifecycle in one CLI.
+  image:
+    dark: ../../assets/banner-dark.svg
+    light: ../../assets/banner-light.svg
+    alt: Worker bees in hard hats assembling the Hyve logo block by block
+  actions:
+    - text: Get Started
+      link: /docs/quickstart
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/cbridges1/hyve
+      icon: external
+      variant: secondary
+---
+
+import Card from '../../components/mintlify/Card.astro';
+import CardGroup from '../../components/mintlify/CardGroup.astro';
+import Steps from '../../components/mintlify/Steps.astro';
+import Step from '../../components/mintlify/Step.astro';
+import Accordion from '../../components/mintlify/Accordion.astro';
+import AccordionGroup from '../../components/mintlify/AccordionGroup.astro';
+
+<div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
+  Define clusters as YAML, commit to Git, and reconcile — Hyve handles the full lifecycle across any cloud provider, and slots into the Terraform, Helm, or CI you already run.
+</div>
+
+<div style={{ maxWidth: '480px', margin: '0 auto 1rem' }}>
+```bash
+go install github.com/cbridges1/hyve@latest
+```
+</div>
+
+<div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem', margin: '0 auto 3rem', maxWidth: '640px' }}>
+  {['Civo', 'AWS EKS', 'GCP GKE', 'Azure AKS', '+ community modules'].map((p) => (
+    <span style={{ border: '1px solid var(--sl-color-hairline)', borderRadius: '999px', padding: '0.25rem 0.9rem', fontSize: '0.85rem', color: 'var(--sl-color-gray-2)' }}>{p}</span>
+  ))}
+</div>
+
+## Clusters as code
+
+Terraform-style declarative provisioning, with the Git repository as the state backend. A cluster is one YAML file: commit it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted.
+
+```yaml
+# clusters/my-cluster.yaml — committed to your Git state repo
+apiVersion: v1
+kind: Cluster
+metadata:
+  name: my-cluster
+  region: us-east-1
+spec:
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v1.0.0
+  params:
+    instance_type: t3.medium
+    node_count: "3"
+  workflows:
+    onCreate:
+      - deploy-monitoring
+    onDelete:
+      - drain-workloads
+```
+
+<div style={{ textAlign: 'center', color: 'var(--sl-color-gray-3)', maxWidth: '40rem', margin: '0.5rem auto 0' }}>
+  Then `hyve reconcile` makes reality match the repo — locally or from CI. Change history, reviews, and rollbacks are just Git.
+</div>
+
+## How it works
+
+From nothing to a running cluster in four commands.
+
+<Steps>
+  <Step title="Install a module">
+    Modules are versioned, self-contained packages that implement cluster operations — create, delete, status, auth — using shell scripts or workflow YAMLs. No cloud SDKs embedded in Hyve.
+
+    ```bash
+    hyve module add github.com/hyve-modules/civo@v1.0.0
+    ```
+  </Step>
+
+  <Step title="Create a template">
+    Templates capture your cluster shape, driver, region, and params. One template, infinite clusters.
+
+    ```bash
+    hyve template create my-civo-template \
+      --driver github.com/hyve-modules/civo \
+      --driver-version v1.0.0 \
+      --region PHX1 \
+      --set node_size=g4s.kube.medium
+    ```
+  </Step>
+
+  <Step title="Create a cluster from the template">
+    Create a cluster from the template to generate a cluster YAML and commit it to your Git state repository.
+
+    ```bash
+    hyve cluster create my-cluster --template my-civo-template
+    ```
+  </Step>
+
+  <Step title="Reconcile">
+    Reconcile reads Git, calls the module, and provisions the cluster. The same command works locally or from a CI/CD pipeline.
+
+    ```bash
+    hyve reconcile
+    ```
+  </Step>
+</Steps>
+
+## Features
+
+Everything needed to run cluster fleets from a Git repo — nothing you have to operate on the side.
+
+<CardGroup cols={3}>
+  <Card title="GitOps Native" icon="code-branch" color="#3b82f6">
+    All cluster state lives in Git. Every change is version-controlled, reviewed through pull requests, and rolled back with a revert commit.
+  </Card>
+
+  <Card title="Module System" icon="cube" color="#8b5cf6">
+    Modules are versioned packages for any cloud provider. Install once, reference from any template. No cloud SDKs are bundled into Hyve itself.
+  </Card>
+
+  <Card title="Lifecycle Hooks" icon="gears" color="#22c55e">
+    `beforeCreate`, `onCreate`, `onDelete`, `afterDelete` — run arbitrary workflows at each stage of a cluster's lifecycle, automatically, every time.
+  </Card>
+
+  <Card title="Cluster Templates" icon="file-code" color="#06b6d4">
+    Define the shape of a cluster once. Execute the template by name to stamp out clusters consistently across environments.
+  </Card>
+
+  <Card title="Any Provider" icon="cloud" color="#f97316">
+    First-party modules for Civo, AWS EKS, GCP GKE, and Azure AKS. Community modules for anything else. Your credentials stay in your environment.
+  </Card>
+
+  <Card title="Variable Injection" icon="brackets-curly" color="#eab308">
+    Module params are injected as `HYVE_PARAM_*` environment variables. Workflow outputs flow back as `HYVE_KEY=value` lines and are persisted for the next reconcile.
+  </Card>
+</CardGroup>
+
+## Why Hyve?
+
+Think of it as a Git-based Terraform built specifically for clusters — and designed to work alongside the IaC you already have.
+
+<AccordionGroup>
+  <Accordion title="Keep your existing Terraform — Hyve drives the cluster, your IaC drives the rest">
+    Hyve doesn't replace Terraform for VPCs, IAM roles, or databases — it's purpose-built for the cluster lifecycle and runs alongside general-purpose IaC. A `beforeCreate` workflow can run `terraform init && terraform apply` to provision supporting infrastructure before the cluster comes up, and `afterDelete` can tear it down. See [Why Hyve](/docs/why-hyve) for the full comparison.
+  </Accordion>
+
+  <Accordion title="Git is your state backend — no S3, no Terraform Cloud">
+    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. Full change history, pull request reviews, and rollbacks are inherent in Git — no extra backend to operate or pay for.
+  </Accordion>
+
+  <Accordion title="Continuous reconciliation — no plan files or approval gates">
+    Commit a cluster YAML and it is created. Remove it and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command handles all three cases without separate plan/apply cycles.
+  </Accordion>
+
+  <Accordion title="Lifecycle hooks — no extra orchestration">
+    After a cluster becomes active, you typically need to install controllers, run smoke tests, or notify a team channel. In Hyve, `onCreate` and `onDelete` hooks run automatically as part of the same reconcile cycle — define once, run every time.
+  </Accordion>
+
+  <Accordion title="Modules, not embedded SDKs">
+    Old-style GitOps tools embed cloud SDKs. If your provider isn't supported, you're stuck. Hyve modules are external packages that shell out to any CLI tool you already have configured. Your credentials, your tools, your control.
+  </Accordion>
+
+  <Accordion title="Automatic kubeconfig management">
+    Run `hyve cluster auth my-cluster` to merge any cluster's kubeconfig into `~/.kube/config`. The module handles the authentication call; Hyve manages the merge.
+  </Accordion>
+
+  <Accordion title="Native cluster templates — no Terragrunt required">
+    For teams provisioning clusters to the same pattern, Hyve has native templates: define the shape once, instantiate by name. The resulting cluster YAML is committed, reconciled, and `onCreate` workflows run — all in one step.
+  </Accordion>
+</AccordionGroup>
+
+## Get started
+
+Pick your entry point — the quickstart takes about five minutes.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#3b82f6">
+    Up and running in under 5 minutes
+  </Card>
+
+  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    Learn how the module system works
+  </Card>
+
+  <Card title="CLI Reference" icon="terminal" href="/docs/cli/overview" color="#10b981">
+    Complete command reference
+  </Card>
+
+  <Card title="Guides" icon="map" href="/docs/guides/cluster-management" color="#f97316">
+    Cluster management guides
+  </Card>
+
+  <Card title="hyve-sample-repo" icon="flask" href="https://github.com/cbridges1/hyve-sample-repo" color="#ec4899">
+    Clone a complete, runnable example — no cloud credentials needed
+  </Card>
+
+  <Card title="Hyve Studio" icon="window" href="https://github.com/cbridges1/hyve-studio" color="#eab308">
+    A browser UI for hyve serve, built entirely on its public API
+  </Card>
+</CardGroup>

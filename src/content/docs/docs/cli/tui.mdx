@@ -1,0 +1,152 @@
+---
+title: "'hyve tui'"
+description: "'Guided terminal user interface for all Hyve commands'"
+---
+
+import Note from '../../../../components/mintlify/Note.astro';
+
+The `hyve tui` command launches a full-screen terminal user interface that lets you navigate and execute any Hyve operation without memorising flags or command syntax.
+
+## Usage
+
+```bash
+hyve tui
+```
+
+No flags or arguments are required. The TUI takes over the terminal and guides you step by step.
+
+---
+
+## Navigation
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Move between options |
+| `Enter` | Select / confirm |
+| `Shift+Tab` | Go back within a multi-step form |
+| `← Back` option | Return to the previous menu |
+| `Quit` option | Exit the TUI from the root menu |
+| `Ctrl+C` | Exit at any point |
+
+The TUI is fully loop-based — after completing an action you are returned to the same menu, so you can run multiple operations in a session without re-launching.
+
+---
+
+## Root Menu
+
+```
+Hyve — what would you like to do?
+  > cluster    — manage Kubernetes clusters
+    template   — reusable cluster patterns
+    git        — manage Git repositories
+    workflow   — automated pipelines
+    Quit
+```
+
+Selecting any section drills down into a sub-menu for that command group. Selecting **← Back** from any sub-menu returns you to the root.
+
+---
+
+## Sections
+
+### cluster
+
+| Action | Description |
+|--------|-------------|
+| Create a cluster | Template selected from list; cluster name, region, and optional param overrides collected. |
+| List clusters | Prints all cluster definitions in the current repository with driver and status. |
+| Show cluster | Cluster selected from list; displays full YAML definition. |
+| Configure kubeconfig (auth) | Cluster selected from list; runs module auth operation to merge kubeconfig into `~/.kube/config`. |
+| Remove kubeconfig context (deauth) | Cluster selected from list; strips the context entry from `~/.kube/config`. |
+| Delete a cluster | Cluster selected from list; sets `spec.delete: true` and reconciles. Lifecycle hooks run automatically. |
+
+### template
+
+| Action | Description |
+|--------|-------------|
+| List templates | Prints all templates in the current repository. |
+| Show template | Template selected from list; displays full definition. |
+| Create template | Driver source, driver version, region, and params collected via form. |
+| Validate template | Template selected from list; checks driver is locked and workflows exist. |
+| Delete template | Template selected from list; requires confirmation. |
+
+<Note>
+  Creating a cluster from a template lives in the **cluster** menu (`Create a cluster`), not the template menu — matching `hyve cluster create --template <template>` on the command line.
+</Note>
+
+### git
+
+**Repository management**
+
+| Action | Description |
+|--------|-------------|
+| Add repository | URL, alias, and optional username collected via form. |
+| List repositories | Prints all configured repos. |
+| Use (switch to) repository | Repository selected from list. |
+| Show status | Displays current repo status. |
+| Remove repository | Repository selected from list; requires confirmation. |
+
+**Branch management**
+
+| Action | Description |
+|--------|-------------|
+| List branches | Prints all branches. |
+| Create branch | Name, switch-after, and push options collected via form. |
+| Switch branch | Branch name and optional pull. |
+| Delete branch | Requires confirmation; safe or force delete. |
+
+**Pull / push / sync**
+
+| Action | Description |
+|--------|-------------|
+| Pull | Pulls latest changes from remote. |
+| Push | Commit message collected then changes pushed. |
+| Sync | Commit message collected; pulls then pushes. |
+
+### workflow
+
+| Action | Description |
+|--------|-------------|
+| Create | Choose default template or import an existing YAML file. |
+| Run | Workflow selected from list; optional cluster and log/output flags. |
+| List | Prints all workflows. |
+| Show | Workflow selected from list; displays full definition. |
+| Validate | Workflow selected from list; reports errors and warnings. |
+| Delete | Workflow selected from list; requires confirmation. |
+
+<Note>
+  Kubeconfig auth/deauth are actions within the **cluster** menu (`Configure kubeconfig (auth)` / `Remove kubeconfig context (deauth)`), not a separate top-level menu.
+</Note>
+
+---
+
+## Smart Selects
+
+Wherever possible, the TUI populates select menus from live data rather than requiring typed input:
+
+| Field | Source |
+|-------|--------|
+| Cluster name (including for kubeconfig auth/deauth) | YAML files in `clusters/` directory of current repository |
+| Workflow name | `workflows/` directory in current repository |
+| Template name | `templates/` directory in current repository |
+| Git repository | Local repository database |
+
+---
+
+## Color Scheme
+
+The TUI uses a yellow and blue theme:
+
+- **Yellow** (`#F5C518`) — titles, selected option indicators, text input cursor
+- **Blue** (`#4A9FD5`) — field borders, text input prompt
+- **Dark blue** (`#1E6FA8`) — focused button background
+
+---
+
+## Related Commands
+
+- [hyve cluster](/docs/cli/cluster)
+- [hyve git](/docs/cli/git)
+- [hyve module](/docs/cli/module)
+- [hyve workflow](/docs/cli/workflow)
+- [hyve template](/docs/cli/template)

@@ -1,0 +1,26 @@
+---
+interface Props {
+  caption?: string;
+}
+const { caption } = Astro.props as Props;
+---
+<figure class="mintlify-frame">
+  <div class="mintlify-frame-inner"><slot /></div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+<style>
+  .mintlify-frame {
+    margin: 1.5rem 0;
+  }
+  .mintlify-frame-inner {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+  }
+  .mintlify-frame figcaption {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-3);
+    margin-top: 0.5rem;
+  }
+</style>

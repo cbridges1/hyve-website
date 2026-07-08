@@ -1,1 +1,13 @@
-.idea
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store

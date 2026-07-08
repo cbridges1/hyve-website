@@ -1,0 +1,445 @@
+---
+title: "Cluster Management"
+description: "Complete guide to creating, managing, and deleting Kubernetes clusters with Hyve"
+---
+
+import Card from '../../../../components/mintlify/Card.astro';
+import CardGroup from '../../../../components/mintlify/CardGroup.astro';
+import Tabs from '../../../../components/mintlify/Tabs.astro';
+import Tab from '../../../../components/mintlify/Tab.astro';
+import Accordion from '../../../../components/mintlify/Accordion.astro';
+import AccordionGroup from '../../../../components/mintlify/AccordionGroup.astro';
+import Warning from '../../../../components/mintlify/Warning.astro';
+
+## Overview
+
+Hyve manages Kubernetes clusters through declarative YAML definitions stored in Git. This guide covers the full lifecycle: installing modules, creating templates, provisioning clusters, managing them day-to-day, and safely deleting them.
+
+<CardGroup cols={2}>
+  <Card title="GitOps" icon="code-branch" color="#3b82f6">
+    All cluster state lives in Git — full history, PR reviews, easy rollbacks
+  </Card>
+
+  <Card title="Module-based" icon="cube" color="#8b5cf6">
+    Any cloud provider via versioned modules — no embedded SDKs
+  </Card>
+
+  <Card title="Lifecycle Hooks" icon="gears" color="#22c55e">
+    beforeCreate, onCreate, onDelete, afterDelete hooks run automatically
+  </Card>
+
+  <Card title="Reproducible" icon="lock" color="#f97316">
+    hyve.lock pins module versions for consistent reconciles across environments
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+Before managing clusters you need:
+
+1. Hyve installed (`go install github.com/cbridges1/hyve@latest`)
+2. A Git repository configured (`hyve git add production --repo-url <url>`)
+3. The cloud CLI for your provider installed and authenticated
+
+See [Installation](/docs/installation) and [Quick Start](/docs/quickstart) for setup.
+
+## Step 1 — Install a module
+
+Modules implement cluster operations for a specific provider. Install one and lock it in `hyve.lock`:
+
+<Tabs>
+  <Tab title="Civo">
+    ```bash
+    # Ensure Civo CLI is authenticated first
+    civo apikey save my-token YOUR_TOKEN && civo apikey use my-token
+
+    hyve module add github.com/hyve-modules/civo@v1.0.0
+    ```
+  </Tab>
+
+  <Tab title="AWS EKS">
+    ```bash
+    # Ensure AWS CLI is configured first
+    aws configure
+
+    hyve module add github.com/hyve-modules/eks@v2.1.3
+    ```
+  </Tab>
+
+  <Tab title="GCP GKE">
+    ```bash
+    # Ensure gcloud is authenticated first
+    gcloud auth application-default login
+
+    hyve module add github.com/hyve-modules/gke@v1.2.0
+    ```
+  </Tab>
+
+  <Tab title="Azure AKS">
+    ```bash
+    # Ensure Azure CLI is authenticated first
+    az login
+
+    hyve module add github.com/hyve-modules/aks@v1.1.0
+    ```
+  </Tab>
+</Tabs>
+
+Verify the module is locked:
+
+```bash
+hyve module list
+```
+
+## Step 2 — Create a template
+
+Templates define the cluster shape, driver, region, and default params. Create one for each cluster pattern in your infrastructure:
+
+<Tabs>
+  <Tab title="Civo">
+    ```bash
+    # Development cluster
+    hyve template create dev-civo \
+      --driver github.com/hyve-modules/civo \
+      --driver-version v1.0.0 \
+      --region PHX1 \
+      --set node_size=g4s.kube.small \
+      --set node_count=1
+
+    # Production cluster with lifecycle hooks
+    hyve template create prod-civo \
+      --driver github.com/hyve-modules/civo \
+      --driver-version v1.0.0 \
+      --region NYC1 \
+      --set node_size=g4s.kube.large \
+      --set node_count=3 \
+      --on-create setup-monitoring \
+      --on-delete backup-data
+    ```
+  </Tab>
+
+  <Tab title="AWS EKS">
+    ```bash
+    hyve template create prod-eks \
+      --driver github.com/hyve-modules/eks \
+      --driver-version v2.1.3 \
+      --region us-east-1 \
+      --set vpc_id=vpc-0abc123456789 \
+      --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
+      --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
+      --set instance_type=t3.medium \
+      --set node_count=3 \
+      --before-create provision-prereqs \
+      --on-create deploy-monitoring \
+      --after-delete cleanup-prereqs
+    ```
+  </Tab>
+
+  <Tab title="GCP GKE">
+    ```bash
+    hyve template create prod-gke \
+      --driver github.com/hyve-modules/gke \
+      --driver-version v1.2.0 \
+      --region us-central1 \
+      --set project_id=my-gcp-project \
+      --set machine_type=e2-standard-4 \
+      --set node_count=3 \
+      --on-create setup-monitoring
+    ```
+  </Tab>
+
+  <Tab title="Azure AKS">
+    ```bash
+    hyve template create prod-aks \
+      --driver github.com/hyve-modules/aks \
+      --driver-version v1.1.0 \
+      --region eastus \
+      --set subscription_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+      --set resource_group=my-rg \
+      --set vm_size=Standard_DS2_v2 \
+      --set node_count=3 \
+      --on-create setup-monitoring
+    ```
+  </Tab>
+</Tabs>
+
+## Step 3 — Create a cluster
+
+Execute a template to generate the cluster YAML and provision it:
+
+```bash
+hyve cluster create my-prod-cluster --template prod-civo
+```
+
+**Override template defaults at cluster-creation time:**
+
+```bash
+# Override region and node count for this specific cluster
+hyve cluster create eu-cluster --template prod-civo \
+  --region FRA1 \
+  --set node_count=5
+```
+
+## Step 4 — Access the cluster
+
+After the cluster is provisioned, run the auth operation to merge the kubeconfig:
+
+```bash
+hyve cluster auth my-prod-cluster
+kubectl config use-context my-prod-cluster
+kubectl get nodes
+```
+
+## Listing and inspecting clusters
+
+```bash
+# List all clusters in the active repository
+hyve cluster list
+
+# Show full YAML and summary for a specific cluster
+hyve cluster show my-prod-cluster
+```
+
+## Multi-environment strategy
+
+Manage separate repositories for different environments:
+
+```bash
+# Add environment repositories
+hyve git add production --repo-url https://github.com/company/hyve-prod.git
+hyve git add staging --repo-url https://github.com/company/hyve-staging.git
+hyve git add development --repo-url https://github.com/company/hyve-dev.git
+
+# Switch active repository
+hyve git use staging
+
+# Create cluster in staging
+hyve cluster create staging-cluster --template prod-civo --set node_count=2
+
+# Switch to production
+hyve git use production
+hyve cluster create prod-cluster-01 --template prod-civo
+```
+
+## Scaling clusters
+
+To change a cluster's scale, edit the cluster YAML directly and commit:
+
+```bash
+# Edit the cluster YAML
+vim ~/.hyve/repositories/production/clusters/my-cluster.yaml
+# Change: node_count: "3" → node_count: "5"
+
+# Commit the change
+cd ~/.hyve/repositories/production
+git add clusters/my-cluster.yaml
+git commit -m "Scale my-cluster to 5 nodes"
+git push
+
+# Reconcile to apply
+hyve reconcile
+```
+
+Or update the template and re-execute for new clusters:
+
+```bash
+# Update the template default
+hyve template create prod-civo-large \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region NYC1 \
+  --set node_size=g4s.kube.large \
+  --set node_count=5 \
+  --on-create setup-monitoring
+
+# Create a new cluster from the updated template
+hyve cluster create my-new-cluster --template prod-civo-large
+```
+
+## Pausing clusters
+
+Pause a cluster to temporarily prevent Hyve from touching it (useful during maintenance):
+
+```bash
+# Set spec.pause: true in the cluster YAML
+vim ~/.hyve/repositories/production/clusters/my-cluster.yaml
+# Change: pause: false → pause: true
+
+git add clusters/my-cluster.yaml
+git commit -m "Pause my-cluster for maintenance"
+git push
+```
+
+When paused, the reconciler skips the cluster entirely. To resume, set `pause: false` and commit.
+
+## Setting cluster expiry
+
+For ephemeral clusters, set an auto-delete timestamp:
+
+```bash
+# Set expiry in the cluster YAML
+vim ~/.hyve/repositories/production/clusters/dev-cluster.yaml
+# Set: expiresAt: "2026-09-01T00:00:00Z"
+
+git add clusters/dev-cluster.yaml
+git commit -m "Set dev-cluster to expire on 2026-09-01"
+git push
+```
+
+Or use a template with a `--schedule` to auto-compute the expiry:
+
+```bash
+hyve template create dev-weekly \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.small \
+  --schedule "0 20 * * 5"   # auto-expires every Friday at 20:00
+
+hyve cluster create my-dev-cluster --template dev-weekly
+```
+
+## Deleting clusters
+
+To delete a cluster and ensure lifecycle hooks run:
+
+```bash
+hyve cluster delete my-cluster
+```
+
+This sets `spec.delete: true` in the cluster YAML, commits, and reconciles. The reconciler runs `onDelete` workflows, calls the module's delete operation, runs `afterDelete` workflows, and removes the YAML.
+
+<Warning>
+  Do not delete the cluster YAML file directly — lifecycle hooks (`onDelete`, `afterDelete`) will not run. Always use `hyve cluster delete`.
+</Warning>
+
+## Using lifecycle hooks
+
+Lifecycle hooks let you run arbitrary workflows at each stage of a cluster's life. The hooks are defined in the cluster YAML under `spec.workflows`:
+
+```yaml
+spec:
+  workflows:
+    beforeCreate:
+      - provision-network     # Create VPC before the cluster is provisioned
+    onCreate:
+      - setup-monitoring      # Install monitoring stack after cluster is ready
+      - deploy-app            # Deploy application
+    onDelete:
+      - backup-data           # Backup before deletion
+      - drain-workloads       # Drain nodes gracefully
+    afterDelete:
+      - cleanup-network       # Remove VPC after cluster is gone
+```
+
+See the [Workflow Management guide](/docs/guides/workflow-management) for how to define workflow YAMLs.
+
+## Blue-green deployments
+
+Deploy a new cluster alongside the existing one, test, then delete the old one:
+
+```bash
+# Create green cluster
+hyve cluster create prod-green --template prod-civo \
+  --set node_size=g4s.kube.large \
+  --set node_count=3
+
+# Test green cluster
+hyve cluster auth prod-green
+kubectl config use-context prod-green
+kubectl get pods
+
+# Switch traffic (update DNS/load balancer externally)
+# ...
+
+# Delete blue cluster when green is stable
+hyve cluster delete prod-blue
+```
+
+## Reconciliation modes
+
+Control reconciliation behaviour with `hyve.yaml` at your repo root:
+
+```yaml
+reconcile:
+  mode: local          # or "cicd"
+  strictDelete: false  # set to true to delete unmanaged clusters
+```
+
+| Mode | When to use |
+|------|-------------|
+| `local` | Local development — Hyve provisions directly from your machine |
+| `cicd` | CI/CD pipelines — Hyve validates and pushes to Git; pipeline runs `hyve reconcile --path .` |
+
+See the [CI/CD guide](/docs/guides/cicd) for a full GitHub Actions example.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Module not locked">
+    Error: `Module github.com/... is not locked in hyve.lock`
+
+    ```bash
+    hyve module install     # lock all template modules
+    # or
+    hyve module add github.com/hyve-modules/civo@v1.0.0
+    ```
+  </Accordion>
+
+  <Accordion title="Credentials not found">
+    The module cannot find cloud credentials. Ensure the cloud CLI is authenticated:
+
+    ```bash
+    # Civo
+    civo apikey list
+
+    # AWS
+    aws sts get-caller-identity
+
+    # GCP
+    gcloud auth application-default print-access-token
+
+    # Azure
+    az account show
+    ```
+  </Accordion>
+
+  <Accordion title="Cluster not appearing after execution">
+    Run reconciliation manually to trigger provisioning:
+
+    ```bash
+    hyve reconcile
+    hyve cluster list
+    ```
+  </Accordion>
+
+  <Accordion title="Cannot access cluster after creation">
+    Run the auth operation to merge the kubeconfig:
+
+    ```bash
+    hyve cluster auth my-cluster
+    kubectl config use-context my-cluster
+    kubectl cluster-info
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Module System" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    How modules work and how to write your own
+  </Card>
+
+  <Card title="Workflow Management" icon="diagram-project" href="/docs/guides/workflow-management" color="#22c55e">
+    Define lifecycle workflows
+  </Card>
+
+  <Card title="Template Management" icon="layer-group" href="/docs/guides/template-management" color="#06b6d4">
+    Create and manage reusable templates
+  </Card>
+
+  <Card title="CLI: Cluster" icon="terminal" href="/docs/cli/cluster" color="#10b981">
+    Complete cluster command reference
+  </Card>
+</CardGroup>

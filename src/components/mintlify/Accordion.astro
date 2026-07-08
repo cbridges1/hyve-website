@@ -1,0 +1,42 @@
+---
+interface Props {
+  title?: string;
+  icon?: string;
+  defaultOpen?: boolean;
+}
+const { title, defaultOpen = false } = Astro.props as Props;
+---
+<details class="mintlify-accordion" open={defaultOpen}>
+  <summary class="mintlify-accordion-summary">{title}</summary>
+  <div class="mintlify-accordion-body">
+    <slot />
+  </div>
+</details>
+<style>
+  .mintlify-accordion {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+  .mintlify-accordion-summary {
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+  .mintlify-accordion-summary::-webkit-details-marker {
+    display: none;
+  }
+  .mintlify-accordion-summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 0.5rem;
+    transition: transform 0.15s ease;
+  }
+  .mintlify-accordion[open] > .mintlify-accordion-summary::before {
+    transform: rotate(90deg);
+  }
+  .mintlify-accordion-body {
+    padding-top: 0.75rem;
+    font-size: 0.9rem;
+  }
+</style>
