@@ -31,7 +31,7 @@ The module system decouples Hyve's core reconciliation logic from cloud-provider
 - **Any provider, any implementation** — if you can produce the right `HYVE_KEY=value` outputs, you can write a module for it, in whatever language or tool fits the provider best
 - **Your credentials stay in your environment** — modules read credentials from the same env vars and config files that your cloud CLIs use; Hyve never stores them
 - **Versioned and locked** — modules are pinned in `hyve.lock` with a SHA256 content digest, ensuring reproducible reconciles across your team and CI/CD
-- **Composable** — modules can be combined with lifecycle workflows (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`) for full pipeline automation
+- **Composable** — modules can be combined with lifecycle workflows (`beforeCreate`, `onCreate`, `afterCreate`, `onDelete`, `afterDelete`) for full pipeline automation
 
 ## Module directory structure
 

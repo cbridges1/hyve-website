@@ -81,7 +81,11 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.onCreate" type="array">
-  List of workflow names to execute after cluster creation. Kubeconfig is available.
+  List of workflow names to execute after cluster creation, before `spec.resources` applies for this cycle. Kubeconfig is available.
+</ParamField>
+
+<ParamField path="spec.workflows.afterCreate" type="array">
+  List of workflow names to execute after cluster creation, after `spec.resources` has applied for this cycle. Kubeconfig is available. Use instead of `onCreate` when a workflow depends on something `spec.resources` creates (e.g. a namespace or Deployment).
 </ParamField>
 
 <ParamField path="spec.workflows.onDelete" type="array">
@@ -375,10 +379,12 @@ spec:
   workflows:
     beforeCreate:          # Run before the cluster is provisioned (no kubeconfig)
       - provision-prereqs
-    onCreate:              # Run after cluster is ready (kubeconfig injected)
+    onCreate:              # Run after cluster is ready, before spec.resources applies (kubeconfig injected)
       - setup-monitoring
       - deploy-apps
       - configure-ingress
+    afterCreate:            # Run after cluster is ready, after spec.resources applies (kubeconfig injected)
+      - create-app-secrets
     onDelete:             # Run before cluster deletion (kubeconfig injected)
       - backup-data
       - cleanup-dns
@@ -391,7 +397,8 @@ spec:
 | Event | When It Runs | Kubeconfig | Use Cases |
 |-------|--------------|------------|-----------|
 | `beforeCreate` | Before the cluster is provisioned | No | Provision VPC, IAM roles, DNS zones |
-| `onCreate` | After cluster is ready | Yes | Setup monitoring, deploy apps, configure ingress |
+| `onCreate` | After cluster is ready, before `spec.resources` applies | Yes | Setup monitoring, deploy apps, configure ingress |
+| `afterCreate` | After cluster is ready, after `spec.resources` has applied | Yes | Create a Secret a resource-managed Deployment references, DNS pointing at a now-deployed app |
 | `onDelete` | Before cluster deletion | Yes | Backup data, drain workloads, notify teams |
 | `afterDelete` | After the cluster is deleted | No | Tear down VPC, IAM roles, DNS zones |
 

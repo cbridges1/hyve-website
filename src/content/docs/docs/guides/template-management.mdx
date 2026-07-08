@@ -231,9 +231,11 @@ spec:
   workflows:                       # Optional: Lifecycle workflows
     beforeCreate:                  # Run before the cluster is provisioned (no kubeconfig)
       - provision-prereqs
-    onCreate:                      # Run after cluster is ready (kubeconfig injected)
+    onCreate:                      # Run after cluster is ready, before spec.resources applies (kubeconfig injected)
       - workflow-name-1
       - workflow-name-2
+    afterCreate:                   # Run after cluster is ready, after spec.resources applies (kubeconfig injected)
+      - workflow-name-3
     onDelete:                     # Run before cluster deletion (kubeconfig injected)
       - cleanup-workflow
     afterDelete:                   # Run after the cluster is deleted (no kubeconfig)
@@ -277,7 +279,9 @@ hyve cluster create prod-cluster-01 --template prod-template
 4. Waits for cluster to be ready
 5. Syncs kubeconfig
 6. Executes all `onCreate` workflows in order
-7. Note: `onDelete` and `afterDelete` workflows run when the cluster is deleted
+7. Applies `spec.resources`, if any
+8. Executes all `afterCreate` workflows in order
+9. Note: `onDelete` and `afterDelete` workflows run when the cluster is deleted
 
 ### Execution Output
 

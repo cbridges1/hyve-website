@@ -311,6 +311,8 @@ spec:
       - provision-network
     onCreate:
       - deploy-monitoring
+    afterCreate:
+      - create-app-secrets
     onDelete:
       - drain-workloads
     afterDelete:
@@ -344,7 +346,11 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.onCreate" type="string[]">
-  Workflows to run after the cluster is created and ready.
+  Workflows to run after the cluster is created and ready, before `spec.resources` applies for this cycle.
+</ParamField>
+
+<ParamField path="spec.workflows.afterCreate" type="string[]">
+  Workflows to run after the cluster is created and ready, after `spec.resources` has applied for this cycle. Use instead of `onCreate` when a workflow depends on something `spec.resources` creates.
 </ParamField>
 
 <ParamField path="spec.workflows.onDelete" type="string[]">
@@ -398,6 +404,8 @@ spec:
       - install-monitoring
       - install-cert-manager
       - deploy-app
+    afterCreate:
+      - create-app-secrets
     onDelete:
       - backup-state
       - drain-workloads

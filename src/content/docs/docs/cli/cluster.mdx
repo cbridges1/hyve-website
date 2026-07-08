@@ -414,6 +414,8 @@ spec:
       - provision-network
     onCreate:
       - deploy-monitoring
+    afterCreate:
+      - create-app-secrets
     onDelete:
       - drain-workloads
     afterDelete:
@@ -469,7 +471,11 @@ spec:
 </ParamField>
 
 <ParamField path="spec.workflows.onCreate" type="string[]">
-  Workflows to run after the cluster is created and ready. Kubeconfig is available (after auth is run).
+  Workflows to run after the cluster is created and ready, before `spec.resources` applies for this cycle. Kubeconfig is available (after auth is run).
+</ParamField>
+
+<ParamField path="spec.workflows.afterCreate" type="string[]">
+  Workflows to run after the cluster is created and ready, after `spec.resources` has applied for this cycle. Kubeconfig is available. Use this instead of `onCreate` when a workflow depends on something `spec.resources` creates — e.g. a Kubernetes Secret whose values can't be committed to Git, but which a resource-managed Deployment already expects to exist.
 </ParamField>
 
 <ParamField path="spec.workflows.onDelete" type="string[]">

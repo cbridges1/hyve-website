@@ -100,7 +100,7 @@ metadata:
 ### Inputs
 
 `spec.inputs` declares the environment variables a workflow requires at runtime.
-When assigned to a lifecycle hook (`beforeCreate`, `onCreate`, `onDelete`, `afterDelete`, `preReconcile`)
+When assigned to a lifecycle hook (`beforeCreate`, `onCreate`, `afterCreate`, `onDelete`, `afterDelete`, `preReconcile`)
 these are injected automatically. When run ad-hoc via `hyve workflow run`, any missing
 inputs are prompted for in the TUI or must be provided via `--set KEY=VALUE`.
 
