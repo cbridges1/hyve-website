@@ -8,7 +8,18 @@ interface Props {
   href?: string;
   horizontal?: boolean;
 }
-const { title, icon: rawIcon, color = '#000000', href } = Astro.props as Props;
+const { title, icon: rawIcon, color = '#000000', href: rawHref } = Astro.props as Props;
+
+// Astro doesn't rewrite hardcoded hrefs with `base` — only assets/links it
+// generates itself (see src/plugins/rehype-base-links.mjs for the full story).
+// Every internal Card href in this docs site is written root-relative
+// (e.g. "/docs/quickstart"); external links are always full URLs, so the
+// "/" check alone is enough to tell them apart.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href =
+  rawHref && rawHref.startsWith('/') && !rawHref.startsWith('//') && !rawHref.startsWith(base + '/')
+    ? base + rawHref
+    : rawHref;
 
 // A handful of Mintlify's Font Awesome 5-era icon slugs don't exist in the FA6 sets we ship;
 // map them to the closest FA6 equivalent.

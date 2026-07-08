@@ -2,16 +2,29 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import icon from 'astro-icon';
+import { rehypeBaseLinks } from './src/plugins/rehype-base-links.mjs';
+
+// GitHub Pages serves this as a project site at /hyve-website/, so the CI
+// build (where GitHub Actions sets CI=true) needs that base path. Local
+// dev/build skip it so localhost keeps working at the root.
+const base = process.env.CI ? '/hyve-website' : '/';
 
 export default defineConfig({
   site: 'https://cbridges1.github.io',
-  // GitHub Pages serves this as a project site at /hyve-website/, so the CI
-  // build (where GitHub Actions sets CI=true) needs that base path. Local
-  // dev/build skip it so localhost keeps working at the root. Note: this must
-  // stay a plain object passed to defineConfig, not the (command) => ({...})
-  // function form — that form broke Starlight's MDX content-entry resolution
-  // in `astro dev`.
-  base: process.env.CI ? '/hyve-website' : '/',
+  // Note: this must stay a plain object passed to defineConfig, not the
+  // (command) => ({...}) function form — that form broke Starlight's MDX
+  // content-entry resolution in `astro dev`.
+  base,
+  markdown: {
+    // Astro/Starlight only base-prefix hrefs they generate themselves
+    // (sidebar nav, prev/next pagination). Any link an author writes by
+    // hand in markdown prose — e.g. [Quick Start](/docs/quickstart) — is
+    // left as-is, which 404s once base is non-root. This plugin fixes that
+    // for every .md/.mdx page; component-authored hrefs (e.g. Card.astro)
+    // are fixed separately at the component level since they render after
+    // this pass.
+    rehypePlugins: [rehypeBaseLinks(base)],
+  },
   integrations: [
     icon(),
     starlight({
@@ -32,6 +45,7 @@ export default defineConfig({
       },
       components: {
         Header: './src/components/Header.astro',
+        Hero: './src/components/Hero.astro',
       },
       sidebar: [
         {

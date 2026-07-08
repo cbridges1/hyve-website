@@ -15,6 +15,10 @@ import { Icon } from '@astrojs/starlight/components';
 
 const shouldRenderSearch =
 	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+
+// Astro doesn't rewrite hardcoded hrefs with `base` — only assets/links it
+// generates itself (see src/plugins/rehype-base-links.mjs for the full story).
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <div class="header sl-flex">
@@ -25,7 +29,7 @@ const shouldRenderSearch =
 		{shouldRenderSearch && <Search {...Astro.props} />}
 	</div>
 	<div class="sl-hidden md:sl-flex right-group">
-		<a href="/docs/quickstart" class="docs-header-link">
+		<a href={`${base}/docs/quickstart`} class="docs-header-link">
 			<Icon name="open-book" size="1.1em" />
 			Docs
 		</a>

@@ -1,0 +1,27 @@
+---
+// Wraps Starlight's built-in Hero to fix a base-path gap: hero.actions[].link
+// values come from page frontmatter (plain YAML, no JS), so they can't
+// reference import.meta.env.BASE_URL themselves. Astro/Starlight never
+// rewrites hrefs it didn't generate itself, so a root-relative link like
+// `/docs/quickstart` 404s once `base` is non-root. Prepend it here, once,
+// for every page's hero — same fix applied to Card.astro and Header.astro
+// for their own hardcoded internal links.
+import Hero from '@astrojs/starlight/components/Hero.astro';
+import type { Props } from '@astrojs/starlight/props';
+
+const props = Astro.props as Props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const hero = props.entry.data.hero;
+if (hero?.actions?.length) {
+	hero.actions = hero.actions.map((action) => {
+		const link = action.link;
+		if (typeof link === 'string' && link.startsWith('/') && !link.startsWith('//') && !link.startsWith(base + '/')) {
+			return { ...action, link: base + link };
+		}
+		return action;
+	});
+}
+---
+
+<Hero {...props} />
