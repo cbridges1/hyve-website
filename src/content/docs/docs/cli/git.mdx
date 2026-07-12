@@ -270,14 +270,18 @@ hyve git reset-path
 
 ### hyve git remove
 
-Remove a Git repository configuration from storage.
+Remove a Git repository configuration from storage and delete its local clone from disk.
 
 ```bash
-hyve git remove [repository-name]
+hyve git remove [repository-name] [flags]
 ```
 
 <ParamField path="repository-name" type="string" required>
   Name of the repository to remove
+</ParamField>
+
+<ParamField path="--keep-files" type="boolean" default="false">
+  Keep the local clone on disk instead of deleting it
 </ParamField>
 
 **Example:**
@@ -290,18 +294,25 @@ hyve git remove development
 
 ```
 ✅ Repository 'development' removed successfully
+Removed local clone at "/Users/you/.hyve/repositories/development"
 Current repository is now: production
 ```
+
+Pass `--keep-files` to drop the configuration without touching the clone on disk — useful if `--path` pointed the repository at a directory you manage yourself.
 
 ---
 
 ### hyve git reset
 
-Remove all Git repository configurations and revert to local state directory.
+Remove all Git repository configurations and their local clones, and revert to local state directory.
 
 ```bash
-hyve git reset
+hyve git reset [flags]
 ```
+
+<ParamField path="--keep-files" type="boolean" default="false">
+  Keep local clones on disk instead of deleting them
+</ParamField>
 
 **Example:**
 
@@ -315,10 +326,6 @@ hyve git reset
 ✅ All Git configurations reset
 Add a Git repository to continue using Hyve: hyve git add <name> --repo-url <url>
 ```
-
-<Warning>
-  This command removes all repository configurations. Local clones in `~/.hyve/repositories/` are preserved.
-</Warning>
 
 ---
 
