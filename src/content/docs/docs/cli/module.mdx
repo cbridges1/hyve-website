@@ -331,26 +331,28 @@ metadata:
 spec:
   params:
     - name: api_key
-      type: string
       required: true
       description: Civo API key (or set CIVO_TOKEN env var)
     - name: region
-      type: string
       required: true
       description: Civo region code (PHX1, NYC1, FRA1, LON1)
     - name: node_size
-      type: string
       required: true
       description: Node size (e.g. g4s.kube.medium)
     - name: node_count
-      type: int
       required: false
       default: "1"
       description: Number of nodes
   requirements:
-    - name: civo
-      description: Civo CLI must be installed and authenticated
+    env:
+      - name: CIVO_TOKEN
+        description: Civo API token (alternative to the api_key param)
+    tools:
+      - name: civo
+        description: Civo CLI must be installed and authenticated
 ```
+
+See [Modules → module.yaml](/docs/concepts/modules#moduleyaml) for the full `requirements` schema (`env` + `tools`) and exactly when/how `tools` is enforced.
 
 ## Environment variables injected into operations
 
