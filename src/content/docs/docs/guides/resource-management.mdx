@@ -62,7 +62,7 @@ hyve reconcile
 [production] Resource nginx-ingress: drift detected (config changed) — applying
 ```
 
-`spec.appliedResources` is now populated and committed — inspect it any time with:
+`spec.appliedResources` is now populated and committed (to `clusters/production.state.yaml`, not `production.yaml` itself — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file)) — inspect it any time with:
 
 ```bash
 hyve cluster resources production
@@ -87,6 +87,51 @@ The next reconcile runs `helm upgrade --install`. Changing `values`, `version`, 
 
 <Info>
   `helm` is expected to already be on `PATH`, the same way `kubectl` is — Hyve doesn't install it for you.
+</Info>
+
+## Declare a secret resource
+
+Unlike a manifest or Helm resource, a `secret:` resource's values don't come from anything committed to Git — they're resolved from whatever environment `hyve reconcile` (or `hyve serve`) is actually running in:
+
+```yaml
+spec:
+  resources:
+    - name: github-secrets
+      secret:
+        namespace: default
+        keys: [PANGOLIN_ENDPOINT, NEWT_ID, NEWT_SECRET]
+```
+
+Get those three variables into the reconciling process's environment first — a CI job's `env:` block, a local export, however you're running Hyve — then reconcile:
+
+```bash
+hyve reconcile
+```
+
+```
+[production] Resource github-secrets: drift detected (config changed) — applying
+```
+
+If a listed variable isn't set, the resource fails loudly instead of applying a partial Secret:
+
+```
+[production] reconcile error: resource github-secrets: render secret failed: secret resource: missing required environment variable(s): NEWT_SECRET
+```
+
+To store a value under a different key than the environment variable it came from — e.g. because a chart expects a fixed key name — use the `{env, key}` mapping form for that entry:
+
+```yaml
+spec:
+  resources:
+    - name: portainer-admin-password
+      secret:
+        namespace: portainer
+        keys:
+          - {env: PORTAINER_PASSWORD, key: password}
+```
+
+<Info>
+  Already running External Secrets Operator, Vault, or similar? Keep using it — declare its `SecretStore`/`ExternalSecret` (or equivalent) as an ordinary `source:` resource instead. `secret:` is meant for the common case of a handful of application secrets when you don't have that infrastructure, not a replacement for it.
 </Info>
 
 ## Preview before applying
@@ -136,6 +181,8 @@ If you remove the YAML block directly instead (skipping `delete: true`), Hyve tr
 
 Set `reconcile.strictResourceDelete: true` in `hyve.yaml` if you want orphans pruned automatically instead of just flagged — see [Cluster Resources → Removing a resource](/docs/concepts/resources#removing-a-resource) for the full safety rationale.
 
+For a `secret:` resource specifically, you don't need `delete: true` to drop just one key — remove it from `keys:` and reconcile; it's actually removed from the live Secret, not left stale. See [Dropping one key from a Secret resource](/docs/concepts/resources#dropping-one-key-from-a-secret-resource).
+
 ## Troubleshooting
 
 <AccordionGroup>
@@ -143,12 +190,16 @@ Set `reconcile.strictResourceDelete: true` in `hyve.yaml` if you want orphans pr
     Check `kubectl diff --server-side -f <manifest>` yourself — something outside Hyve (another controller, a mutating webhook that rewrites a field) is likely fighting with the applied state. Server-side apply's field ownership can also cause this if another tool applies the same fields with a different field manager.
   </Accordion>
 
-  <Accordion title='"exactly one of source or helm must be set"'>
-    A resource entry needs `source` or `helm`, not both and not neither. Check for a typo (e.g. `Source` vs `source` — YAML is case-sensitive) or a stray `helm:` block left over from converting a manifest resource to a Helm one.
+  <Accordion title='"exactly one of source, helm, or secret must be set"'>
+    A resource entry needs exactly one of `source`, `helm`, or `secret` — not two, not zero. Check for a typo (e.g. `Source` vs `source` — YAML is case-sensitive) or a stray block left over from converting a resource from one kind to another.
   </Accordion>
 
   <Accordion title="Resource source resolves to a directory error">
     `source` must name a single file — `.yaml`/`.yml` suffix required for a remote ref. There's no directory-expansion form for resources (unlike remote workflow installs) — split a directory of manifests into individual `resources` entries instead.
+  </Accordion>
+
+  <Accordion title="secret resource: missing required environment variable(s)">
+    One or more names in `keys:` aren't set in the environment `hyve reconcile`/`hyve serve` is actually running in. This is a hard error by design — a `secret:` resource never applies a Secret with fewer keys than declared. Set the variable in whatever's running Hyve (CI job `env:`, local export, server container env) and reconcile again.
   </Accordion>
 
   <Accordion title="helm: command not found">

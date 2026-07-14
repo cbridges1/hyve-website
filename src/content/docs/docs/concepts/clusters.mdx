@@ -55,9 +55,6 @@ spec:
     node_role_arn: arn:aws:iam::123456789012:role/node-role
     instance_type: t3.medium
     node_count: "3"
-  driverOutputs:               # populated by reconciler — do not edit
-    HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
-    HYVE_LAST_PARAMS_HASH: abc123...
   workflows:
     beforeCreate:
       - provision-network
@@ -73,6 +70,10 @@ spec:
   pendingWorkflows: []
   workflowSchedules: []
 ```
+
+<Info>
+  `driverOutputs` and `appliedResources` are deliberately absent from this file — they're reconciler-owned state, kept in a separate sidecar file next to it. See [Reconciler state file](#reconciler-state-file) below.
+</Info>
 
 ### Metadata fields
 
@@ -108,10 +109,46 @@ spec:
 ### driverOutputs
 
 <ParamField path="spec.driverOutputs" type="object">
-  Key-value pairs emitted by module operations as `HYVE_KEY=value` stdout lines during reconciliation. These are stored here and re-injected on the next reconcile, allowing operations to pass data forward (e.g. cluster endpoint, VPC ID, last param hash).
+  Key-value pairs emitted by module operations as `HYVE_KEY=value` stdout lines during reconciliation. These are stored and re-injected on the next reconcile, allowing operations to pass data forward (e.g. cluster endpoint, VPC ID, last param hash).
 
-  **Do not edit this field manually.** It is managed exclusively by the reconciler.
+  **Do not edit this field manually.** It is managed exclusively by the reconciler, and — like `spec.appliedResources` — physically lives in a separate file from the one you edit. See [Reconciler state file](#reconciler-state-file) below.
 </ParamField>
+
+### Reconciler state file
+
+`driverOutputs` and `appliedResources` (see [Cluster Resources](/docs/concepts/resources)) are both reconciler-owned: values the reconciler produced, not something a person decides. Keeping them in the same file as `spec.driver`, `spec.params`, `spec.resources`, and the rest of what you actually author would mean every routine reconcile — even one where nothing you declared changed — rewrites that file, mixing machine bookkeeping (content hashes, timestamps, tracked-object lists) into the same diff as your real changes.
+
+Instead, they're stored in a sidecar file next to the cluster's desired-state YAML:
+
+```
+clusters/
+├── my-cluster.yaml         # what you author and review
+└── my-cluster.state.yaml   # driverOutputs + appliedResources — reconciler-owned
+```
+
+```yaml
+# clusters/my-cluster.state.yaml
+driverOutputs:
+  HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
+  HYVE_LAST_PARAMS_HASH: abc123...
+appliedResources:
+  cert-manager:
+    sourceSHA256: a1b2c3d4e5f6...
+    helm: true
+    namespace: cert-manager
+    appliedAt: "2026-07-03T10:00:00Z"
+    objects:
+      - apiVersion: apps/v1
+        kind: Deployment
+        namespace: cert-manager
+        name: cert-manager
+```
+
+<Warning>
+  Never hand-edit `clusters/<name>.state.yaml`. It's committed to Git (so it survives a fresh checkout on a CI runner between reconciles) but treated exactly like `driverOutputs` always has been — the reconciler owns it, and anything you write there gets overwritten on the next save.
+</Warning>
+
+This file is entirely derived from `clusters/<name>.yaml` plus what the reconciler observes — if it's ever missing, the reconciler recreates it on the next reconcile with no manual migration step. An older cluster file that still has `driverOutputs`/`appliedResources` inline (from before this split existed) keeps working exactly as before; the very next reconcile that touches the cluster splits it into the two-file layout automatically.
 
 ### Lifecycle control
 
@@ -329,12 +366,15 @@ Cluster definitions are stored in:
 ```
 ~/.hyve/repositories/<repository-name>/
 └── clusters/
-    ├── my-cluster.yaml
+    ├── my-cluster.yaml         # desired state — what you author
+    ├── my-cluster.state.yaml   # driverOutputs + appliedResources — reconciler-owned
     ├── staging.yaml
-    └── dev.yaml
+    ├── staging.state.yaml
+    ├── dev.yaml
+    └── dev.state.yaml
 ```
 
-These files are version-controlled in your Git repository. Every change is committed and pushed — providing a full audit trail of all cluster modifications.
+A cluster with no reconciler-owned state yet (freshly created, nothing applied) has no `.state.yaml` file — it appears on the first save that has something to record. These files are version-controlled in your Git repository. Every change is committed and pushed — providing a full audit trail of all cluster modifications.
 
 ## Related
 
