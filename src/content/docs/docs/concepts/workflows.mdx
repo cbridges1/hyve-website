@@ -154,40 +154,46 @@ Workflows can validate prerequisites before execution:
 
 ### Tool Requirements
 
-Declare required CLI tools at the top level of the workflow file. Version constraints are
-optional — a bare `name:` entry means any installed version is acceptable.
+Declare required CLI tools under `spec.requirements.tools`. A version is optional — a bare
+`name:` entry means any installed version is acceptable; `version:` (if set) is checked
+against whatever `<tool> --version`/`-v`/`version` reports, matching or newer.
 
 ```yaml
-tools:
-  - name: kubectl
-    min: "1.28.0"       # minimum acceptable version
-  - name: helm
-    min: "3.12.0"
-    max: "3.99.99"      # upper bound (e.g. breaking changes in 4.x)
-  - name: docker        # any version — just needs to be present
+spec:
+  requirements:
+    tools:
+      - name: kubectl
+        version: "1.28.0"
+      - name: helm
+        version: "3.12.0"
+      - name: docker        # any version — just needs to be present
 ```
 
-Hyve reconciles these requirements against the versions installed by the repository-level
-`tools:` block in `hyve.yaml`. If a conflict is detected (installed version is outside the
-required range, or two workflows require incompatible ranges), `hyve` surfaces an error
-before execution begins.
+Checked with a plain `PATH` lookup (`exec.LookPath`) before the workflow runs — this is a
+per-workflow, self-contained check. There's no `hyve.yaml`-level tools list it cross-references
+and no coordination across workflows; each workflow's `requirements.tools` stands alone. There
+is no separate hyve-level tools manifest today — see the [Server Mode guide](/docs/guides/server-mode#tool-dependencies)
+for the recommended way to make sure a `hyve serve` container actually has what it needs
+(bake tools into the image at build time; an admin-triggered workflow to patch a running
+container as the fallback).
 
 ### Secret Requirements
 
-Load secrets from encrypted database or environment:
+Load secrets from the environment:
 
 ```yaml
-requirements:
-  secrets:
-    - name: DOCKER_TOKEN
-      provider: docker
-      required: true
-      description: Docker Hub authentication
-    - name: GITHUB_TOKEN
-      provider: github
-      required: false
-      description: GitHub API token (optional)
+spec:
+  requirements:
+    secrets:
+      - name: DOCKER_TOKEN
+        required: true
+        description: Docker Hub authentication
+      - name: GITHUB_TOKEN
+        required: false
+        description: GitHub API token (optional)
 ```
+
+Checked with `os.Getenv` — if a required secret's environment variable isn't set, the workflow fails before running with a clear error. `provider` is optional and only changes the *suggestion text* in that error for a handful of recognized values (`civo`, `aws`, `gcp`, `azure` — e.g. suggesting `aws configure`); it doesn't look anything up on its own.
 
 <Note>
   See [Workflow Requirements](/docs/workflows/requirements) for detailed documentation.
