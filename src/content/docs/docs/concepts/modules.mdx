@@ -261,7 +261,7 @@ Commit `hyve.lock` to Git. This ensures:
 
 ## driverOutputs
 
-`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's committed to Git, in a reconciler-owned sidecar file (`clusters/<name>.state.yaml`) alongside the cluster's desired-state YAML, not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
+`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's committed to Git, in a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
 
 ```yaml
 spec:

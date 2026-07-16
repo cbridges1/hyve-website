@@ -104,7 +104,7 @@ On every reconcile cycle, for an ACTIVE cluster, resource reconciliation runs **
 
 Either kind of drift triggers a re-apply (`kubectl apply --server-side`, or `helm upgrade --install`). If neither has drifted, the resource is left alone. A failure — apply, delete, or resolve — stops the loop for that cluster with no rollback (whatever already applied this cycle stays applied) and fails the reconcile cycle so it's retried next time, rather than silently continuing past a broken resource.
 
-What Hyve applied is recorded in `spec.appliedResources`, keyed by resource name — reconciler-owned, never hand-edit, the same convention as `spec.driverOutputs`. Both live in a separate reconciler-owned file, `clusters/<name>.state.yaml`, alongside the cluster's desired-state YAML — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). Inspect the tracked state with [`hyve cluster resources <name>`](/docs/cli/cluster#hyve-cluster-resources).
+What Hyve applied is recorded in `spec.appliedResources`, keyed by resource name — reconciler-owned, never hand-edit, the same convention as `spec.driverOutputs`. Both live in a separate reconciler-owned file, `cluster-state/<name>.state.yaml` — a sibling directory of `clusters/`, not alongside the cluster's desired-state YAML itself — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). Inspect the tracked state with [`hyve cluster resources <name>`](/docs/cli/cluster#hyve-cluster-resources).
 
 ## Removing a resource
 

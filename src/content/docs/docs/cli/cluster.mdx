@@ -387,7 +387,7 @@ Tracked (spec.appliedResources):
 </Info>
 
 <Info>
-  This reads `spec.resources` (from `clusters/<name>.yaml`) and `spec.appliedResources` (from its `clusters/<name>.state.yaml` sidecar) directly off disk — it does not run `kubectl diff` or contact the live cluster, so it works even offline. Use `hyve reconcile --dry-run` for a live drift preview. See [Cluster Resources](/docs/concepts/resources).
+  This reads `spec.resources` (from `clusters/<name>.yaml`) and `spec.appliedResources` (from its `cluster-state/<name>.state.yaml` sidecar) directly off disk — it does not run `kubectl diff` or contact the live cluster, so it works even offline. Use `hyve reconcile --dry-run` for a live drift preview. See [Cluster Resources](/docs/concepts/resources).
 </Info>
 
 ---
@@ -446,10 +446,10 @@ spec:
   workflowSchedules: []         # managed by reconciler
 ```
 
-`driverOutputs` and `appliedResources` are deliberately not shown here — they're reconciler-owned and live in a separate sidecar file, `clusters/my-cluster.state.yaml`, never inline in this one. See [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
+`driverOutputs` and `appliedResources` are deliberately not shown here — they're reconciler-owned and live in a separate sidecar file, `cluster-state/my-cluster.state.yaml`, never inline in this one. See [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
 
 ```yaml
-# clusters/my-cluster.state.yaml — populated by reconciler, do not edit manually
+# cluster-state/my-cluster.state.yaml — populated by reconciler, do not edit manually
 driverOutputs:
   HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
   HYVE_LAST_PARAMS_HASH: abc123...
@@ -479,7 +479,7 @@ appliedResources: {}
 </ParamField>
 
 <ParamField path="spec.driverOutputs" type="object">
-  Populated by the reconciler after successful create/update operations. Do not edit manually. All keys are re-injected verbatim as environment variables on the next reconcile. Physically stored in `clusters/<name>.state.yaml`, not this file — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
+  Populated by the reconciler after successful create/update operations. Do not edit manually. All keys are re-injected verbatim as environment variables on the next reconcile. Physically stored in `cluster-state/<name>.state.yaml`, not this file — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
 </ParamField>
 
 <ParamField path="spec.workflows.beforeCreate" type="string[]">
@@ -511,7 +511,7 @@ appliedResources: {}
 </ParamField>
 
 <ParamField path="spec.appliedResources" type="object">
-  Populated by the reconciler after successfully applying a resource. Do not edit manually — mirrors `driverOutputs` at resource granularity, and lives alongside it in `clusters/<name>.state.yaml`, not this file. Use `hyve cluster resources <name>` to inspect it.
+  Populated by the reconciler after successfully applying a resource. Do not edit manually — mirrors `driverOutputs` at resource granularity, and lives alongside it in `cluster-state/<name>.state.yaml`, not this file. Use `hyve cluster resources <name>` to inspect it.
 </ParamField>
 
 <ParamField path="spec.delete" type="boolean" default="false">

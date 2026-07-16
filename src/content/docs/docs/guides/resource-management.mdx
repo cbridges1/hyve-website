@@ -62,7 +62,7 @@ hyve reconcile
 [production] Resource nginx-ingress: drift detected (config changed) — applying
 ```
 
-`spec.appliedResources` is now populated and committed (to `clusters/production.state.yaml`, not `production.yaml` itself — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file)) — inspect it any time with:
+`spec.appliedResources` is now populated and committed (to `cluster-state/production.state.yaml`, not `production.yaml` itself — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file)) — inspect it any time with:
 
 ```bash
 hyve cluster resources production

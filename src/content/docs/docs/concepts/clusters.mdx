@@ -72,7 +72,7 @@ spec:
 ```
 
 <Info>
-  `driverOutputs` and `appliedResources` are deliberately absent from this file — they're reconciler-owned state, kept in a separate sidecar file next to it. See [Reconciler state file](#reconciler-state-file) below.
+  `driverOutputs` and `appliedResources` are deliberately absent from this file — they're reconciler-owned state, kept in a separate sidecar file in its own directory. See [Reconciler state file](#reconciler-state-file) below.
 </Info>
 
 ### Metadata fields
@@ -118,16 +118,17 @@ spec:
 
 `driverOutputs` and `appliedResources` (see [Cluster Resources](/docs/concepts/resources)) are both reconciler-owned: values the reconciler produced, not something a person decides. Keeping them in the same file as `spec.driver`, `spec.params`, `spec.resources`, and the rest of what you actually author would mean every routine reconcile — even one where nothing you declared changed — rewrites that file, mixing machine bookkeeping (content hashes, timestamps, tracked-object lists) into the same diff as your real changes.
 
-Instead, they're stored in a sidecar file next to the cluster's desired-state YAML:
+Instead, they're stored in a sidecar file in `cluster-state/`, a sibling of `clusters/` — not next to the cluster's desired-state YAML, but in its own directory entirely, so `ls clusters/` only ever shows files you actually wrote:
 
 ```
 clusters/
-├── my-cluster.yaml         # what you author and review
-└── my-cluster.state.yaml   # driverOutputs + appliedResources — reconciler-owned
+└── my-cluster.yaml           # what you author and review
+cluster-state/
+└── my-cluster.state.yaml     # driverOutputs + appliedResources — reconciler-owned
 ```
 
 ```yaml
-# clusters/my-cluster.state.yaml
+# cluster-state/my-cluster.state.yaml
 driverOutputs:
   HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
   HYVE_LAST_PARAMS_HASH: abc123...
@@ -145,10 +146,10 @@ appliedResources:
 ```
 
 <Warning>
-  Never hand-edit `clusters/<name>.state.yaml`. It's committed to Git (so it survives a fresh checkout on a CI runner between reconciles) but treated exactly like `driverOutputs` always has been — the reconciler owns it, and anything you write there gets overwritten on the next save.
+  Never hand-edit `cluster-state/<name>.state.yaml`. It's committed to Git (so it survives a fresh checkout on a CI runner between reconciles) but treated exactly like `driverOutputs` always has been — the reconciler owns it, and anything you write there gets overwritten on the next save.
 </Warning>
 
-This file is entirely derived from `clusters/<name>.yaml` plus what the reconciler observes — if it's ever missing, the reconciler recreates it on the next reconcile with no manual migration step. An older cluster file that still has `driverOutputs`/`appliedResources` inline (from before this split existed) keeps working exactly as before; the very next reconcile that touches the cluster splits it into the two-file layout automatically.
+This file is entirely derived from `clusters/<name>.yaml` plus what the reconciler observes — if it's ever missing, the reconciler recreates it on the next reconcile with no manual migration step. An older cluster file that still has `driverOutputs`/`appliedResources` inline (from before this split existed) keeps working exactly as before; the very next reconcile that touches the cluster splits it into the two-file layout automatically. Likewise, an existing sidecar still sitting directly in `clusters/` (from before it moved to its own directory) needs no migration step either — it's just written back out to `cluster-state/` on the next reconcile that touches that cluster.
 
 ### Lifecycle control
 
@@ -365,16 +366,17 @@ Cluster definitions are stored in:
 
 ```
 ~/.hyve/repositories/<repository-name>/
-└── clusters/
-    ├── my-cluster.yaml         # desired state — what you author
+├── clusters/
+│   ├── my-cluster.yaml         # desired state — what you author
+│   ├── staging.yaml
+│   └── dev.yaml
+└── cluster-state/
     ├── my-cluster.state.yaml   # driverOutputs + appliedResources — reconciler-owned
-    ├── staging.yaml
     ├── staging.state.yaml
-    ├── dev.yaml
     └── dev.state.yaml
 ```
 
-A cluster with no reconciler-owned state yet (freshly created, nothing applied) has no `.state.yaml` file — it appears on the first save that has something to record. These files are version-controlled in your Git repository. Every change is committed and pushed — providing a full audit trail of all cluster modifications.
+A cluster with no reconciler-owned state yet (freshly created, nothing applied) has no `.state.yaml` file — it appears in `cluster-state/` on the first save that has something to record. These files are version-controlled in your Git repository. Every change is committed and pushed — providing a full audit trail of all cluster modifications.
 
 ## Related
 
