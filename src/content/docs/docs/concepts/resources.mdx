@@ -40,6 +40,11 @@ spec:
         namespace: cert-manager
         values:
           installCRDs: "true"
+          # ${VAR} expands against Hyve's own process environment at
+          # reconcile time — useful for a value that's real but not secret
+          # (an org ID, an API endpoint) and shouldn't be committed
+          # literally into a template reused across many cluster instances.
+          acme.email: ${LETSENCRYPT_EMAIL}
 
     - name: github-secrets
       secret:
@@ -68,7 +73,9 @@ spec:
 </ParamField>
 
 <ParamField path="helm" type="object">
-  Declares this resource as a Helm chart release instead of a raw manifest. Mutually exclusive with `source`/`secret`. Sub-fields: `chart` (required), `repo`, `version`, `namespace`, `values` (a flat string map, passed as `--set key=value`).
+  Declares this resource as a Helm chart release instead of a raw manifest. Mutually exclusive with `source`/`secret`. Sub-fields: `chart` (required — a chart repo name, or a local path with no `repo:` set, for a chart living in your own repository), `repo`, `version`, `namespace`, `values` (a flat string map, passed as `--set key=value`).
+
+  A value may reference Hyve's own process environment with `${VAR_NAME}` (braced form only — a bare `$VAR` or a literal `$` elsewhere in a value is left untouched), resolved fresh on every reconcile. Useful for a value that legitimately differs per environment but isn't itself secret — an API endpoint, an org ID — so it can live in `.env`/CI secrets instead of being committed literally into a template reused across many cluster instances. A referenced variable that isn't set is a hard reconcile error naming it, not a silent empty-string substitution — the same fail-loud behavior [Secret resources](#secret-resources) use for a missing key.
 </ParamField>
 
 <ParamField path="secret" type="object">
