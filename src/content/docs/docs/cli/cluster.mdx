@@ -374,14 +374,20 @@ hyve cluster resources production
 Declared (spec.resources):
   nginx-ingress  source=./resource-files/nginx-ingress.yaml namespace=ingress-nginx
   cert-manager  helm chart=cert-manager version=v1.14.0 namespace=cert-manager
+  github-secrets  secret namespace=default keys=[PANGOLIN_ENDPOINT NEWT_ID NEWT_SECRET]
 
 Tracked (spec.appliedResources):
   cert-manager  [helm]  appliedAt=2026-07-03T10:00:00Z  sha256=a1b2c3d4e5f6…  objects=6
+  github-secrets  [manifest]  appliedAt=2026-07-03T09:59:01Z  sha256=7c6d5e4f3a2b…  objects=1
   nginx-ingress  [manifest]  appliedAt=2026-07-03T09:58:12Z  sha256=9f8e7d6c5b4a…  objects=2
 ```
 
 <Info>
-  This reads `spec.resources`/`spec.appliedResources` directly from the cluster YAML — it does not run `kubectl diff` or contact the live cluster, so it works even offline. Use `hyve reconcile --dry-run` for a live drift preview. See [Cluster Resources](/docs/concepts/resources).
+  A Secret resource shows up as `[manifest]` in the tracked section, not `[secret]` — it's cleaned up through the exact same tracked-object path a raw manifest resource uses, so the reconciler doesn't distinguish them for deletion purposes. Cosmetic only.
+</Info>
+
+<Info>
+  This reads `spec.resources` (from `clusters/<name>.yaml`) and `spec.appliedResources` (from its `cluster-state/<name>.state.yaml` sidecar) directly off disk — it does not run `kubectl diff` or contact the live cluster, so it works even offline. Use `hyve reconcile --dry-run` for a live drift preview. See [Cluster Resources](/docs/concepts/resources).
 </Info>
 
 ---
@@ -406,9 +412,6 @@ spec:
     node_role_arn: arn:aws:iam::123456789012:role/node-role
     instance_type: t3.medium
     node_count: "3"
-  driverOutputs:               # populated by reconciler — do not edit manually
-    HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
-    HYVE_LAST_PARAMS_HASH: abc123...
   workflows:
     beforeCreate:
       - provision-network
@@ -432,12 +435,25 @@ spec:
         namespace: cert-manager
         values:
           installCRDs: "true"
-  appliedResources: {}          # populated by reconciler — do not edit manually
+    - name: github-secrets
+      secret:
+        namespace: default
+        keys: [PANGOLIN_ENDPOINT, NEWT_ID, NEWT_SECRET]
   delete: false                 # set to true to mark for deletion
   pause: false                  # set to true to skip reconciliation
   expiresAt: ""                 # RFC 3339 auto-delete timestamp
   pendingWorkflows: []          # managed by reconciler
   workflowSchedules: []         # managed by reconciler
+```
+
+`driverOutputs` and `appliedResources` are deliberately not shown here — they're reconciler-owned and live in a separate sidecar file, `cluster-state/my-cluster.state.yaml`, never inline in this one. See [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
+
+```yaml
+# cluster-state/my-cluster.state.yaml — populated by reconciler, do not edit manually
+driverOutputs:
+  HYVE_EKS_CLUSTER_ENDPOINT: https://abc123.gr7.us-east-1.eks.amazonaws.com
+  HYVE_LAST_PARAMS_HASH: abc123...
+appliedResources: {}
 ```
 
 ### Field reference
@@ -463,7 +479,7 @@ spec:
 </ParamField>
 
 <ParamField path="spec.driverOutputs" type="object">
-  Populated by the reconciler after successful create/update operations. Do not edit manually. All keys are re-injected verbatim as environment variables on the next reconcile.
+  Populated by the reconciler after successful create/update operations. Do not edit manually. All keys are re-injected verbatim as environment variables on the next reconcile. Physically stored in `cluster-state/<name>.state.yaml`, not this file — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
 </ParamField>
 
 <ParamField path="spec.workflows.beforeCreate" type="string[]">
@@ -491,11 +507,11 @@ spec:
 </ParamField>
 
 <ParamField path="spec.resources" type="array">
-  Kubernetes manifests or Helm releases Hyve should own, drift-check, and re-apply on every reconcile cycle for an ACTIVE cluster — unconditionally, not gated by param drift. See [Cluster Resources](/docs/concepts/resources) for the full schema.
+  Kubernetes manifests, Helm releases, or Secrets rendered from Hyve's own environment that Hyve should own, drift-check, and re-apply on every reconcile cycle for an ACTIVE cluster — unconditionally, not gated by param drift. See [Cluster Resources](/docs/concepts/resources) for the full schema.
 </ParamField>
 
 <ParamField path="spec.appliedResources" type="object">
-  Populated by the reconciler after successfully applying a resource. Do not edit manually — mirrors `driverOutputs` at resource granularity. Use `hyve cluster resources <name>` to inspect it.
+  Populated by the reconciler after successfully applying a resource. Do not edit manually — mirrors `driverOutputs` at resource granularity, and lives alongside it in `cluster-state/<name>.state.yaml`, not this file. Use `hyve cluster resources <name>` to inspect it.
 </ParamField>
 
 <ParamField path="spec.delete" type="boolean" default="false">
