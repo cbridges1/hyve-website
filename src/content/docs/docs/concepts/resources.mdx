@@ -32,6 +32,14 @@ spec:
     - name: cert-manager-crds
       source: github.com/myorg/manifests//cert-manager/crds.yaml@v1.14.0
 
+    - name: portainer-public-resource
+      # The same manifest file can be reused across templates/clusters —
+      # each reference supplies its own values here, so the file itself
+      # never hardcodes anything cluster-specific.
+      source: ./resource-files/portainer-public-resource.yaml
+      values:
+        FULL_DOMAIN: portainer.example.com
+
     - name: cert-manager
       helm:
         chart: cert-manager
@@ -66,6 +74,17 @@ spec:
 
 <ParamField path="namespace" type="string">
   Applied via `kubectl apply/diff -n <namespace>` as a default. An object's own `metadata.namespace` still wins per normal kubectl behavior. Only meaningful with `source` — a Helm resource uses `helm.namespace` instead, and a Secret resource uses `secret.namespace` instead.
+</ParamField>
+
+<ParamField path="values" type="object">
+  `${VAR_NAME}` substitutions (braced form only) applied to this resource's manifest file — the raw text, comments included. Only meaningful with `source`. Lets one manifest file be reused across multiple resource entries — even within the same template — while each reference supplies its own values, instead of hardcoding something reference-specific (a hostname, an org ID) directly into a shared file.
+
+  Three-tier lookup per reference, most specific wins:
+  1. This resource's own `values:` — verbatim keys, no case transform, exactly like `helm.values`.
+  2. The owning cluster's `spec.params`, as `HYVE_PARAM_<KEY>` (see [the `HYVE_PARAM_*` naming convention](/docs/concepts/modules#module-params)) — a template-wide default when every resource sharing a file wants the same value.
+  3. Hyve's own process environment (`.env` locally, CI secrets) — same fallback `helm.values` already gets.
+
+  A referenced variable that resolves in none of the three is a hard reconcile error naming it, not a silent empty-string substitution — same fail-loud behavior as `helm.values` and [Secret resources](#secret-resources).
 </ParamField>
 
 <ParamField path="delete" type="boolean" default="false">
