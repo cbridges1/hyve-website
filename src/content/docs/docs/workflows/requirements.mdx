@@ -5,8 +5,6 @@ description: "Validate prerequisites before workflow execution"
 
 import Card from '../../../../components/mdx/Card.astro';
 import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Steps from '../../../../components/mdx/Steps.astro';
-import Step from '../../../../components/mdx/Step.astro';
 import Accordion from '../../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
@@ -23,15 +21,15 @@ Hyve workflows support a `requirements` field that validates prerequisites befor
   </Card>
 
   <Card title="Secret Management" icon="key" color="#f43f5e">
-    Automatically load secrets from encrypted database or environment variables
+    Check that required secrets are set as environment variables before the workflow runs
   </Card>
 
   <Card title="Clear Errors" icon="circle-exclamation" color="#f59e0b">
     Helpful error messages when requirements aren't met
   </Card>
 
-  <Card title="Multiple Sources" icon="database" color="#6366f1">
-    Support secrets from different providers (docker, github, datadog, etc.)
+  <Card title="Suggestion Hints" icon="lightbulb" color="#6366f1">
+    A handful of recognized `provider` values (civo, aws, gcp, azure) customize the suggested fix in the error message
   </Card>
 </CardGroup>
 
@@ -68,7 +66,7 @@ requirements:
 
 ### Secret Requirements
 
-Validate that secrets are available from the database or environment.
+Validate that secrets are set as environment variables.
 
 ```yaml
 requirements:
@@ -88,7 +86,10 @@ requirements:
 </ParamField>
 
 <ParamField path="provider" type="string">
-  Provider name for database lookup (e.g., `docker`, `github`)
+  Optional. Customizes the suggested fix shown in the error message for a small set of
+  recognized values (`civo`, `aws`, `gcp`, `azure` — e.g. suggesting `aws configure`).
+  Doesn't change how the secret is looked up — that's always the environment variable
+  named by `name`, regardless of `provider`.
 </ParamField>
 
 <ParamField path="required" type="boolean" default={true}>
@@ -139,40 +140,26 @@ spec:
 
 ## Setting Up Secrets
 
-Set secrets via environment variables before running the workflow:
+There is exactly one place a required secret is looked up: `os.Getenv(name)`. Set it before
+running the workflow, however suits your environment:
 
 ```bash
-# Set the required secret in your shell
 export DOCKER_TOKEN=my-docker-token
-
-# For Civo, use the Civo CLI (writes ~/.civo.json)
-civo apikey save my-token YOUR_TOKEN
-civo apikey use my-token
-# Hyve reads it automatically when provider is "civo"
-
-# Run workflow
 hyve workflow run docker-build
 ```
 
-For CI/CD, set secrets as pipeline secrets (e.g., GitHub Actions secrets).
+For CI/CD, set secrets as pipeline secrets (e.g., GitHub Actions secrets) forwarded into the
+job's `env:` block. For a Civo-specific secret, running `civo apikey save`/`civo apikey use`
+is **not** enough on its own — it writes to `~/.civo.json`, which this check never reads;
+you still need to `export` the value under the exact name the workflow requires.
 
-## Secret Loading Priority
+## Secret Loading
 
-When a workflow requires a secret:
-
-<Steps>
-  <Step title="Check environment variable">
-    If `$SECRET_NAME` is already set, use it
-  </Step>
-
-  <Step title="Check provider credential file">
-    For `provider: civo`, reads from `~/.civo.json`. For AWS/GCP/Azure, their native credential chains are used.
-  </Step>
-
-  <Step title="Fail if required">
-    If secret is marked as `required: true` and not found, fail with helpful error
-  </Step>
-</Steps>
+When a workflow requires a secret, the check is a single step: is `$SECRET_NAME` set in the
+process environment? If yes, validation passes. If not and `required: true`, the workflow
+fails before any job runs, with an error naming the secret and (if `provider` is one of the
+recognized values) a suggested command. `required: false` secrets that aren't set are simply
+skipped — not an error.
 
 ## Error Messages
 

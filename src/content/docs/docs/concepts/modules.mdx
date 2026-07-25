@@ -48,7 +48,7 @@ The module system decouples Hyve's core reconciliation logic from cloud-provider
 
 ### module.yaml
 
-The manifest describes the module, declares params, and lists any requirements (tools that must be in `PATH`):
+The manifest describes the module, declares params, and lists any requirements — environment variables and tools that must be in `PATH`:
 
 ```yaml
 apiVersion: v1
@@ -60,21 +60,34 @@ metadata:
 spec:
   params:
     - name: node_size
-      type: string
       required: true
       description: Civo node size (e.g. g4s.kube.medium)
     - name: node_count
-      type: int
       required: false
       default: "1"
     - name: cluster_type
-      type: string
       required: false
       default: k3s
+      choices: [k3s, talos]
   requirements:
-    - name: civo
-      description: Civo CLI must be installed and authenticated
+    env:
+      - name: CIVO_TOKEN
+        description: "Civo API token. Alternative: run `civo apikey save` before reconciling."
+    tools:
+      - name: civo
+        description: Civo CLI — https://github.com/civo/cli
+      - name: kubectl
+        description: Kubernetes CLI — required for auth
 ```
+
+`spec.requirements.tools` is checked with a plain `PATH` lookup (`exec.LookPath`) before *every* module operation — create, delete, status, scale, and auth — not just once at install time. A missing tool fails fast with a clear error naming every missing tool, before the operation's script ever runs:
+
+```
+module tool requirements not met:
+  - required tool 'civo' not found in PATH (Civo CLI — https://github.com/civo/cli)
+```
+
+`spec.requirements.env` is documentation-only today — Hyve doesn't enforce it, it's there so a module's expected environment is visible in the manifest itself rather than only discoverable by reading its scripts.
 
 ## Module sources
 
@@ -248,7 +261,7 @@ Commit `hyve.lock` to Git. This ensures:
 
 ## driverOutputs
 
-`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It is stored in the cluster YAML and committed to Git.
+`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's committed to Git, in a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
 
 ```yaml
 spec:

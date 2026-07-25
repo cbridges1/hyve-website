@@ -63,6 +63,62 @@ server:
   If `hyve.yaml` has no `server` block, the server runs with defaults: port `8080`, `auth.mode: none`, bound to `127.0.0.1`.
 </Info>
 
+## Tool Dependencies
+
+`hyve serve` shells out to the same external tools the CLI does — `git` always, plus `kubectl`/`helm` for `spec.resources`, plus whatever each module you use declares in its own `spec.requirements.tools` (e.g. `civo`, `aws`, `gcloud`, `jq`). None of this is bundled into hyve itself — it all needs to already be on `PATH` inside whatever container or host runs `hyve serve`.
+
+**Bake them into the image.** The reliable way to guarantee a tool is present is the standard one: install it in your Dockerfile (or however the runtime image is built), not at container startup. This keeps the running container reproducible and doesn't depend on it having outbound network access, which many production deployments intentionally restrict.
+
+```dockerfile
+FROM golang:1.23 AS build
+# ... build the hyve binary ...
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl jq ca-certificates \
+    && curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
+    && curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash \
+    # add each module's own required tool here (civo, aws-cli, gcloud, k3d, ...)
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /go/bin/hyve /usr/local/bin/hyve
+```
+
+**Missing something after the image is already running?** Rather than hyve installing anything itself at runtime, use an ordinary admin-triggered workflow to patch a running container — the exact same `kind: Workflow` mechanism used everywhere else, with `script:` steps that install whatever's missing:
+
+```yaml
+# workflows/admin-install-tools.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: admin-install-tools
+  description: >-
+    Installs tools missing from this container's image. Not wired to any
+    lifecycle hook — trigger manually: hyve workflow run admin-install-tools.
+    Written for a Debian/Ubuntu-based image; adjust the package-manager
+    commands for a different base image. Prefer baking these into the
+    Dockerfile instead — treat this as a patch for a container already
+    running, not the primary mechanism.
+spec:
+  jobs:
+    - name: install
+      steps:
+        - name: jq
+          script: command -v jq >/dev/null || (apt-get update && apt-get install -y jq)
+        - name: kubectl
+          script: |
+            command -v kubectl >/dev/null && exit 0
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        - name: helm
+          script: |
+            command -v helm >/dev/null || curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+
+<Info>
+  hyve has no user or permission model of its own (see [What This Is Not](#what-this-is-not)), so "admin-only" isn't anything hyve enforces — it means not exposing this workflow's trigger to callers who shouldn't have it, at whatever layer sits in front of hyve (a UI that only shows it to admins, an API gateway rule, or simply not documenting it to non-admins). Treat it the same as any other privileged operation you'd gate before it ever reaches hyve.
+</Info>
+
 ## REST API
 
 All endpoints return JSON by default. Error responses follow `{ "error": "<message>" }`. Every YAML-backed resource (clusters, templates, workflows) supports content negotiation via `Accept`/`Content-Type: application/x-yaml` for exact, byte-for-byte round-tripping of the on-disk file — this is what a "view/edit the YAML" frontend panel should use. The full machine-readable spec is served at `GET /openapi.json` (unauthenticated, so clients can generate typed API clients without a token).
