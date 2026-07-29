@@ -224,7 +224,7 @@ kubectl get nodes
 # hyve.yaml in state repository root
 reconcile:
   mode: cicd
-  strictDelete: true
+  strictDelete: true   # warns about any cloud cluster missing a clusters/*.yaml — see /docs/guides/cicd
 ```
 
 ```bash

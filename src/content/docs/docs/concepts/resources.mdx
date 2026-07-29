@@ -85,6 +85,10 @@ spec:
   3. Hyve's own process environment (`.env` locally, CI secrets) — same fallback `helm.values` already gets.
 
   A referenced variable that resolves in none of the three is a hard reconcile error naming it, not a silent empty-string substitution — same fail-loud behavior as `helm.values` and [Secret resources](#secret-resources).
+
+  <Warning>
+    This scans the resource's *entire* raw manifest text, not just specific fields — including anything inside a container's own `command`/`script`. Leaving `values:` unset skips this scan completely, so a manifest with its own unrelated `${...}` text (a shell script that legitimately sets and reads its own variable, say) is left untouched — but a manifest that *does* declare `values:` has its whole file scanned, so an incidental `${...}` elsewhere in that same file will be treated as a reference needing to resolve too. Confirmed the hard way: a `source:` resource with no `values:` at all broke when this feature first shipped without the empty-`values:` skip, because a container's own `${PRIVATE_KEY}` shell reference got caught by the same regex.
+  </Warning>
 </ParamField>
 
 <ParamField path="delete" type="boolean" default="false">
