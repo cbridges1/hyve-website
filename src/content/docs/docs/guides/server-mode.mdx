@@ -30,7 +30,8 @@ The server is not a replacement for the CLI; both remain valid entry points. Its
 hyve serve
 
 # Open a configured frontend, starting the server first if needed
-hyve open
+# (or just opening the browser if one's already running)
+hyve serve --open
 ```
 
 See the [`hyve serve` CLI reference](/docs/cli/serve) for the full flag list.
@@ -42,7 +43,7 @@ Add a `server` block to your `hyve.yaml`:
 ```yaml
 server:
   port: 8080                            # default; also settable via --port or HYVE_PORT
-  frontendUrl: "http://localhost:5173"  # opened by `hyve open`; appends ?server=<addr>
+  frontendUrl: "http://localhost:5173"  # opened by `hyve serve --open`; appends ?server=<addr>
 
   auth:
     mode: none        # none (default) | forward
@@ -54,7 +55,7 @@ server:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `server.port` | `8080` | TCP port to listen on |
-| `server.frontendUrl` | — | URL `hyve open` navigates to; opens `http://localhost:<port>` directly if unset |
+| `server.frontendUrl` | — | URL `hyve serve --open` navigates to; opens `http://localhost:<port>` directly if unset |
 | `server.auth.mode` | `none` | `none` — no auth required, binds to `127.0.0.1` only. `forward` — see [Authentication](#authentication) |
 | `server.auth.forward.validateUrl` | — | External endpoint every request's `Authorization` header is forwarded to for validation |
 | `server.auth.forward.timeout` | `3s` | Timeout before the validator is treated as unreachable (fails closed) |
@@ -194,8 +195,8 @@ Remote workflow references are locked and content-addressed in `hyve.lock` the s
 
 | Method | Path | Description |
 |--------|------|--------------|
-| `GET` | `/config` | Parsed `hyve.yaml` (`reconcile` + `server` sections) |
-| `PATCH` | `/config` | Partial update; writes through to `hyve.yaml` and commits. Changes to `server.*` only take effect on the next `hyve serve` restart. |
+| `GET` | `/config` | Parsed `hyve.yaml` (`reconcile` + `server` + `env` sections) |
+| `PATCH` | `/config` | Partial update; writes through to `hyve.yaml` and commits. Changes to `server.*` only take effect on the next `hyve serve` restart. Setting `env.file` also updates `.gitignore` — see [Configuration](/docs/configuration#env-optional). |
 
 ### Git
 
@@ -270,7 +271,7 @@ Any web application can serve as a hyve frontend — no special client library i
 
 ### Connecting
 
-When launched via `hyve open`, the frontend receives the server address as a query parameter:
+When launched via `hyve serve --open`, the frontend receives the server address as a query parameter:
 
 ```
 https://your-frontend.example.com?server=http://localhost:8080
@@ -342,7 +343,7 @@ Then, in a separate terminal:
 
 ```bash
 hyve serve
-hyve open   # opens the running Studio instance, pointed at the server
+hyve serve --open   # detects the running server, opens Studio pointed at it
 ```
 
 ## What This Is Not
@@ -359,7 +360,7 @@ hyve-server is deliberately consumer-agnostic. It exposes one generic REST + Web
 
 <CardGroup cols={2}>
   <Card title="hyve serve CLI Reference" icon="terminal" href="/docs/cli/serve" color="#ec4899">
-    Flags and usage for `hyve serve` / `hyve open`
+    Flags and usage for `hyve serve`, including `--open`
   </Card>
 
   <Card title="Configuration" icon="gear" href="/docs/configuration" color="#22c55e">

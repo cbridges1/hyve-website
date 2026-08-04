@@ -93,6 +93,7 @@ export default defineConfig({
             { label: 'workflow', link: '/docs/cli/workflow' },
             { label: 'git', link: '/docs/cli/git' },
             { label: 'serve', link: '/docs/cli/serve' },
+            { label: 'config', link: '/docs/cli/config' },
             { label: 'tui', link: '/docs/cli/tui' },
           ],
         },

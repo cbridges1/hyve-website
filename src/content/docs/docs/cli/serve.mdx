@@ -8,7 +8,7 @@ import CardGroup from '../../../../components/mdx/CardGroup.astro';
 import Note from '../../../../components/mdx/Note.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-The `hyve serve` command runs the hyve engine as a REST + WebSocket API service — the same operations available through the CLI become available over HTTP, for a browser-based frontend or any other HTTP client. `hyve open` is a small companion command that starts the server (if one isn't already running) and opens a frontend pointed at it.
+The `hyve serve` command runs the hyve engine as a REST + WebSocket API service — the same operations available through the CLI become available over HTTP, for a browser-based frontend or any other HTTP client. Pass `--open` to also open a browser to a configured frontend once it's ready — and if a server is already running, `--open` skips starting a second one and just opens the browser against it.
 
 <Note>
   The server is a second entry point onto the same engine the CLI uses — every route handler is a thin wrapper around the same internal logic `hyve cluster`, `hyve template`, `hyve workflow`, etc. already call. It has no special-cased knowledge of any particular frontend or external tool; anything that can make HTTP requests can drive it. See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference, the forward-auth model, and how to build a frontend against it.
@@ -30,13 +30,10 @@ hyve serve --require-auth
 
 # Start the server and open a configured frontend
 hyve serve --open
-```
 
-```bash
-# Opens the frontend configured at server.frontendUrl in hyve.yaml,
-# starting the server first if one isn't already running on the target
-# port
-hyve open
+# Already have a server running on this port? --open just opens the
+# browser against it instead of trying (and failing) to start a second one
+hyve serve --port 9000 --open
 ```
 
 ## Flags
@@ -58,18 +55,20 @@ hyve open
 </ParamField>
 
 <ParamField path="--open" type="boolean" default="false">
-  `hyve serve` only: open a browser to `server.frontendUrl` (or `http://<host>:<port>` directly if unset) once the server starts listening.
+  Open a browser to `server.frontendUrl` (or `http://<host>:<port>` directly if unset) once the server is ready to receive requests. If a hyve server is already listening on the resolved `--host`/`--port`, skips starting a second one and just opens the browser against the one already there — see below.
 </ParamField>
 
-`hyve open` accepts the same `--port`/`--path`/`--host`/`--require-auth` flags as `hyve serve` (used to resolve where the server should run, or already is running), but has no `--open` flag of its own — opening a browser is always what it does.
+## What `--open` actually does
 
-## What `hyve open` actually does
-
-1. Resolves `--port`/`--path` the same way `hyve serve` does.
-2. Sends `GET /health` to `http://<host>:<port>`. If a server is already listening there, it just opens the browser — it does not start a second server.
-3. If nothing responds, it starts a server (equivalent to `hyve serve --open`) and opens the browser once it's up.
+1. Resolves `--port`/`--path`/`--host` the same way `hyve serve` always does.
+2. Sends `GET /health` to `http://<host>:<port>`. If a server is already listening there, it just opens the browser — it does not attempt to start (and fail to bind) a second server.
+3. If nothing responds, it starts the server normally and opens the browser once it's up.
 
 The browser is pointed at `server.frontendUrl` from `hyve.yaml`, with `?server=http://<host>:<port>` appended so the frontend knows which server to talk to. If `frontendUrl` isn't set, it opens `http://<host>:<port>` directly.
+
+<Note>
+  This used to be a separate `hyve open` command. It was folded into `hyve serve --open` since the two were almost entirely duplicated code — the only thing `hyve open` added on top of `hyve serve --open` was the already-running check above, which now benefits `--open` everywhere instead of only through a second command name.
+</Note>
 
 ## Related
 

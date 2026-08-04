@@ -12,6 +12,7 @@ import Step from '../../../../components/mdx/Step.astro';
 import Accordion from '../../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
 import Note from '../../../../components/mdx/Note.astro';
+import Info from '../../../../components/mdx/Info.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
 ## Overview
@@ -298,6 +299,17 @@ Load variables from `.env` files:
     ```
   </Tab>
 </Tabs>
+
+<Info>
+  This `.env` is hyve's own bootstrap load — a fixed filename, read once from the current
+  working directory, unconfigurable. For a repo-scoped, custom-named file that's also loaded
+  before reconciles (not just workflows) and gets automatic `.gitignore` handling, use
+  `env.file` in `hyve.yaml` instead — see [Configuration](/docs/configuration#env-optional).
+  Both can coexist: the real process environment wins over the bootstrap `.env` (loaded first,
+  at process start), which in turn wins over `env.file` (loaded later, only when a reconcile or
+  workflow actually runs) — a variable set in either file only takes effect where nothing
+  earlier in that order already claimed it.
+</Info>
 
 ## Default Values
 

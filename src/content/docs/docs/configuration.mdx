@@ -55,7 +55,7 @@ Add a `server` block to configure `hyve serve` — hyve's REST + WebSocket API m
 ```yaml
 server:
   port: 8080                            # default; also settable via --port or HYVE_PORT
-  frontendUrl: "http://localhost:5173"  # opened by `hyve open`
+  frontendUrl: "http://localhost:5173"  # opened by `hyve serve --open`
 
   auth:
     mode: none        # none (default) | forward
@@ -67,12 +67,59 @@ server:
 | Field | Default | Description |
 |-------|---------|-------------|
 | `server.port` | `8080` | TCP port `hyve serve` listens on |
-| `server.frontendUrl` | — | URL `hyve open` navigates to |
+| `server.frontendUrl` | — | URL `hyve serve --open` navigates to |
 | `server.auth.mode` | `none` | `none` — no auth. `forward` — every request's `Authorization` header is forwarded to `validateUrl` for validation |
 | `server.auth.forward.validateUrl` | — | External endpoint hyve delegates token validation to |
 | `server.auth.forward.timeout` | `3s` | Timeout before the validator is treated as unreachable (fails closed) |
 
 See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference and authentication model.
+
+### env (optional)
+
+Add an `env` block to point hyve at a local, gitignored file of environment variables — loaded before every reconcile and workflow run, CLI or server-triggered:
+
+```yaml
+env:
+  file: local.env   # relative to the repo root
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `env.file` | — | Path, relative to the repo root, to a `.env`-style file loaded into the process environment before reconciling or running a workflow. Unset means nothing extra is loaded. |
+
+Set it from the CLI or from Hyve Studio's Configuration section — either way, the filename is automatically appended to `.gitignore` the moment it's set, so it can't ship to your remote by omission:
+
+```bash
+hyve config set env.file local.env
+hyve config get
+```
+
+```bash
+# local.env — never committed
+CIVO_TOKEN=your-token
+SOME_APP_SECRET=whatever
+```
+
+```yaml
+# clusters/my-cluster.yaml — reads from local.env, the real process
+# environment, or CI secrets, in that order
+spec:
+  resources:
+    - name: my-app
+      source: ./resource-files/my-app.yaml
+      values:
+        token: ${SOME_APP_SECRET}
+```
+
+<Info>
+  Additive, not overriding: a variable already present in the real process environment (a CI secret, or something your shell already exported) always wins over `env.file` — the file only fills gaps. This is the same precedence hyve's own bootstrap `.env` loading already uses, and matches [workflow step `env`](/docs/workflows/variables)'s own inherited-environment-wins convention.
+</Info>
+
+<Warning>
+  A configured path can't point outside the repository — absolute paths and any path containing `..` are rejected. `env.file` is for local convenience scoped to this repo, not a pointer to an arbitrary filesystem location.
+</Warning>
+
+See [`hyve config`](/docs/cli/config) for the full CLI reference.
 
 ## hyve.lock
 
@@ -264,6 +311,11 @@ Hyve resolves values in this order:
     .env.*
     !.env.example
     ```
+
+    If you set `env.file` in `hyve.yaml` (via `hyve config set env.file <path>` or Hyve
+    Studio — see [`env` (optional)](#env-optional)), this is handled for you automatically:
+    the filename is appended to `.gitignore` the moment it's set, before it's ever written to
+    disk.
   </Accordion>
 </AccordionGroup>
 
