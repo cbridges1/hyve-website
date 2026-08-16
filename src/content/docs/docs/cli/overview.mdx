@@ -9,6 +9,7 @@ import Tabs from '../../../../components/mdx/Tabs.astro';
 import Tab from '../../../../components/mdx/Tab.astro';
 import Accordion from '../../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
 
 The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templates using GitOps principles.
 
@@ -127,6 +128,17 @@ hyve git remove <name>
 
 [Full reference →](/docs/cli/git)
 
+### set-state
+
+```bash
+hyve set-state [path] [--current]
+hyve state
+```
+
+Registers a plain local directory as the active state directory — no git repository or remote required. A lighter-weight alternative to `hyve git add` for local development.
+
+[Full reference →](/docs/cli/state)
+
 ### workflow
 
 ```bash
@@ -150,16 +162,6 @@ hyve template validate <name>
 
 [Full reference →](/docs/cli/template)
 
-### serve
-
-```bash
-hyve serve [--port <port>] [--path <repo>] [--host <addr>] [--require-auth] [--open]
-```
-
-Runs hyve as a REST + WebSocket API server — the same operations available through the CLI, available over HTTP for a browser frontend or any other client. `--open` opens a configured frontend pointed at it once it's ready — and if a server's already running, opens the browser against that one instead of starting a second.
-
-[Full reference →](/docs/cli/serve)
-
 ### config
 
 ```bash
@@ -167,19 +169,13 @@ hyve config get
 hyve config set <key> <value>
 ```
 
-Reads and updates `hyve.yaml` — the same object `hyve serve`'s `GET`/`PATCH /config` and Hyve Studio's Configuration section expose. `set` writes the field, then commits and pushes.
+Reads and updates `hyve.yaml`.
 
 [Full reference →](/docs/cli/config)
 
-### tui
-
-```bash
-hyve tui
-```
-
-Launches a full-screen guided TUI. Navigates all command groups — cluster, template, git, workflow — with menus, select lists populated from live data, and back navigation at every level. No flags required.
-
-[Full reference →](/docs/cli/tui)
+<Info>
+  `hyve serve` and `hyve tui` have been removed — see [hyve serve](/docs/cli/serve) and [hyve tui](/docs/cli/tui) for what changed.
+</Info>
 
 ---
 
@@ -194,9 +190,6 @@ Launches a full-screen guided TUI. Navigates all command groups — cluster, tem
 | `HYVE_GIT_TOKEN` | Git authentication token for private repositories |
 | `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
 | `HYVE_PARAM_<KEY>` | Injected into module operations from `cluster.spec.params` |
-| `HYVE_PORT` | Port `hyve serve` listens on. Equivalent to `--port` flag. |
-| `HYVE_AUTH_VALIDATE_URL` | Forward-auth validator endpoint for `hyve serve` (see [Server Mode](/docs/guides/server-mode#authentication)) |
-| `HYVE_AUTH_VALIDATE_TIMEOUT` | Timeout before the forward-auth validator is treated as unreachable (default `3s`) |
 
 See the [CI/CD guide](/docs/guides/cicd) for how to configure credentials in pipelines.
 

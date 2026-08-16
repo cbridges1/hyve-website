@@ -172,10 +172,9 @@ spec:
 Checked with a plain `PATH` lookup (`exec.LookPath`) before the workflow runs — this is a
 per-workflow, self-contained check. There's no `hyve.yaml`-level tools list it cross-references
 and no coordination across workflows; each workflow's `requirements.tools` stands alone. There
-is no separate hyve-level tools manifest today — see the [Server Mode guide](/docs/guides/server-mode#tool-dependencies)
-for the recommended way to make sure a `hyve serve` container actually has what it needs
-(bake tools into the image at build time; an admin-triggered workflow to patch a running
-container as the fallback).
+is no separate hyve-level tools manifest today — whatever's running `hyve reconcile`/`hyve
+workflow run` (a CI runner, your own machine, a container image you control) needs these tools
+on its own `PATH` already.
 
 ### Secret Requirements
 

@@ -314,6 +314,10 @@ Tables:
 
 ## Synchronization
 
+<Warning>
+  Hyve does not sync with git automatically — no auto-pull before commands run, no auto-commit or auto-push after state changes. This is deliberate: syncing is your job (or your CI/CD pipeline's), using plain git or `hyve git pull`/`hyve git push`/`hyve git sync`. Hyve's own job is reading and writing the local files; it doesn't assume a git remote exists at all.
+</Warning>
+
 ### Pull Changes
 
 ```bash
@@ -321,25 +325,30 @@ Tables:
 cd ~/.hyve/repositories/production
 git pull origin main
 
-# Or use Hyve command
-hyve git sync production
+# Or use the Hyve command
+hyve git pull
 ```
 
 ### Push Changes
 
-```bash
-# Hyve commands automatically commit changes
-hyve cluster add new-cluster --provider civo --region PHX1
-# Creates clusters/new-cluster.yaml and commits
+Hyve writes cluster definitions and reconciler-owned state (`driverOutputs`, applied-resource tracking) to local files, but never commits or pushes them on its own:
 
-# Push to remote
-cd ~/.hyve/repositories/production
-git push origin main
+```bash
+hyve cluster add new-cluster --provider civo --region PHX1
+# Creates clusters/new-cluster.yaml locally — not committed
+
+# Commit and push yourself
+hyve git push
+# (or: cd ~/.hyve/repositories/production && git add -A && git commit -m "..." && git push)
 ```
 
 <Tip>
-  Set up automatic push in CI/CD to keep remote repository synchronized.
+  In CI/CD, wrap this explicitly: `git pull && hyve reconcile && git commit -am "..." && git push` as pipeline steps. That's the whole pattern — no separate "sync" feature to configure.
 </Tip>
+
+<Note>
+  Don't need a git remote at all? [`hyve set-state`](/docs/cli/state) registers a plain local directory with no git involvement whatsoever — useful for local development.
+</Note>
 
 ## Advanced Patterns
 

@@ -1,82 +1,23 @@
 ---
 title: "'hyve serve'"
-description: "'Run hyve as a local REST + WebSocket API server'"
+description: "'Removed — hyve no longer ships a REST/WebSocket API server'"
 ---
 
-import Card from '../../../../components/mdx/Card.astro';
-import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Note from '../../../../components/mdx/Note.astro';
-import ParamField from '../../../../components/mdx/ParamField.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
 
-The `hyve serve` command runs the hyve engine as a REST + WebSocket API service — the same operations available through the CLI become available over HTTP, for a browser-based frontend or any other HTTP client. Pass `--open` to also open a browser to a configured frontend once it's ready — and if a server is already running, `--open` skips starting a second one and just opens the browser against it.
+<Warning>
+  `hyve serve` (and `hyve open`) have been removed. Hyve no longer ships a REST/WebSocket API server, and Hyve Studio (the browser UI that talked to it) is unmaintained as a result.
+</Warning>
 
-<Note>
-  The server is a second entry point onto the same engine the CLI uses — every route handler is a thin wrapper around the same internal logic `hyve cluster`, `hyve template`, `hyve workflow`, etc. already call. It has no special-cased knowledge of any particular frontend or external tool; anything that can make HTTP requests can drive it. See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference, the forward-auth model, and how to build a frontend against it.
-</Note>
+## Why
 
-## Usage
+The server surface added real, ongoing maintenance cost (its own auth-mode complexity, a REST/WebSocket API to keep in sync with every CLI command) for a UI-enablement feature that wasn't the CLI's core job. It was removed outright rather than kept around unmaintained.
 
-```bash
-# Start with defaults — port 8080, repo from the registered current
-# repository (or the working directory if none is registered), no auth
-hyve serve
+## What still works
 
-# Custom port and explicit repo path
-hyve serve --port 9000 --path /path/to/repo
+Everything the CLI already does directly against your state directory is unaffected — `hyve cluster`, `hyve reconcile`, `hyve workflow`, `hyve template`, `hyve module`, `hyve git`, and `hyve config` all work exactly as documented elsewhere in these docs. Nothing about local/git-backed usage changed.
 
-# Require auth regardless of hyve.yaml (forward-auth's validateUrl must
-# be configured — see the Server Mode guide)
-hyve serve --require-auth
+## Related Commands
 
-# Start the server and open a configured frontend
-hyve serve --open
-
-# Already have a server running on this port? --open just opens the
-# browser against it instead of trying (and failing) to start a second one
-hyve serve --port 9000 --open
-```
-
-## Flags
-
-<ParamField path="--port" type="int" default="8080">
-  Port to listen on. Falls back to `server.port` in `hyve.yaml`, then the `HYVE_PORT` environment variable, then `8080`.
-</ParamField>
-
-<ParamField path="--path" type="string">
-  Path to the hyve repository root. When omitted, resolves to the registered current repository (the same one every other `hyve` command uses — see `hyve git use`), falling back to the working directory only if no repository is registered.
-</ParamField>
-
-<ParamField path="--host" type="string" default="127.0.0.1">
-  Bind address. Set to `0.0.0.0` to listen on all interfaces (required in Docker). Refuses to start on `0.0.0.0` unless `--require-auth` is also set — see [Authentication](/docs/guides/server-mode#authentication).
-</ParamField>
-
-<ParamField path="--require-auth" type="boolean" default="false">
-  Reject unauthenticated requests regardless of `hyve.yaml`'s `server.auth.mode` — promotes the effective auth mode to `forward` even if `hyve.yaml` says `none`. A `validateUrl` must be configured (in `hyve.yaml` or `HYVE_AUTH_VALIDATE_URL`) or the server refuses to start.
-</ParamField>
-
-<ParamField path="--open" type="boolean" default="false">
-  Open a browser to `server.frontendUrl` (or `http://<host>:<port>` directly if unset) once the server is ready to receive requests. If a hyve server is already listening on the resolved `--host`/`--port`, skips starting a second one and just opens the browser against the one already there — see below.
-</ParamField>
-
-## What `--open` actually does
-
-1. Resolves `--port`/`--path`/`--host` the same way `hyve serve` always does.
-2. Sends `GET /health` to `http://<host>:<port>`. If a server is already listening there, it just opens the browser — it does not attempt to start (and fail to bind) a second server.
-3. If nothing responds, it starts the server normally and opens the browser once it's up.
-
-The browser is pointed at `server.frontendUrl` from `hyve.yaml`, with `?server=http://<host>:<port>` appended so the frontend knows which server to talk to. If `frontendUrl` isn't set, it opens `http://<host>:<port>` directly.
-
-<Note>
-  This used to be a separate `hyve open` command. It was folded into `hyve serve --open` since the two were almost entirely duplicated code — the only thing `hyve open` added on top of `hyve serve --open` was the already-running check above, which now benefits `--open` everywhere instead of only through a second command name.
-</Note>
-
-## Related
-
-<CardGroup cols={2}>
-  <Card title="Server Mode Guide" icon="server" href="/docs/guides/server-mode" color="#3b82f6">
-    Full REST API reference, forward-auth model, and building a frontend
-  </Card>
-  <Card title="Configuration" icon="gear" href="/docs/configuration" color="#22c55e">
-    The `server` block in `hyve.yaml`
-  </Card>
-</CardGroup>
+- [hyve config](/docs/cli/config) — read/write `hyve.yaml`, no server required
+- [hyve git](/docs/cli/git) — repository management

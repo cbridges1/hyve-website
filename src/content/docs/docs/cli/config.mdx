@@ -4,10 +4,9 @@ description: "'Complete reference for reading and updating hyve.yaml from the CL
 ---
 
 import Info from '../../../../components/mdx/Info.astro';
-import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-The `hyve config` command group reads and updates `hyve.yaml` at the root of your state repository — the same object [`GET`/`PATCH /config`](/docs/guides/server-mode#repository-configuration) exposes over HTTP, and that Hyve Studio's Configuration section reads and writes through.
+The `hyve config` command group reads and updates `hyve.yaml` at the root of your state repository.
 
 ## Commands
 
@@ -32,8 +31,6 @@ reconcile:
   mode: local
   strictDelete: false
   strictResourceDelete: false
-server:
-  port: 8080
 env:
   file: local.env
 ```
@@ -64,11 +61,6 @@ hyve config set <key> <value>
 | `reconcile.mode` | string | `local` or `cicd` |
 | `reconcile.strictDelete` | bool | Warn about untracked cloud clusters |
 | `reconcile.strictResourceDelete` | bool | Auto-prune orphaned `spec.resources` entries |
-| `server.port` | int | Port `hyve serve` listens on |
-| `server.frontendUrl` | string | URL `hyve serve --open` navigates to |
-| `server.auth.mode` | string | `none` or `forward` |
-| `server.auth.forward.validateUrl` | string | Forward-auth validator endpoint |
-| `server.auth.forward.timeout` | string | Forward-auth timeout (Go duration string, e.g. `3s`) |
 
 **Example:**
 
@@ -78,9 +70,6 @@ hyve config set env.file local.env
 
 # Switch to CI/CD mode
 hyve config set reconcile.mode cicd
-
-# Change the server port hyve serve listens on
-hyve config set server.port 9090
 ```
 
 **Output:**
@@ -95,14 +84,8 @@ Set env.file = local.env
   file can't ship to your remote by omission. See [Configuration](/docs/configuration#env-optional).
 </Info>
 
-<Warning>
-  Changes to `server.*` only take effect on the next `hyve serve` restart — `hyve config set`
-  writes `hyve.yaml`, it doesn't reach into an already-running server process.
-</Warning>
-
 ---
 
 ## Related Commands
 
-- [hyve serve](/docs/cli/serve) — reads `server.*` and `env.file` from `hyve.yaml` at startup
 - [hyve reconcile](/docs/cli/overview#reconcile) — reads `reconcile.*` and `env.file` from `hyve.yaml` on every run

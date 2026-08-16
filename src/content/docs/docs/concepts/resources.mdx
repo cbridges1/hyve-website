@@ -120,10 +120,10 @@ A `secret:` resource resolves each entry in `keys` from the environment Hyve's o
   ```
 
 <Warning>
-  A `keys` entry whose environment variable isn't set is a **hard reconcile error** — the resource fails loudly rather than silently applying a Secret with fewer keys than declared. Get the value into whatever's running `hyve reconcile` (a CI job's `env:` block, `hyve serve`'s process environment, a local `.env`) before it's listed here.
+  A `keys` entry whose environment variable isn't set is a **hard reconcile error** — the resource fails loudly rather than silently applying a Secret with fewer keys than declared. Get the value into whatever's running `hyve reconcile` (a CI job's `env:` block, a local `.env`) before it's listed here.
 </Warning>
 
-Where that environment comes from is up to how you're running Hyve — a GitHub Actions job's `env:` block forwarding repo secrets, a systemd unit's `EnvironmentFile`, or (in a `hyve serve` deployment) whatever injects secrets into the server's container. Hyve itself never talks to a secrets backend (Vault, cloud Secrets Manager, etc.) on your behalf — if you already run one of those, keep using it and declare its output (a `SecretStore`/`ExternalSecret`, a Vault Agent Injector annotation, whatever your tool needs) as an ordinary `source:` resource instead. `secret:` is the batteries-included default for a handful of application secrets when you don't have that infrastructure yet, not a replacement for it.
+Where that environment comes from is up to how you're running Hyve — a GitHub Actions job's `env:` block forwarding repo secrets, or a systemd unit's `EnvironmentFile`. Hyve itself never talks to a secrets backend (Vault, cloud Secrets Manager, etc.) on your behalf — if you already run one of those, keep using it and declare its output (a `SecretStore`/`ExternalSecret`, a Vault Agent Injector annotation, whatever your tool needs) as an ordinary `source:` resource instead. `secret:` is the batteries-included default for a handful of application secrets when you don't have that infrastructure yet, not a replacement for it.
 
 ## Drift detection
 

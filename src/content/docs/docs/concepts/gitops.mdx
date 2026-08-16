@@ -114,9 +114,9 @@ All infrastructure definitions are stored in Git repositories, providing:
   </Accordion>
 </AccordionGroup>
 
-### 3. Automated Synchronization
+### 3. Reconciliation, Triggered Explicitly
 
-Changes in Git automatically reconcile to the infrastructure:
+Changes committed to Git are applied the next time you run `hyve reconcile` — reconciliation itself is automatic (it figures out what changed and converges infrastructure to match), but *triggering* a reconcile run, and keeping your local checkout in sync with the remote, are explicit steps you (or your CI/CD pipeline) control:
 
 ```bash
 # Make change in Git
@@ -129,6 +129,33 @@ git commit -m "Add new cluster"
 # Reconcile applies the change
 hyve reconcile
 ```
+
+<Warning>
+  Hyve does not pull, commit, or push git changes on your behalf — not before `hyve reconcile` runs, and not after it writes state back (e.g. `driverOutputs`, applied-resource tracking). See [Keeping a Directory in Sync](#keeping-a-directory-in-sync) below.
+</Warning>
+
+## Keeping a Directory in Sync
+
+Hyve's core only ever reads and writes local files — it has no built-in git sync of any kind. If you're working with a git-backed directory (via `hyve git add`), you're responsible for keeping it in sync yourself:
+
+```bash
+# Before reconciling, make sure you have the latest state
+hyve git pull
+# (or: cd into the repo and run `git pull` directly)
+
+hyve reconcile
+
+# After reconciling, hyve may have written driverOutputs / applied-resource
+# tracking back to cluster-state/*.state.yaml — push those changes yourself
+hyve git push
+# (or: git add -A && git commit -m "hyve: reconcile" && git push)
+```
+
+<Note>
+  This is a deliberate design choice, not a missing feature — see [Repositories → Synchronization](/docs/concepts/repositories#synchronization) for the full reasoning. If you'd rather not think about a git remote at all, [`hyve set-state`](/docs/cli/state) registers a plain local directory with no git involvement whatsoever.
+</Note>
+
+In CI/CD, this pattern is exactly what you already want: `git pull && hyve reconcile && git commit -am "..." && git push` as pipeline steps, with your CI system's own retry/notification handling doing double duty as your sync-failure alerting.
 
 ### 4. Single Source of Truth
 

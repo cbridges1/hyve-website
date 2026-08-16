@@ -80,7 +80,6 @@ export default defineConfig({
             { label: 'Kubeconfig Management', link: '/docs/guides/kubeconfig-management' },
             { label: 'CI/CD', link: '/docs/guides/cicd' },
             { label: 'ArgoCD', link: '/docs/guides/argocd' },
-            { label: 'Server Mode', link: '/docs/guides/server-mode' },
           ],
         },
         {
@@ -92,16 +91,14 @@ export default defineConfig({
             { label: 'template', link: '/docs/cli/template' },
             { label: 'workflow', link: '/docs/cli/workflow' },
             { label: 'git', link: '/docs/cli/git' },
-            { label: 'serve', link: '/docs/cli/serve' },
+            { label: 'set-state', link: '/docs/cli/state' },
             { label: 'config', link: '/docs/cli/config' },
-            { label: 'tui', link: '/docs/cli/tui' },
           ],
         },
         {
           label: 'More',
           items: [
             { label: 'Sample Repo', link: 'https://github.com/cbridges1/hyve-sample-repo' },
-            { label: 'Hyve Studio', link: 'https://github.com/cbridges1/hyve-studio' },
           ],
         },
       ],

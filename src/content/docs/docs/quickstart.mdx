@@ -19,10 +19,6 @@ import Tip from '../../../components/mdx/Tip.astro';
 This guide walks you through creating your first Kubernetes cluster with Hyve using the module system. Hyve uses modules — versioned, self-contained packages — to provision clusters on any cloud provider.
 
 <Tip>
-  **Prefer a guided experience?** After installing, run `hyve tui`. It walks you through every step below using interactive menus — no flags required.
-</Tip>
-
-<Tip>
   **Prefer to explore a working example first?** [hyve-sample-repo](https://github.com/cbridges1/hyve-sample-repo) is a complete, runnable state repository — modules, templates, workflows, and a cluster already wired together, using a fully local fake module so it works offline with zero cloud credentials. Clone it and run `hyve reconcile --path .` to see the whole lifecycle run immediately.
 </Tip>
 
@@ -238,8 +234,8 @@ This reads all cluster YAMLs from Git, calls the appropriate module, and reconci
     A complete, runnable example repository to clone and explore
   </Card>
 
-  <Card title="Server Mode & Hyve Studio" icon="server" href="/docs/guides/server-mode" color="#3b82f6">
-    Run hyve as an API server and drive it from a browser UI
+  <Card title="Set State" icon="folder" href="/docs/cli/state" color="#3b82f6">
+    Point hyve at a plain local directory, no git required
   </Card>
 </CardGroup>
 

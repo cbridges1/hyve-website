@@ -11,7 +11,11 @@ The `hyve git` command group manages Git repositories for state management in Hy
 
 ## Overview
 
-Hyve requires at least one Git repository for storing cluster state. You can configure multiple repositories for different environments (e.g., production, staging, development) and switch between them.
+Hyve reads and writes cluster state from a local directory — `hyve git add` registers one that's git-backed (with a remote URL), letting you use these commands to keep it in sync. You can configure multiple repositories for different environments (e.g., production, staging, development) and switch between them. If you don't need a git remote at all, [`hyve set-state`](/docs/cli/state) registers a plain local directory instead.
+
+<Info>
+  Hyve does not sync with git automatically. `hyve git pull`/`hyve git push`/`hyve git sync` below are explicit commands you (or your CI/CD pipeline) run — see [GitOps Principles → Keeping a Directory in Sync](/docs/concepts/gitops#keeping-a-directory-in-sync).
+</Info>
 
 ## Commands
 
