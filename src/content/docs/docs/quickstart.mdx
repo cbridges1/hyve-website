@@ -5,8 +5,6 @@ description: "Get up and running with Hyve in 5 minutes"
 
 import Card from '../../../components/mdx/Card.astro';
 import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../components/mdx/Tabs.astro';
-import Tab from '../../../components/mdx/Tab.astro';
 import Steps from '../../../components/mdx/Steps.astro';
 import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
@@ -80,97 +78,30 @@ Either way, `hyve env create` registers it *and* makes it active immediately —
 
 ## Step 3 — Install a module
 
-Modules implement cluster operations for a specific cloud provider. Install a module and lock it in `hyve.lock`:
+Modules implement cluster operations for a cloud provider — Hyve itself has no idea which one, it just calls whatever module a template references. Install one and lock it in `hyve.lock`:
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    hyve module add github.com/hyve-modules/civo@v1.0.0
-    ```
-  </Tab>
+```bash
+hyve module add github.com/hyve-modules/civo@v1.0.0
+```
 
-  <Tab title="AWS EKS">
-    ```bash
-    hyve module add github.com/hyve-modules/eks@v1.0.0
-    ```
-  </Tab>
-
-  <Tab title="GCP GKE">
-    ```bash
-    hyve module add github.com/hyve-modules/gke@v1.0.0
-    ```
-  </Tab>
-
-  <Tab title="Azure AKS">
-    ```bash
-    hyve module add github.com/hyve-modules/aks@v1.0.0
-    ```
-  </Tab>
-</Tabs>
+<Note>
+  This guide uses the Civo module throughout because it's the fastest way to see a real cluster come up. Swap the source for any other module (EKS, GKE, AKS, or a community/internal one) and every command below works identically — see [First-party modules](/docs/cli/module#first-party-modules) for the list, or [Modules](/docs/concepts/modules) for how to point at your own.
+</Note>
 
 ## Step 4 — Create a template
 
 Templates define the shape of a cluster — driver, region, and module-specific params. Use `--set KEY=VALUE` to supply params:
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    hyve template create my-civo-template \
-      --driver github.com/hyve-modules/civo \
-      --driver-version v1.0.0 \
-      --region PHX1 \
-      --set node_size=g4s.kube.medium \
-      --set node_count=3
-    ```
+```bash
+hyve template create my-civo-template \
+  --driver github.com/hyve-modules/civo \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.medium \
+  --set node_count=3
+```
 
-    Civo credentials are read automatically from the Civo CLI (`~/.civo.json`) or the `CIVO_TOKEN` environment variable.
-  </Tab>
-
-  <Tab title="AWS EKS">
-    ```bash
-    hyve template create my-eks-template \
-      --driver github.com/hyve-modules/eks \
-      --driver-version v1.0.0 \
-      --region us-east-1 \
-      --set vpc_id=vpc-0abc123456789 \
-      --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
-      --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
-      --set instance_type=t3.medium \
-      --set node_count=3
-    ```
-
-    AWS credentials are read from `~/.aws/credentials` or environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
-  </Tab>
-
-  <Tab title="GCP GKE">
-    ```bash
-    hyve template create my-gke-template \
-      --driver github.com/hyve-modules/gke \
-      --driver-version v1.0.0 \
-      --region us-central1 \
-      --set project_id=my-gcp-project \
-      --set machine_type=e2-standard-4 \
-      --set node_count=3
-    ```
-
-    GCP credentials are read from Application Default Credentials (`gcloud auth application-default login`).
-  </Tab>
-
-  <Tab title="Azure AKS">
-    ```bash
-    hyve template create my-aks-template \
-      --driver github.com/hyve-modules/aks \
-      --driver-version v1.0.0 \
-      --region eastus \
-      --set subscription_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-      --set resource_group=my-rg \
-      --set vm_size=Standard_DS2_v2 \
-      --set node_count=3
-    ```
-
-    Azure credentials are read from the Azure CLI session (`az login`) or service principal environment variables.
-  </Tab>
-</Tabs>
+Civo credentials are read automatically from the Civo CLI (`~/.civo.json`) or the `CIVO_TOKEN` environment variable — every module reads whichever credentials its own provider CLI expects, in whatever way that provider normally works.
 
 ## Step 5 — Create a cluster
 
@@ -180,7 +111,7 @@ Create a cluster from the template — this generates the cluster definition YAM
 hyve cluster create my-cluster --template my-civo-template
 ```
 
-This writes `clusters/my-cluster.yaml` to your Git repository, commits it, and runs reconciliation to provision the cluster.
+This writes `clusters/my-cluster.yaml` to your environment directory and runs reconciliation to provision the cluster. If that directory is git-backed, committing the new file is your own step (optional — see [Version Control](/docs/concepts/gitops)).
 
 ## Step 6 — Authenticate (get kubeconfig)
 
@@ -199,7 +130,7 @@ kubectl get nodes
 
 ## Step 7 — Reconcile
 
-Going forward, any change to a cluster definition (committed to Git) is applied by running:
+Going forward, any change to a cluster definition is applied by running:
 
 ```bash
 hyve reconcile
@@ -234,7 +165,7 @@ This reads all cluster YAMLs from Git, calls the appropriate module, and reconci
     A complete, runnable example repository to clone and explore
   </Card>
 
-  <Card title="Set State" icon="folder" href="/docs/cli/state" color="#3b82f6">
+  <Card title="Environments" icon="folder" href="/docs/cli/env" color="#3b82f6">
     Point hyve at a plain local directory, no git required
   </Card>
 </CardGroup>

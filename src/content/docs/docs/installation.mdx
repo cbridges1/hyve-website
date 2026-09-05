@@ -5,8 +5,6 @@ description: "Install and set up Hyve on your system"
 
 import Card from '../../../components/mdx/Card.astro';
 import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../components/mdx/Tabs.astro';
-import Tab from '../../../components/mdx/Tab.astro';
 import Steps from '../../../components/mdx/Steps.astro';
 import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
@@ -69,58 +67,11 @@ See [Environments](/docs/concepts/repositories) and [Version Control](/docs/conc
 
 ## Cloud Provider Setup
 
-Hyve uses each provider's native authentication. No credentials are stored in Hyve — your cloud CLI or environment variables are the sole credential source.
+Hyve stores no cloud credentials of its own — each module reads whatever its provider's own CLI or environment variables already provide, the same way you'd authenticate for that provider outside of Hyve entirely. For example, the Civo module reads the active token from `~/.civo.json` (via `civo apikey save`/`civo apikey use`) or the `CIVO_TOKEN` environment variable.
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    # Authenticate with the Civo CLI (writes ~/.civo.json)
-    civo apikey save my-token YOUR_CIVO_TOKEN
-    civo apikey use my-token
-
-    # Or via environment variable
-    export CIVO_TOKEN=your_civo_api_token
-    ```
-
-    The Civo module reads the active token from `~/.civo.json` or `CIVO_TOKEN` automatically.
-  </Tab>
-
-  <Tab title="AWS">
-    ```bash
-    # AWS CLI (recommended for local dev)
-    aws configure
-
-    # Or via environment variables
-    export AWS_ACCESS_KEY_ID=your_access_key
-    export AWS_SECRET_ACCESS_KEY=your_secret_key
-    export AWS_REGION=us-east-1
-    ```
-
-    The EKS module uses the standard AWS credential chain.
-  </Tab>
-
-  <Tab title="GCP">
-    ```bash
-    # Application Default Credentials (recommended for local dev)
-    gcloud auth application-default login
-
-    # Or via service account
-    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-    ```
-  </Tab>
-
-  <Tab title="Azure">
-    ```bash
-    # Azure CLI (recommended for local dev)
-    az login
-
-    # Or via service principal
-    export AZURE_TENANT_ID=your_tenant_id
-    export AZURE_CLIENT_ID=your_client_id
-    export AZURE_CLIENT_SECRET=your_client_secret
-    ```
-  </Tab>
-</Tabs>
+<Note>
+  This is per-module, not something Hyve standardizes — an EKS module typically follows the AWS SDK's default credential chain, a GKE module typically uses Application Default Credentials, and so on. Check the specific module's own README for what it expects.
+</Note>
 
 ## Directory Structure
 
@@ -128,16 +79,11 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── repositories.db     # Repository configurations
-├── temp/               # Temporary kubeconfig files
-└── repositories/       # Cloned repository storage
-    ├── production/
-    │   ├── clusters/
-    │   ├── workflows/
-    │   ├── templates/
-    │   └── hyve.lock
-    └── development/
+├── hyve.db     # Registry of environments (hyve env create/list/use)
+└── temp/       # Temporary kubeconfig files
 ```
+
+Environment directories themselves live wherever you put them — Hyve never copies or clones anything into `~/.hyve`; `hyve.db` just tracks *where* each registered environment's directory is. See [Environments](/docs/concepts/repositories).
 
 ### Overriding the data directory
 
