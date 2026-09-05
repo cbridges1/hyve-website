@@ -133,7 +133,7 @@ In addition to `HYVE_PARAM_*` variables, every module operation also receives:
 | Variable | Value |
 |----------|-------|
 | `HYVE_CLUSTER_NAME` | `cluster.metadata.name` |
-| `HYVE_CLUSTER_REGION` | `cluster.metadata.region` |
+| `HYVE_CLUSTER_REGION` | `cluster.spec.region` |
 
 ## Outputs protocol
 
@@ -250,7 +250,7 @@ modules:
 
 When Hyve downloads a module, it verifies the digest. If the content has changed (e.g. a tag was force-pushed), Hyve refuses to use the module and reports an integrity error.
 
-Commit `hyve.lock` to Git. This ensures:
+Keep `hyve.lock` in your environment directory and share it however you share the rest of that directory (committed to git, if you're using it — see [Environments](/docs/concepts/repositories)). This ensures:
 - Every team member uses the exact same module version
 - CI/CD pipelines reproduce the same reconcile behavior
 - Supply-chain tampering is detected
@@ -261,7 +261,7 @@ Commit `hyve.lock` to Git. This ensures:
 
 ## driverOutputs
 
-`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's committed to Git, in a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file).
+`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's written to a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). If your environment directory is git-backed, that sidecar file gets committed like any other change; hyve itself never commits it for you.
 
 ```yaml
 spec:

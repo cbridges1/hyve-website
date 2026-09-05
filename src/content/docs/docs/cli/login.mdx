@@ -1,0 +1,81 @@
+---
+title: "'hyve login'"
+description: "'Authenticate against a deployed hyve cluster-mode API'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve login`/`hyve logout`/`hyve whoami` authenticate the CLI against a deployed cluster-mode API — see [Cluster Mode](/docs/concepts/cluster-mode). Local/directory-based work never needs any of these.
+
+<Note>
+  **A login is one global, machine-wide credential — like `gh auth login` — not scoped to whichever [environment](/docs/concepts/repositories) is active.** Switching environments never logs you out; logging in or out never changes which environment is active.
+</Note>
+
+## Commands
+
+### hyve login
+
+```bash
+hyve login [--api-url <url>] [--username <user>] [--password <password>]
+```
+
+<ParamField path="--api-url" type="string">
+  The cluster-mode API to authenticate against. Defaults to the active environment's `--api-url`, if it has one. If the URL isn't already registered as an environment, it's auto-registered for you — a plain `hyve login --api-url https://hyve-api.example.com` is usually all you need on a new machine.
+</ParamField>
+
+<ParamField path="--username" type="string">
+  Local account username. Omit to be prompted.
+</ParamField>
+
+<ParamField path="--password" type="string">
+  Local account password. Omit to be prompted without echo — scripting/CI is the only real reason to pass this as a flag instead.
+</ParamField>
+
+```bash
+hyve login --api-url https://hyve-api.example.com
+# Username: alice
+# Password: ********
+# ✅ Logged in as alice against https://hyve-api.example.com
+```
+
+### hyve whoami
+
+Confirm who you're authenticated as, and where.
+
+```bash
+hyve whoami
+```
+
+### hyve logout
+
+Revoke the current session and clear the locally cached credential.
+
+```bash
+hyve logout
+```
+
+---
+
+## Session model
+
+<Info>
+  Two credentials, not one — modeled after a stateful-session-plus-fast-cache pattern rather than classic independent OAuth2 access+refresh tokens.
+</Info>
+
+- **Access token** — short-lived (~30 minutes), used on every API call, verified locally with no round trip to the cluster on the hot path.
+- **Session token** — long-lived (~30 days), kept only to silently mint a fresh access token when the cached one expires — no password re-entry needed for routine use, which is what makes unattended use (a cron job, a CI pipeline already logged in) practical.
+
+The session itself is a real, revocable object on the cluster you logged into (a `HyveAccessBinding`-adjacent `HyveSession` — see [Access Control](/docs/concepts/access-control)) — an admin can list active logins directly via `kubectl`, and `hyve logout` (or deleting that object) revokes it immediately, not just locally.
+
+<Warning>
+  Your role (admin / read-only / custom) is resolved fresh from your `HyveAccessBinding` on every request, not baked into the token — a role change by an admin takes effect on your very next command, not your next login.
+</Warning>
+
+## Related
+
+- [Cluster Mode](/docs/concepts/cluster-mode) — what logging in actually gets you
+- [Access Control](/docs/concepts/access-control) — roles and `HyveAccessBinding`
+- [Environments](/docs/concepts/repositories) — the independent concept of "which directory/API is active"

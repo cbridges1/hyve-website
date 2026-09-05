@@ -1,0 +1,78 @@
+---
+title: "Access Method"
+description: "Rancher-backed kubeconfig access for managed clusters, decoupled from any specific module"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Steps from '../../../../components/mdx/Steps.astro';
+import Step from '../../../../components/mdx/Step.astro';
+
+Most managed clusters get their kubeconfig straight from the cloud provider's own auth (`hyve cluster auth <name>` running the driver module's `auth.yaml`) — see [Access Control](/docs/concepts/access-control) for why that's fine for the person who effectively owns the cluster, but doesn't differentiate access by hyve role. `AccessMethod` is the alternative for when you want an *external identity service* (Rancher today; Teleport is designed for but not yet implemented) to govern who can get a kubeconfig for a cluster, and with what access.
+
+## Why it's a separate object, not module config
+
+One driver module can provision clusters across several infrastructure providers — a Cluster API module driving `aws`/`gcp`/`azure`/`vsphere` workload clusters is the motivating case. All of them typically want to route human access through the *same* Rancher instance. Baking that Rancher URL into the module, or re-declaring it on every `ClusterDefinition`, doesn't scale. `AccessMethod` is a small, admin-managed, namespaced object — created once, referenced by name from any `ClusterDefinition`, regardless of which module created it:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: AccessMethod
+metadata:
+  name: corp-rancher
+  namespace: hyve-system
+spec:
+  provider: rancher
+  serverURL: https://rancher.example.com
+```
+
+```yaml
+# on any ClusterDefinition, from any module
+spec:
+  access:
+    accessMethodRef: corp-rancher
+    accessMethodClusterID: c-abc123   # this cluster's own ID within Rancher
+```
+
+<Note>
+  Holds only connection config, never a credential — the credential comes from whichever user is requesting access, at request time. Safe to read broadly, safe to version-control if you choose to.
+</Note>
+
+## How the mint actually works
+
+```bash
+hyve cluster auth prod-aws-workload
+```
+
+<Steps>
+  <Step title="Resolve">
+    The CLI reads `prod-aws-workload`'s `accessMethodRef`, then the named `AccessMethod` object (locally, or via a small read-only API lookup in cluster mode).
+  </Step>
+  <Step title="Authenticate — your own credentials, not a shared one">
+    Since Rancher is directly reachable from your own machine, the CLI itself talks to Rancher's REST API — no external `rancher` CLI required, and no hyve server round trip for the credential exchange at all. Prompts for your Rancher username/password, or reuses an already-held token (`RANCHER_TOKEN`) if you have one.
+  </Step>
+  <Step title="Merge">
+    The resulting kubeconfig is merged into your real `~/.kube/config`, same as every other `hyve cluster auth` path.
+  </Step>
+</Steps>
+
+```
+$ RANCHER_TOKEN=... hyve cluster auth prod-aws-workload
+kubectl context for 'prod-aws-workload' configured (via corp-rancher)
+```
+
+<Warning>
+  What you can actually do once connected is entirely up to **Rancher's own RBAC** for your Rancher identity — hyve never re-implements or overrides it. This is the whole point: Rancher already ties identity to authorization, which is what makes per-user differentiated access to a *managed* cluster possible at all (the module-auth default can't do this — see [Access Control](/docs/concepts/access-control)).
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles and `HyveAccessBinding` — the primary-cluster equivalent
+  </Card>
+  <Card title="hyve cluster auth" icon="key" href="/docs/cli/cluster" color="#3b82f6">
+    Full command reference
+  </Card>
+</CardGroup>

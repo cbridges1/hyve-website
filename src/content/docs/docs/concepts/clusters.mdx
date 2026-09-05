@@ -40,12 +40,12 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
 Clusters are defined using YAML files stored in the `clusters/` directory of your Git state repository. The driver determines which module handles all cloud operations.
 
 ```yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: my-cluster
-  region: us-east-1
 spec:
+  region: us-east-1
   driver:
     source: github.com/hyve-modules/eks
     version: v1.0.0
@@ -81,7 +81,7 @@ spec:
   Unique cluster identifier. Used as the YAML filename (`clusters/<name>.yaml`) and injected as `HYVE_CLUSTER_NAME` into module operations.
 </ParamField>
 
-<ParamField path="metadata.region" type="string" required>
+<ParamField path="spec.region" type="string" required>
   Cloud provider region (e.g. `PHX1`, `us-east-1`, `us-central1`, `eastus`). Injected as `HYVE_CLUSTER_REGION` into module operations.
 </ParamField>
 
@@ -365,7 +365,7 @@ hyve reconcile --path .
 Cluster definitions are stored in:
 
 ```
-~/.hyve/repositories/<repository-name>/
+<environment directory>/
 ├── clusters/
 │   ├── my-cluster.yaml         # desired state — what you author
 │   ├── staging.yaml

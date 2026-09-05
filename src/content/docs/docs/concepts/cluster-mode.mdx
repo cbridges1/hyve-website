@@ -1,0 +1,99 @@
+---
+title: "Cluster Mode"
+description: "Running hyve as a cluster-native controller + API, instead of a local CLI"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Info from '../../../../components/mdx/Info.astro';
+
+Everything else in these docs describes **local mode** — `hyve reconcile` reading a directory on your own machine or CI runner. Hyve can also run **as** a deployed Kubernetes controller + API, for team or multi-tenant use, sharing the exact same reconcile engine and the exact same YAML. Nothing about how a cluster is *defined* changes between the two modes — only where the reconcile loop runs, and how you talk to it.
+
+<CardGroup cols={2}>
+  <Card title="Local Mode" icon="laptop" color="#8b5cf6">
+    `hyve reconcile` on your machine or in CI. No prerequisites — this is how you bootstrap cluster #1, including a cluster that will later run hyve itself.
+  </Card>
+
+  <Card title="Cluster Mode" icon="server" color="#3b82f6">
+    `hyve` deployed as a controller + API inside a Kubernetes cluster, reconciling continuously. The CLI becomes an HTTP client of that API once you `hyve login`.
+  </Card>
+</CardGroup>
+
+## Two components, one Helm release
+
+`deploy/helm/hyve` deploys two pieces together:
+
+- **The controller** — a `controller-runtime` reconcile loop watching `ClusterDefinition`/`HyveConfig` CRDs, functionally the same job `hyve reconcile` does locally, just continuous instead of invoked.
+- **The API** — a thin, authorized HTTP front door: local login, role-gated CRUD over `ClusterDefinition`/`Template`/`Workflow`/`Resource`, and a kubeconfig-minting endpoint. It's a convenience layer, not a required gateway — plain `kubectl` against the CRDs always works too.
+
+See [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode) for the actual Helm chart walkthrough.
+
+## Everything is still real Kubernetes YAML
+
+A `ClusterDefinition` is a real Custom Resource — the identical shape whether it's a local file or a live object:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
+metadata:
+  name: production
+  namespace: hyve-system
+spec:
+  region: us-central1
+  driver:
+    source: github.com/hyve-modules/gke
+    version: v1.2.0
+  params:
+    node_count: "3"
+```
+
+`kubectl apply -f` works on it unmodified once the CRDs are installed — cluster mode is not a different data model, just a different place for the reconcile loop and the CRUD surface to live.
+
+## Talking to it: `hyve login`, not a different CLI
+
+```bash
+hyve env create prod-cluster --api-url https://hyve-api.example.com
+hyve login
+hyve cluster list        # now an HTTP call, not a local file read
+```
+
+<Note>
+  **`hyve env` and `hyve login` are two independent concepts.** An environment only ever picks which directory or API URL is "active" — `hyve login` is one global, machine-wide credential, not scoped to whichever environment is active. See [Environments](/docs/concepts/repositories) and [`hyve login`](/docs/cli/login).
+</Note>
+
+Once logged in, every `hyve cluster`/`template`/`workflow`/`resource` command you already know works identically — same flags, same output shape — just talking to the API instead of local files.
+
+## Access is real, not implied
+
+<Info>
+  Cluster mode introduces genuinely new infrastructure, not just a network hop: identity (`hyve login`, local username/password today), authorization (`HyveAccessBinding` — admin/read-only/custom roles, resolved fresh on every request), and an `AccessMethod` mechanism for getting a *managed* cluster's own kubeconfig via an external identity provider like Rancher. See [Access Control](/docs/concepts/access-control) and [Access Method](/docs/concepts/access-method).
+</Info>
+
+## Moving between modes
+
+<CardGroup cols={2}>
+  <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Bootstrap a cluster from local files, or move the primary cluster itself
+  </Card>
+  <Card title="Deploying Cluster Mode" icon="rocket" href="/docs/guides/deploying-cluster-mode" color="#22c55e">
+    The Helm chart, values, and multi-tenant installs
+  </Card>
+</CardGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#8b5cf6">
+    Registering directories and cluster targets
+  </Card>
+  <Card title="hyve login" icon="key" href="/docs/cli/login" color="#f43f5e">
+    Authentication and the session model
+  </Card>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles and `HyveAccessBinding`
+  </Card>
+  <Card title="Access Method" icon="key" href="/docs/concepts/access-method" color="#f97316">
+    Rancher/Teleport-backed kubeconfig access for managed clusters
+  </Card>
+</CardGroup>

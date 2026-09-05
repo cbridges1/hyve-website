@@ -47,7 +47,7 @@ Workflows are YAML-defined automation pipelines that:
   </Tab>
 
   <Tab title="Manual Creation">
-    Create `~/.hyve/repositories/<repo>/workflows/my-workflow.yaml`:
+    Create `<environment directory>/workflows/my-workflow.yaml`:
     ```yaml
     apiVersion: v1
     kind: Workflow
@@ -946,7 +946,7 @@ spec:
     hyve workflow list
 
     # Check workflow directory
-    ls ~/.hyve/repositories/production/workflows/
+    ls <environment directory>/workflows/
 
     # Create workflow if missing
     hyve workflow create my-workflow --template

@@ -1,0 +1,31 @@
+---
+title: "'hyve apply'"
+description: "'Create a single resource from a CR-shaped YAML file — cluster mode only'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+```bash
+hyve apply -f <file>
+```
+
+Creates a single resource from a file, auto-detecting its `kind` (`ClusterDefinition`, `Template`, or `Workflow`) so you don't need to know which type-specific command (`hyve cluster create --file`, `hyve template create --file`, `hyve workflow create --file`) matches a given file.
+
+<ParamField path="-f, --file" type="string" required>
+  Path to a CR-shaped YAML file — the same shape a real Kubernetes custom resource for that kind would be.
+</ParamField>
+
+<Info>
+  Requires an active [`hyve login`](/docs/cli/login) session — cluster mode only. Fails if a resource with the same name already exists (no upsert); see [`hyve migrate`](/docs/cli/migrate) for bulk import with `--skip-existing`.
+</Info>
+
+```bash
+hyve apply -f clusters/my-cluster.yaml
+hyve apply -f templates/my-template.yaml
+```
+
+## Related
+
+- [`hyve migrate`](/docs/cli/migrate) — bulk import, or moving definitions between clusters
+- [`hyve cluster`](/docs/cli/cluster), [`hyve template`](/docs/cli/template), [`hyve workflow`](/docs/cli/workflow) — the type-specific equivalents

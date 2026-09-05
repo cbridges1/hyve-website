@@ -33,20 +33,20 @@ Hyve's CI/CD mode separates the **desired state** (what you want) from the **act
     A team member adds or modifies a cluster definition and runs `hyve reconcile` locally.
   </Step>
 
-  <Step title="Hyve validates and pushes state">
-    In `cicd` mode, Hyve validates the YAML, commits the desired state to the Git repository, and exits without touching any cloud APIs.
+  <Step title="Hyve validates and exits — you commit and push">
+    In `cicd` mode, Hyve validates the YAML and exits without touching any cloud APIs. Hyve never commits or pushes on its own — see [Version Control](/docs/concepts/gitops) — so committing and pushing the desired state is your own explicit step: `git commit -am "..." && git push`.
   </Step>
 
   <Step title="Pipeline triggers">
-    The push to the state repository triggers a CI/CD workflow (e.g. GitHub Actions).
+    The push triggers a CI/CD workflow (e.g. GitHub Actions).
   </Step>
 
   <Step title="Pipeline reconciles">
-    The pipeline checks out the state repository and runs `hyve reconcile --path .`. Because `--path` is provided, Hyve always runs full local reconciliation regardless of the `hyve.yaml` mode setting.
+    The pipeline checks out the repository and runs `hyve reconcile --path .`. Because `--path` is provided, Hyve always runs full local reconciliation regardless of the `hyve.yaml` mode setting.
   </Step>
 
-  <Step title="Changes committed back">
-    Hyve writes reconciliation results (cluster status, kubeconfigs, etc.) back to the repository and pushes them.
+  <Step title="Commit results back — your own step">
+    Hyve writes reconciliation results (cluster status, driver outputs) back to local files. Committing and pushing them is a pipeline step you add explicitly (`git commit -am "hyve: reconcile" && git push`), not something hyve does for you.
   </Step>
 </Steps>
 
@@ -111,12 +111,12 @@ hyve-state/                    # Your Hyve state repository
 
 ```yaml
 # clusters/production.yaml — long-lived GKE cluster
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: production
-  region: us-central1
 spec:
+  region: us-central1
   driver:
     source: github.com/hyve-modules/gke
     version: v1.2.0
@@ -128,12 +128,12 @@ spec:
 
 ```yaml
 # clusters/dev-sprint-47.yaml — ephemeral cluster with automatic expiry
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: dev-sprint-47
-  region: PHX1
 spec:
+  region: PHX1
   driver:
     source: github.com/hyve-modules/civo
     version: v1.0.0
@@ -147,12 +147,12 @@ spec:
 
 ```yaml
 # clusters/staging.yaml — temporarily paused during migration
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
-  region: us-east-1
 spec:
+  region: us-east-1
   driver:
     source: github.com/hyve-modules/eks
     version: v2.1.3
@@ -359,16 +359,19 @@ Set `spec.delete: true` in the cluster YAML **without removing the file**:
 
 ```yaml
 # clusters/staging.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
 spec:
   delete: true          # <-- marks this cluster for deletion
-  provider: aws
-  awsAccount: prod-us
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v2.1.3
   region: us-east-1
-  clusterType: eks
+  params:
+    instance_type: t3.medium
+    node_count: "3"
   workflows:
     onDelete:
       - cleanup-namespaces
@@ -453,8 +456,8 @@ on:
     branches: [main]
     paths:
       - 'clusters/**'
-      - 'provider-configs/**'
-      - 'hyve.yaml'
+      - 'templates/**'
+      - 'workflows/**'
 
   schedule:
     - cron: '0 20 * * *'   # Every day at 8:00 PM UTC
@@ -501,15 +504,18 @@ Set `spec.pause: true` to keep a cluster's definition in the repository while te
 
 ```yaml
 # clusters/staging.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
 spec:
   pause: true       # reconciler skips this cluster on every run
-  provider: civo
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
   region: NYC1
-  nodes: [g4s.kube.medium]
+  params:
+    node_size: g4s.kube.medium
 ```
 
 **Common use cases:**
@@ -532,14 +538,17 @@ Set `spec.expiresAt` to an RFC 3339 timestamp to have the reconciler automatical
 
 ```yaml
 # clusters/dev-sprint-47.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: dev-sprint-47
 spec:
-  provider: civo
+  driver:
+    source: github.com/hyve-modules/civo
+    version: v1.0.0
   region: PHX1
-  nodes: [g4s.kube.small]
+  params:
+    node_size: g4s.kube.small
   expiresAt: "2026-05-01T00:00:00Z"   # deleted automatically after this time
   workflows:
     onDelete:
@@ -565,15 +574,18 @@ A common pattern for feature-branch or sprint clusters:
 
 ```yaml
 # clusters/feature-login-redesign.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: feature-login-redesign
 spec:
-  provider: aws
-  awsAccount: dev
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v2.1.3
   region: us-east-1
-  clusterType: eks
+  params:
+    instance_type: t3.medium
+    node_count: "2"
   expiresAt: "2026-04-25T18:00:00Z"   # end of sprint
   workflows:
     onCreate:
@@ -592,12 +604,9 @@ When the sprint ends, the cluster tears itself down automatically — no manual 
 Here is the complete flow from developer change to provisioned cluster:
 
 ```bash
-# 1. Developer: add a new cluster definition locally
-hyve cluster add staging \
-  --provider gcp \
-  --project-name my-project \
-  --region us-central1 \
-  --nodes e2-standard-4,e2-standard-4
+# 1. Developer: create a new cluster definition locally, from a template
+hyve cluster create staging --template gcp-standard \
+  --region us-central1 --set node_count=2
 
 # 2. Developer: run reconcile (in cicd mode — pushes state, does NOT provision)
 hyve reconcile
@@ -674,19 +683,15 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
 <AccordionGroup>
   <Accordion title="Pipeline fails: Civo API token not found">
-    Check that `provider-configs/civo.yaml` has a `token` field pointing to an env var reference, and that the corresponding secret is available in the workflow:
-
-    ```yaml
-    # provider-configs/civo.yaml
-    organizations:
-      - name: my-org
-        org_id: cbridges1-id
-        token: ${MY_ORG_CIVO_TOKEN}
-    ```
+    Hyve has no built-in provider-credentials mechanism — each module reads whatever
+    environment variables its own driver expects (for the Civo module, typically
+    `CIVO_TOKEN`). Make sure the CI job exports that variable from a secret before
+    running `hyve`:
 
     ```yaml
     # workflow env:
-    MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+    env:
+      CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
     ```
   </Accordion>
 

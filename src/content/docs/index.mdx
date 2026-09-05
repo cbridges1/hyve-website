@@ -1,11 +1,11 @@
 ---
 title: "Hyve"
-description: "GitOps-first Kubernetes cluster management CLI"
+description: "Kubernetes cluster lifecycle management — local CLI or cluster-native controller"
 template: splash
 editUrl: false
 hero:
   title: Hyve
-  tagline: A Git-based tool, purpose-built for Kubernetes clusters — state in your repo, lifecycle in one CLI.
+  tagline: Kubernetes cluster lifecycle management — as a local CLI, or as a cluster-native controller for your team.
   image:
     dark: ../../assets/banner-dark.svg
     light: ../../assets/banner-light.svg
@@ -29,7 +29,7 @@ import Accordion from '../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../components/mdx/AccordionGroup.astro';
 
 <div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
-  Define clusters as YAML, commit to Git, and reconcile — Hyve handles the full lifecycle across any cloud provider, and slots into the Terraform, Helm, or CI you already run.
+  Define clusters as YAML, reconcile with one command. Same engine, any cloud provider, whether you run it locally or deploy it as a controller for your team.
 </div>
 
 <div style={{ maxWidth: '480px', margin: '0 auto 1rem' }}>
@@ -46,16 +46,16 @@ go install github.com/cbridges1/hyve@latest
 
 ## Clusters as code
 
-Terraform-style declarative provisioning, with the Git repository as the state backend. A cluster is one YAML file: commit it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted.
+Terraform-style declarative provisioning, with a local directory as the state backend — git-backed if you want version control and review, a plain directory if you don't. A cluster is one YAML file: create it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted, the next time `hyve reconcile` runs.
 
 ```yaml
-# clusters/my-cluster.yaml — committed to your Git state repo
-apiVersion: v1
-kind: Cluster
+# clusters/my-cluster.yaml — in your active environment's directory
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: my-cluster
-  region: us-east-1
 spec:
+  region: us-east-1
   driver:
     source: github.com/hyve-modules/eks
     version: v1.0.0
@@ -69,8 +69,10 @@ spec:
       - drain-workloads
 ```
 
+This is the same shape whether it's a local file or a real Kubernetes custom resource — `kubectl apply -f` works on it unmodified once `hyve` is deployed as a cluster-native controller.
+
 <div style={{ textAlign: 'center', color: 'var(--sl-color-gray-3)', maxWidth: '40rem', margin: '0.5rem auto 0' }}>
-  Then `hyve reconcile` makes reality match the repo — locally or from CI. Change history, reviews, and rollbacks are just Git.
+  Then `hyve reconcile` makes reality match the directory — locally or from CI. Version it with git and change history, reviews, and rollbacks come free; skip git and it's still the exact same reconcile loop.
 </div>
 
 ## How it works
@@ -99,7 +101,7 @@ From nothing to a running cluster in four commands.
   </Step>
 
   <Step title="Create a cluster from the template">
-    Create a cluster from the template to generate a cluster YAML and commit it to your Git state repository.
+    Create a cluster from the template to generate a cluster YAML in your active environment's directory.
 
     ```bash
     hyve cluster create my-cluster --template my-civo-template
@@ -107,7 +109,7 @@ From nothing to a running cluster in four commands.
   </Step>
 
   <Step title="Reconcile">
-    Reconcile reads Git, calls the module, and provisions the cluster. The same command works locally or from a CI/CD pipeline.
+    Reconcile reads the directory, calls the module, and provisions the cluster. The same command works locally or from a CI/CD pipeline.
 
     ```bash
     hyve reconcile
@@ -117,11 +119,11 @@ From nothing to a running cluster in four commands.
 
 ## Features
 
-Everything needed to run cluster fleets from a Git repo — nothing you have to operate on the side.
+Everything needed to run cluster fleets from a local directory — nothing you have to operate on the side.
 
 <CardGroup cols={3}>
-  <Card title="GitOps Native" icon="code-branch" color="#3b82f6">
-    All cluster state lives in Git. Every change is version-controlled, reviewed through pull requests, and rolled back with a revert commit.
+  <Card title="Declarative, Optionally Git-Backed" icon="code-branch" color="#3b82f6">
+    Cluster state is plain YAML in a directory. Version it with git for change history, PR review, and revert-to-rollback — or skip git entirely and reconcile a plain local directory.
   </Card>
 
   <Card title="Module System" icon="cube" color="#8b5cf6">
@@ -136,30 +138,30 @@ Everything needed to run cluster fleets from a Git repo — nothing you have to 
     Define the shape of a cluster once. Execute the template by name to stamp out clusters consistently across environments.
   </Card>
 
-  <Card title="Any Provider" icon="cloud" color="#f97316">
-    First-party modules for Civo, AWS EKS, GCP GKE, and Azure AKS. Community modules for anything else. Your credentials stay in your environment.
-  </Card>
-
   <Card title="Variable Injection" icon="brackets-curly" color="#eab308">
     Module params are injected as `HYVE_PARAM_*` environment variables. Workflow outputs flow back as `HYVE_KEY=value` lines and are persisted for the next reconcile.
+  </Card>
+
+  <Card title="Two Run Modes, One Engine" icon="server" color="#ef4444">
+    `hyve reconcile` against a local/git directory, or deploy Hyve as a cluster-native controller + API for team/multi-tenant use — the same reconcile engine and the same YAML either way.
   </Card>
 </CardGroup>
 
 ## Why Hyve?
 
-Think of it as a Git-based Terraform built specifically for clusters — and designed to work alongside the IaC you already have.
+Think of it as a declarative, reconciliation-based Terraform built specifically for clusters — and designed to work alongside the IaC you already have.
 
 <AccordionGroup>
   <Accordion title="Keep your existing Terraform — Hyve drives the cluster, your IaC drives the rest">
     Hyve doesn't replace Terraform for VPCs, IAM roles, or databases — it's purpose-built for the cluster lifecycle and runs alongside general-purpose IaC. A `beforeCreate` workflow can run `terraform init && terraform apply` to provision supporting infrastructure before the cluster comes up, and `afterDelete` can tear it down. See [Why Hyve](/docs/why-hyve) for the full comparison.
   </Accordion>
 
-  <Accordion title="Git is your state backend — no S3, no Terraform Cloud">
-    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is the Git repository your team already uses. Full change history, pull request reviews, and rollbacks are inherent in Git — no extra backend to operate or pay for.
+  <Accordion title="A local directory as state — no S3, no Terraform Cloud">
+    Terraform requires a remote state backend with locking, versioning, and access control. Hyve's state is just a local directory. Add git and full change history, pull request review, and rollbacks come for free — no extra backend to operate or pay for either way, git or not.
   </Accordion>
 
   <Accordion title="Continuous reconciliation — no plan files or approval gates">
-    Commit a cluster YAML and it is created. Remove it and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command handles all three cases without separate plan/apply cycles.
+    Add a cluster YAML and it is created. Remove it and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command handles all three cases without separate plan/apply cycles.
   </Accordion>
 
   <Accordion title="Lifecycle hooks — no extra orchestration">
@@ -204,7 +206,7 @@ Pick your entry point — the quickstart takes about five minutes.
     Clone a complete, runnable example — no cloud credentials needed
   </Card>
 
-  <Card title="Set State" icon="folder" href="/docs/cli/state" color="#eab308">
+  <Card title="Environments" icon="folder" href="/docs/cli/env" color="#eab308">
     Point hyve at a plain local directory, no git required
   </Card>
 </CardGroup>

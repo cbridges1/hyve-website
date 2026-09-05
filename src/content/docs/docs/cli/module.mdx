@@ -361,7 +361,7 @@ Every module operation receives the following environment variables:
 | Variable | Description |
 |----------|-------------|
 | `HYVE_CLUSTER_NAME` | Cluster name from `metadata.name` |
-| `HYVE_CLUSTER_REGION` | Cluster region from `metadata.region` |
+| `HYVE_CLUSTER_REGION` | Cluster region from `spec.region` |
 | `HYVE_PARAM_<KEY>` | Each param from `cluster.spec.params`, with key uppercased |
 
 In addition, all keys from `cluster.spec.driverOutputs` are re-injected verbatim on every reconcile. This allows create operations to output values (like a VPC ID or cluster endpoint) that subsequent operations can reference.

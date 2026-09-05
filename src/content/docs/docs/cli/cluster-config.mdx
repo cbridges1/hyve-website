@@ -1,0 +1,78 @@
+---
+title: "'hyve cluster-config'"
+description: "'Server-side commands that run inside the deployed controller/API pods'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve cluster-config` is the parent for hyve's **server-side** components — the reconcile-loop controller and the HTTP API + auth layer. These are what `deploy/helm/hyve` actually runs inside its pods; you won't run them by hand day-to-day. See [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode).
+
+## Commands
+
+### hyve cluster-config controller run
+
+Starts the controller-runtime reconcile loop against `ClusterDefinition`/`HyveConfig` CRDs — the cluster-mode replacement for `hyve reconcile` running on a schedule.
+
+```bash
+hyve cluster-config controller run --namespace <ns> --config-name <name>
+```
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  Namespace to watch for `ClusterDefinition`/`HyveConfig` objects.
+</ParamField>
+
+<ParamField path="--config-name" type="string" default="hyve-config">
+  Name of the singleton `HyveConfig` object within `--namespace`.
+</ParamField>
+
+### hyve cluster-config api run
+
+Starts the HTTP API + auth layer — local login, role-gated `ClusterDefinition`/`Template`/`Workflow`/`Resource` CRUD, `/proxy` for the primary-cluster kubeconfig path.
+
+```bash
+hyve cluster-config api run --namespace <ns> --bind-address <addr>
+```
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  Namespace holding `ClusterDefinition`s, credentials Secrets, and `HyveAccessBinding`s.
+</ParamField>
+
+### hyve cluster-config api create-user
+
+Emits the Secret + `HyveAccessBinding` YAML for a new local API user — never talks to the Kubernetes API itself, keeping user provisioning `kubectl`-manageable (and, if you version your cluster-mode manifests, diffable and reviewable through the same process).
+
+```bash
+hyve cluster-config api create-user <username> --role admin [--password <pw>]
+```
+
+<ParamField path="username" type="string" required>
+  Local username.
+</ParamField>
+
+<ParamField path="--role" type="string" required>
+  `admin`, `read-only`, or `custom`. See [Access Control](/docs/concepts/access-control).
+</ParamField>
+
+<ParamField path="--password" type="string">
+  Omit to be prompted without echo — scripting/CI is the only real reason to pass it as a flag.
+</ParamField>
+
+```bash
+hyve cluster-config api create-user alice --role admin | kubectl apply -f -
+```
+
+<Warning>
+  This prints YAML to stdout — it's on you to `kubectl apply -f -` it (or commit it, review it, whatever your process requires). Nothing is created until you do.
+</Warning>
+
+<Info>
+  These both share the same binary/image as the regular CLI — `deploy/helm/hyve` just points each Deployment's container args at one of these two subcommands instead of an interactive command.
+</Info>
+
+## Related
+
+- [Cluster Mode](/docs/concepts/cluster-mode) — the concept these commands implement
+- [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode) — the Helm chart that actually runs these
+- [Access Control](/docs/concepts/access-control) — roles and `HyveAccessBinding`

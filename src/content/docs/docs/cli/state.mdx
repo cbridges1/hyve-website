@@ -1,86 +1,25 @@
 ---
 title: "'hyve set-state / hyve state'"
-description: "'Point hyve at a plain local directory, no git repository required'"
+description: "'Never shipped under this name — use `hyve env` instead'"
 ---
 
-import Info from '../../../../components/mdx/Info.astro';
-import Note from '../../../../components/mdx/Note.astro';
-import ParamField from '../../../../components/mdx/ParamField.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
 
-`hyve set-state` registers a local directory as the active state directory hyve reads and writes cluster definitions from — no git repository, remote, or credentials required. `hyve state` shows which directory is currently active.
+<Warning>
+  `hyve set-state`/`hyve state` don't exist as commands. The functionality this page described — registering a local directory as hyve's active state directory, no git required — shipped as `hyve env create [--path]` / `hyve env use` / `hyve env current` instead. See the [`env` CLI reference](/docs/cli/env).
+</Warning>
 
-## Overview
-
-Hyve reads and writes cluster state (`clusters/`, `cluster-state/`, `templates/`, `workflows/`, `hyve.lock`, `hyve.yaml`) from a plain local directory. Historically the only way to register one was [`hyve git add`](/docs/cli/git#hyve-git-add), which also requires a git remote URL. `hyve set-state` is a lighter-weight alternative for local development: it registers whatever directory you're standing in (or an explicit path) with no git ceremony at all.
-
-<Note>
-  Git sync (pulling latest, committing and pushing changes) is not something hyve does automatically for *either* command — see [GitOps Principles](/docs/concepts/gitops#keeping-a-directory-in-sync) for the current, explicit pattern. `hyve set-state` and `hyve git add` differ only in whether a git remote is registered alongside the local directory.
-</Note>
-
-## Commands
-
-### hyve set-state
-
-Register a local directory as the active state directory.
+## What to use instead
 
 ```bash
-hyve set-state [path] [flags]
+hyve env create my-project --path ~/repos/my-project
+hyve env use my-project
+hyve env current
 ```
 
-<ParamField path="path" type="string">
-  Directory to register. Defaults to the current working directory when omitted.
-</ParamField>
+`hyve env` also covers what [`hyve git`](/docs/cli/git) used to (registering a directory), unified into one command group rather than two — see [Environments](/docs/concepts/repositories).
 
-<ParamField path="--current" type="boolean" default="false">
-  Use the current working directory. Redundant with omitting `path` — provided for explicit intent.
-</ParamField>
+## Related
 
-The registered name is derived from the directory's basename, disambiguated (`name-2`, `name-3`, ...) if it collides with an already-registered name. The directory is created if it doesn't exist yet, and is always marked as the active entry.
-
-**Example:**
-
-```bash
-cd ~/projects/my-clusters
-hyve set-state --current
-```
-
-**Output:**
-
-```
-✅ 'my-clusters' (/Users/you/projects/my-clusters) is now the active state directory
-💡 Run 'hyve state' any time to see what's active
-```
-
-Every other hyve command (`hyve reconcile`, `hyve cluster`, `hyve workflow`, ...) now operates against this directory, exactly as if it had been registered with `hyve git add`.
-
----
-
-### hyve state
-
-Show the currently-active state directory.
-
-```bash
-hyve state
-```
-
-`hyve state current` is an equivalent, explicit alias for scripting/clarity.
-
-**Output:**
-
-```
-my-clusters
-  /Users/you/projects/my-clusters
-```
-
-If the directory was registered with a git remote (via `hyve git add`), the URL is shown too:
-
-```
-production
-  /Users/you/.hyve/repositories/production
-  (git: https://github.com/company/hyve-prod.git)
-```
-
-## Related Commands
-
-- [hyve git](/docs/cli/git) — git-backed repository management, including `hyve git pull`/`hyve git push`/`hyve git sync`
-- [GitOps Principles](/docs/concepts/gitops) — how state is kept in sync with a remote today
+- [CLI Reference — env](/docs/cli/env)
+- [Environments](/docs/concepts/repositories)

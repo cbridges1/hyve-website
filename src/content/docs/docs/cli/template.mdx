@@ -50,41 +50,9 @@ hyve template create <template-name> [flags]
   Human-readable description for the template
 </ParamField>
 
-<ParamField path="--before-create" type="string (repeatable)">
-  Workflow name to run before the cluster is provisioned. Can be specified multiple times.
-</ParamField>
-
-<ParamField path="--on-create" type="string (repeatable)">
-  Workflow name to run after the cluster is created and ready. Can be specified multiple times.
-</ParamField>
-
-<ParamField path="--on-delete" type="string (repeatable)">
-  Workflow name to run before the cluster is deleted. Can be specified multiple times.
-</ParamField>
-
-<ParamField path="--after-delete" type="string (repeatable)">
-  Workflow name to run after the cluster is deleted. Can be specified multiple times.
-</ParamField>
-
-<ParamField path="--schedule" type="string">
-  5-field cron expression. When a cluster is created from the template, the next occurrence is computed and written to the cluster's `spec.expiresAt`. Useful for ephemeral clusters that should auto-expire.
-
-  Example: `"0 20 * * 5"` (every Friday at 20:00)
-</ParamField>
-
-<ParamField path="--lock-params" type="boolean">
-  Lock the template's default params. When set, users executing this template cannot override param values — the TUI skips the override prompt and `--set` flags are silently ignored. Use for templates where the cluster shape must stay fixed (e.g. production templates managed by platform admins).
-
-  ```bash
-  hyve template create prod-template \
-    --driver github.com/hyve-modules/civo \
-    --driver-version v1.0.0 \
-    --region NYC1 \
-    --set node_size=g4s.kube.large \
-    --set node_count=3 \
-    --lock-params
-  ```
-</ParamField>
+<Warning>
+  `hyve template create` only sets `driver`, `region`, and `params` (via `--set`) — there's no per-hook flag for `workflows`, `schedule`, or `lockParams`. Set those by editing the generated YAML directly, or write the template file yourself from the start (see the YAML format below).
+</Warning>
 
 **Examples:**
 
@@ -95,10 +63,9 @@ hyve template create my-civo-template \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.medium \
-  --set node_count=3 \
-  --on-create setup-monitoring
+  --set node_count=3
 
-# AWS EKS template with all lifecycle hooks
+# AWS EKS template
 hyve template create prod-eks \
   --driver github.com/hyve-modules/eks \
   --driver-version v2.1.3 \
@@ -107,26 +74,16 @@ hyve template create prod-eks \
   --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
   --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
   --set instance_type=t3.medium \
-  --set node_count=3 \
-  --before-create provision-prereqs \
-  --on-create deploy-monitoring \
-  --on-delete backup-data \
-  --after-delete cleanup-prereqs
-
-# Template with auto-expiry every Friday at 20:00
-hyve template create dev-ephemeral \
-  --driver github.com/hyve-modules/civo \
-  --driver-version v1.0.0 \
-  --region PHX1 \
-  --set node_size=g4s.kube.small \
-  --schedule "0 20 * * 5"
+  --set node_count=3
 ```
+
+Then add `workflows`/`schedule` by editing the file `hyve template create` just wrote (or `hyve template show <name>` to find it, then edit it in place).
 
 **Output:**
 
 ```
 Template 'my-civo-template' created successfully.
-Path: ~/.hyve/repositories/production/templates/my-civo-template.yaml
+Path: <environment directory>/templates/my-civo-template.yaml
 
 Create a cluster from it with:
   hyve cluster create <cluster-name> --template my-civo-template
@@ -184,7 +141,7 @@ hyve template show my-civo-template
 **Output:**
 
 ```yaml
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: my-civo-template
@@ -289,7 +246,7 @@ Template is invalid.
 ## Template YAML format
 
 ```yaml
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: prod-eks-template
@@ -341,6 +298,10 @@ spec:
   5-field cron expression (minute, hour, day-of-month, month, day-of-week). When a cluster is created from the template, the next occurrence is computed and written to `cluster.spec.expiresAt`. Leave blank for clusters that should not expire.
 </ParamField>
 
+<ParamField path="spec.lockParams" type="string[]">
+  Names of params whose values, once a cluster is created, get hashed and recorded — not a permission lock. This is what `hyve cluster adopt`'s drift detection uses to tell "this param was set intentionally at creation" apart from "this looks like drift," for exactly the params you list here.
+</ParamField>
+
 <ParamField path="spec.workflows.beforeCreate" type="string[]">
   Workflows to run before the cluster is provisioned. No kubeconfig is available yet.
 </ParamField>
@@ -366,7 +327,7 @@ spec:
 ### Minimal Civo template
 
 ```yaml
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: dev-civo
@@ -383,7 +344,7 @@ spec:
 ### Production EKS with full lifecycle
 
 ```yaml
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: prod-eks
@@ -416,7 +377,7 @@ spec:
 ### Weekly ephemeral dev template
 
 ```yaml
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: dev-weekly

@@ -325,34 +325,22 @@ hyve workflow validate --all
 [INFO] Workflow 'deploy-app' is valid
 ```
 
-## Dry Run
+## Static Validation
 
-Preview workflow execution without actually running it:
+`hyve workflow run` has no dry-run/preview mode — it always executes for real. `hyve workflow validate` is the static check available before running:
 
 ```bash
-# Dry run workflow
-hyve workflow run deploy-app --dry-run
+hyve workflow validate deploy-app
 ```
 
 **Output:**
 
 ```
-[INFO] DRY RUN: Workflow 'deploy-app'
-[INFO] Would execute:
-
-Job: build
-  Step: docker-build
-    Command: docker build -t my-app:latest .
-
-Job: deploy
-  Step: kubectl-apply
-    Command: kubectl apply -f manifests/
-
-[INFO] DRY RUN: No changes made
+[INFO] Workflow 'deploy-app' is valid
 ```
 
 <Note>
-  Dry run validates the workflow and shows what would execute, but doesn't run any commands.
+  This checks the workflow's own structure (schema, tool requirements, step references) — it doesn't execute anything or predict what a real run would do. `hyve reconcile --dry-run` is the closest thing to a true preview, and it covers cluster-level reconciliation (including lifecycle workflow *triggering*), not an individual `hyve workflow run` invocation.
 </Note>
 
 ## Common Validation Errors
@@ -494,13 +482,13 @@ Job: deploy
     ```
   </Accordion>
 
-  <Accordion title="2. Use Dry Run for Testing">
+  <Accordion title="2. Validate Before Running">
     ```bash
-    # Test workflow without executing
-    hyve workflow run deploy-app --dry-run
+    # Static check first — hyve workflow run has no preview mode
+    hyve workflow validate deploy-app
 
-    # Review output, then run for real
-    hyve workflow run deploy-app
+    # Then run for real
+    hyve workflow run deploy-app --cluster my-cluster
     ```
   </Accordion>
 
@@ -525,15 +513,14 @@ Job: deploy
   <Accordion title="4. Test in Development First">
     ```bash
     # Switch to development
-    hyve git use development
+    hyve env use development
 
     # Test new workflow
     hyve workflow validate new-workflow
-    hyve workflow run new-workflow --dry-run
-    hyve workflow run new-workflow
+    hyve workflow run new-workflow --cluster dev-cluster
 
-    # If successful, use in production
-    hyve git use production
+    # If successful, switch to production
+    hyve env use production
     ```
   </Accordion>
 

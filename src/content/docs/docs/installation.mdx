@@ -20,17 +20,13 @@ import Note from '../../../components/mdx/Note.astro';
     [Install Go](https://golang.org/doc/install)
   </Card>
 
-  <Card title="Git" icon="git" color="#8b5cf6">
-    **Required** — Hyve uses system git for all repository operations
+  <Card title="Git (optional)" icon="git" color="#8b5cf6">
+    Not required — hyve has no built-in git functionality at all. Install it only if you want your state directory version-controlled, using your own `git` commands.
   </Card>
 </CardGroup>
 
 <Note>
   **Cloud provider CLI:** Hyve does not bundle cloud SDKs. Install the CLI for each provider you plan to use (AWS CLI, gcloud, az, civo CLI) and authenticate before running Hyve. See [Quick Start](/docs/quickstart) for per-provider setup.
-</Note>
-
-<Note>
-  **Git Requirement:** Hyve uses your system's `git` binary for all repository operations. Git must be installed and available in your `PATH` before using any `hyve git` commands.
 </Note>
 
 ## Install
@@ -61,27 +57,15 @@ import Note from '../../../components/mdx/Note.astro';
   </Step>
 </Steps>
 
-## Git Requirement
+## Git (optional)
 
-Hyve delegates all git operations to the system `git` binary.
-
-```bash
-# Verify git is installed
-git --version
-```
-
-If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
+Hyve has no built-in git functionality — no clone, pull, push, or commit. `hyve env create --path <dir>` points hyve at any local directory directly; whether that directory is a git working tree is entirely up to you. If you do want it version-controlled, that's your own `git` CLI, same as any other project:
 
 ```bash
-# macOS
-brew install git
-
-# Ubuntu / Debian
-sudo apt install git
-
-# Windows
-winget install Git.Git
+git --version   # verify it's installed, if you're using it
 ```
+
+See [Environments](/docs/concepts/repositories) and [Version Control](/docs/concepts/gitops) for how this fits together.
 
 ## Cloud Provider Setup
 
@@ -165,7 +149,7 @@ hyve --home /tmp/hyve-staging reconcile
 
 # Set it persistently for a shell session
 export HYVE_HOME=~/hyve-staging
-hyve git add staging --repo-url https://github.com/company/staging-state.git
+hyve env create staging --path ~/repos/staging-state
 
 # Or point to an existing directory
 HYVE_HOME=/opt/hyve hyve cluster list
@@ -185,7 +169,7 @@ The `--home` flag takes precedence over `HYVE_HOME`.
   </Accordion>
 
   <Accordion title="Linux">
-    Ensure you have the necessary dependencies:
+    No system dependencies required for hyve itself. If you're using a git-backed environment directory (optional — see [Git](#git-optional) above):
 
     ```bash
     # Debian/Ubuntu
@@ -211,11 +195,8 @@ Run these commands to verify everything is set up correctly:
 # Check Hyve installation
 hyve --help
 
-# Verify system git is available
-git --version
-
-# List configured git repositories (after adding one)
-hyve git list
+# List configured environments (after registering one)
+hyve env list
 ```
 
 ## Troubleshooting

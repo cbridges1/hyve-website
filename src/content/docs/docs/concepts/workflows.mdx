@@ -224,68 +224,33 @@ spec:
 
 ### Automatic injection by lifecycle hooks
 
-All lifecycle hooks receive the following HYVE_* variables from the cluster definition automatically:
+There's no fixed, hyve-defined set of provider-specific variables (no `HYVE_CLUSTER_PROVIDER`, `HYVE_AWS_ACCOUNT`, or similar) — injection is the same simple, three-part convention every module operation also gets:
 
 | Variable | Source | Available in |
 |----------|--------|--------------|
 | `HYVE_CLUSTER_NAME` | `metadata.name` | All hooks |
-| `HYVE_CLUSTER_REGION` | `metadata.region` | All hooks |
-| `HYVE_CLUSTER_PROVIDER` | `spec.provider` | All hooks |
-| `HYVE_CLUSTER_TYPE` | `spec.clusterType` | All hooks |
-| `HYVE_CLUSTER_K8S_VERSION` | `spec.kubernetesVersion` | All hooks |
-| `HYVE_AWS_ACCOUNT` | `spec.awsAccount` | All hooks (AWS) |
-| `HYVE_GCP_PROJECT` | `spec.gcpProject` | All hooks (GCP) |
-| `HYVE_AZURE_SUBSCRIPTION` | `spec.azureSubscription` | All hooks (Azure) |
-| `HYVE_CIVO_ORG` | `spec.civoOrganization` | All hooks (Civo) |
-| `HYVE_CLUSTER_ACCOUNT_ID` | resolved AWS account ID | All hooks (AWS) |
-| `HYVE_CLUSTER_VPC_ID` | `spec.awsVpcId` | All hooks (AWS) |
-| Provider credentials | `provider-configs/*.yaml` | All hooks |
+| `HYVE_CLUSTER_REGION` | `spec.region` | All hooks |
+| `HYVE_PARAM_<KEY>` | Each `spec.params` entry, key uppercased | All hooks |
+| `<key>` (as-is) | Each `spec.driverOutputs` entry — whatever a prior module operation or workflow emitted, under whatever name it chose | All hooks |
 
-Only the account variable that matches the cluster's provider is set — the others are left unset.
+<Note>
+  `driverOutputs` keys are a module's own convention, not hyve's — a Civo-style module commonly emits `HYVE_CLUSTER_ID`/`HYVE_CLUSTER_STATUS`, but that's the module author's choice, not a guarantee every module provides. Check the specific module's own docs for what it actually sets.
+</Note>
 
-`onCreate`, `afterCreate`, and `onDelete` hooks additionally receive live cluster data:
+`onCreate`, `afterCreate`, and `onDelete` hooks additionally get `KUBECONFIG` pointed at the cluster's merged kubeconfig — `beforeCreate` and `afterDelete` run without a live cluster, so no kubeconfig is available.
 
-| Variable | Description |
-|----------|-------------|
-| `HYVE_CLUSTER_IP_ADDRESS` | Cluster API endpoint IP |
-| `HYVE_CLUSTER_ACCESS_PORT` | Cluster API port |
-| `HYVE_CLUSTER_ID` | Cloud provider cluster ID |
-| `HYVE_CLUSTER_STATUS` | Cluster status string |
-| `HYVE_CLUSTER_KUBECONFIG` | Path to cluster kubeconfig |
-| `KUBECONFIG` | Same as `HYVE_CLUSTER_KUBECONFIG` |
-| `HYVE_CLUSTER_OIDC_URL` | EKS OIDC provider URL (AWS only) |
-
-`beforeCreate` and `afterDelete` hooks run without a live cluster — kubeconfig injection is skipped.
-
-Output variables printed by a `beforeCreate` step in `HYVE_KEY=value` format are captured by the
-reconciler and written back to the cluster definition before creation proceeds. Supported output
-variables include:
-
-| Output Variable | Effect |
-|----------------|--------|
-| `HYVE_VPC_ID` | Sets `spec.awsVpcId` |
-| `HYVE_EKS_ROLE_NAME` | Sets `spec.awsEksRoleName` |
-| `HYVE_NODE_ROLE_NAME` | Sets `spec.awsNodeRoleName` |
-| `HYVE_EKS_ROLE_ARN` | Sets `spec.awsEksRoleArn` |
-| `HYVE_NODE_ROLE_ARN` | Sets `spec.awsNodeRoleArn` |
-| `HYVE_CLUSTER_SG_ID` | Sets `spec.awsClusterSgId` |
-| `HYVE_WORKER_SG_ID` | Sets `spec.awsWorkerSgId` |
+A `beforeCreate` step's `HYVE_KEY=value` output lines are captured and merged into `spec.driverOutputs` before creation proceeds — so a later step (in the same or a later workflow, or the driver module's own `create.yaml`) can reference `<KEY>` as a plain env var, exactly like any other `driverOutputs` entry. There's no separate declaration needed for a specific value to "count" — whatever a `beforeCreate` step outputs becomes available this way automatically.
 
 ### Ad-hoc runs
 
 When the same workflow is run outside a cluster lifecycle (e.g., to manually provision
-infrastructure), missing inputs are handled as follows:
+infrastructure), missing inputs are supplied with `--set`:
 
-**CLI** — supply with `--set`:
 ```bash
 hyve workflow run provision-network \
   --set HYVE_CLUSTER_NAME=my-cluster \
-  --set HYVE_CLUSTER_REGION=eastus \
-  --set HYVE_CLUSTER_PROVIDER=azure
+  --set HYVE_CLUSTER_REGION=eastus
 ```
-
-**TUI** — missing inputs are prompted for interactively. Variables already present in the
-environment are skipped automatically.
 
 <ParamField path="inputs[].name" type="string" required>
   Environment variable name (e.g. `HYVE_CLUSTER_NAME`)
@@ -369,7 +334,7 @@ Workflows can be triggered automatically during cluster lifecycle events:
 
 ```yaml
 # Template definition
-apiVersion: v1
+apiVersion: hyve.io/v1alpha1
 kind: Template
 metadata:
   name: prod-template
@@ -393,12 +358,12 @@ spec:
 
 ```yaml
 # Cluster definition
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: production
-  region: NYC1
 spec:
+  region: NYC1
   # ... cluster config
   workflows:
     beforeCreate:
@@ -470,8 +435,10 @@ spec:
             echo "HYVE_EKS_ROLE_NAME=eks-cluster-role"
 ```
 
-The `HYVE_EKS_ROLE_NAME=eks-cluster-role` output line is captured by the reconciler and
-written to `spec.awsEksRoleName` before the cluster is created.
+The `HYVE_EKS_ROLE_NAME=eks-cluster-role` output line is captured by the reconciler as a
+driver output and injected as the `HYVE_EKS_ROLE_NAME` environment variable into every
+later hook and module operation for this cluster — for example the module's `create`
+operation can read it to reference the role it depends on.
 
 ### Execution Flow
 
@@ -749,13 +716,13 @@ jobs:
 
     ```bash
     # Switch to development
-    hyve git use development
+    hyve env use development
 
     # Test workflow
     hyve workflow run deploy-app --cluster dev-cluster
 
     # If successful, run in production
-    hyve git use production
+    hyve env use production
     hyve workflow run deploy-app --cluster prod-cluster
     ```
   </Accordion>

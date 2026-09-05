@@ -10,14 +10,15 @@ import Tab from '../../../../components/mdx/Tab.astro';
 import Accordion from '../../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
+import Note from '../../../../components/mdx/Note.astro';
 
 ## Overview
 
-Hyve manages Kubernetes clusters through declarative YAML definitions stored in Git. This guide covers the full lifecycle: installing modules, creating templates, provisioning clusters, managing them day-to-day, and safely deleting them.
+Hyve manages Kubernetes clusters through declarative YAML definitions in a local directory — [environments](/docs/concepts/repositories), git-backed or not. This guide covers the full lifecycle: installing modules, creating templates, provisioning clusters, managing them day-to-day, and safely deleting them.
 
 <CardGroup cols={2}>
-  <Card title="GitOps" icon="code-branch" color="#3b82f6">
-    All cluster state lives in Git — full history, PR reviews, easy rollbacks
+  <Card title="Declarative" icon="code-branch" color="#3b82f6">
+    Cluster state is plain YAML — add git for full history, PR reviews, and rollbacks, or skip it
   </Card>
 
   <Card title="Module-based" icon="cube" color="#8b5cf6">
@@ -38,7 +39,7 @@ Hyve manages Kubernetes clusters through declarative YAML definitions stored in 
 Before managing clusters you need:
 
 1. Hyve installed (`go install github.com/cbridges1/hyve@latest`)
-2. A Git repository configured (`hyve git add production --repo-url <url>`)
+2. An environment registered (`hyve env create production --path ~/repos/hyve-prod`)
 3. The cloud CLI for your provider installed and authenticated
 
 See [Installation](/docs/installation) and [Quick Start](/docs/quickstart) for setup.
@@ -106,15 +107,13 @@ Templates define the cluster shape, driver, region, and default params. Create o
       --set node_size=g4s.kube.small \
       --set node_count=1
 
-    # Production cluster with lifecycle hooks
+    # Production cluster
     hyve template create prod-civo \
       --driver github.com/hyve-modules/civo \
       --driver-version v1.0.0 \
       --region NYC1 \
       --set node_size=g4s.kube.large \
-      --set node_count=3 \
-      --on-create setup-monitoring \
-      --on-delete backup-data
+      --set node_count=3
     ```
   </Tab>
 
@@ -128,10 +127,7 @@ Templates define the cluster shape, driver, region, and default params. Create o
       --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
       --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
       --set instance_type=t3.medium \
-      --set node_count=3 \
-      --before-create provision-prereqs \
-      --on-create deploy-monitoring \
-      --after-delete cleanup-prereqs
+      --set node_count=3
     ```
   </Tab>
 
@@ -143,8 +139,7 @@ Templates define the cluster shape, driver, region, and default params. Create o
       --region us-central1 \
       --set project_id=my-gcp-project \
       --set machine_type=e2-standard-4 \
-      --set node_count=3 \
-      --on-create setup-monitoring
+      --set node_count=3
     ```
   </Tab>
 
@@ -157,11 +152,14 @@ Templates define the cluster shape, driver, region, and default params. Create o
       --set subscription_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
       --set resource_group=my-rg \
       --set vm_size=Standard_DS2_v2 \
-      --set node_count=3 \
-      --on-create setup-monitoring
+      --set node_count=3
     ```
   </Tab>
 </Tabs>
+
+<Note>
+  `hyve template create` only sets `driver`/`region`/`params`. To add `onCreate`/`onDelete` (or any other) lifecycle workflows, edit the generated YAML afterward — there's no per-hook creation flag. See [Template Management](/docs/guides/template-management#template-structure).
+</Note>
 
 ## Step 3 — Create a cluster
 
@@ -202,36 +200,36 @@ hyve cluster show my-prod-cluster
 
 ## Multi-environment strategy
 
-Manage separate repositories for different environments:
+Manage separate directories for different environments — see [Environments](/docs/concepts/repositories):
 
 ```bash
-# Add environment repositories
-hyve git add production --repo-url https://github.com/company/hyve-prod.git
-hyve git add staging --repo-url https://github.com/company/hyve-staging.git
-hyve git add development --repo-url https://github.com/company/hyve-dev.git
+# Register each environment
+hyve env create production --path ~/repos/hyve-prod
+hyve env create staging --path ~/repos/hyve-staging
+hyve env create development --path ~/repos/hyve-dev
 
-# Switch active repository
-hyve git use staging
+# Switch active environment
+hyve env use staging
 
 # Create cluster in staging
 hyve cluster create staging-cluster --template prod-civo --set node_count=2
 
 # Switch to production
-hyve git use production
+hyve env use production
 hyve cluster create prod-cluster-01 --template prod-civo
 ```
 
 ## Scaling clusters
 
-To change a cluster's scale, edit the cluster YAML directly and commit:
+To change a cluster's scale, edit the cluster YAML directly:
 
 ```bash
 # Edit the cluster YAML
-vim ~/.hyve/repositories/production/clusters/my-cluster.yaml
+vim <environment directory>/clusters/my-cluster.yaml
 # Change: node_count: "3" → node_count: "5"
 
-# Commit the change
-cd ~/.hyve/repositories/production
+# If your environment directory is git-backed, commit it (optional)
+cd <environment directory>
 git add clusters/my-cluster.yaml
 git commit -m "Scale my-cluster to 5 nodes"
 git push
@@ -249,8 +247,7 @@ hyve template create prod-civo-large \
   --driver-version v1.0.0 \
   --region NYC1 \
   --set node_size=g4s.kube.large \
-  --set node_count=5 \
-  --on-create setup-monitoring
+  --set node_count=5
 
 # Create a new cluster from the updated template
 hyve cluster create my-new-cluster --template prod-civo-large
@@ -262,15 +259,16 @@ Pause a cluster to temporarily prevent Hyve from touching it (useful during main
 
 ```bash
 # Set spec.pause: true in the cluster YAML
-vim ~/.hyve/repositories/production/clusters/my-cluster.yaml
+vim <environment directory>/clusters/my-cluster.yaml
 # Change: pause: false → pause: true
 
+# If your environment directory is git-backed, commit it (optional)
 git add clusters/my-cluster.yaml
 git commit -m "Pause my-cluster for maintenance"
 git push
 ```
 
-When paused, the reconciler skips the cluster entirely. To resume, set `pause: false` and commit.
+When paused, the reconciler skips the cluster entirely. To resume, set `pause: false`.
 
 ## Setting cluster expiry
 
@@ -278,9 +276,10 @@ For ephemeral clusters, set an auto-delete timestamp:
 
 ```bash
 # Set expiry in the cluster YAML
-vim ~/.hyve/repositories/production/clusters/dev-cluster.yaml
+vim <environment directory>/clusters/dev-cluster.yaml
 # Set: expiresAt: "2026-09-01T00:00:00Z"
 
+# If your environment directory is git-backed, commit it (optional)
 git add clusters/dev-cluster.yaml
 git commit -m "Set dev-cluster to expire on 2026-09-01"
 git push

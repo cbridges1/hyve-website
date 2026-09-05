@@ -11,6 +11,7 @@ import Accordion from '../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../components/mdx/AccordionGroup.astro';
 import Info from '../../../components/mdx/Info.astro';
 import Warning from '../../../components/mdx/Warning.astro';
+import Tip from '../../../components/mdx/Tip.astro';
 
 ## Overview
 
@@ -61,12 +62,17 @@ env:
 |-------|---------|-------------|
 | `env.file` | — | Path, relative to the repo root, to a `.env`-style file loaded into the process environment before reconciling or running a workflow. Unset means nothing extra is loaded. |
 
-Set it from the CLI — the filename is automatically appended to `.gitignore` the moment it's set, so it can't ship to your remote by omission:
+Set it by editing `hyve.yaml` directly — there's no CLI command for this anymore:
 
-```bash
-hyve config set env.file local.env
-hyve config get
+```yaml
+# hyve.yaml
+env:
+  file: local.env
 ```
+
+<Tip>
+  Add `local.env` (or whatever you name it) to `.gitignore` yourself — hyve doesn't do this for you.
+</Tip>
 
 ```bash
 # local.env — never committed
@@ -93,7 +99,7 @@ spec:
   A configured path can't point outside the repository — absolute paths and any path containing `..` are rejected. `env.file` is for local convenience scoped to this repo, not a pointer to an arbitrary filesystem location.
 </Warning>
 
-See [`hyve config`](/docs/cli/config) for the full CLI reference.
+See [`hyve.yaml`](#hyveyaml) above for every field.
 
 ## hyve.lock
 
@@ -179,37 +185,41 @@ For CI/CD pipelines, store credentials as pipeline secrets (e.g., GitHub Actions
 
 ## Git Credentials
 
-For private Git repositories, configure authentication via environment variable or git's credential helper:
+Hyve never clones or authenticates against git itself — if your environment directory is git-backed, cloning and authenticating is your own `git` step, using whatever you'd normally use (SSH key, a credential helper, a token in the URL):
 
 ```bash
-# Environment variable (preferred for CI/CD)
-export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
-
-# Or configure git's credential manager
-git config --global credential.helper osxkeychain  # macOS
-git config --global credential.helper manager      # Windows
-
-# SSH authentication
+# SSH
 eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
-hyve git add production --repo-url git@github.com:company/hyve-prod.git
+git clone git@github.com:company/hyve-prod.git
+
+# HTTPS with a token
+git clone https://<token>@github.com/company/hyve-prod.git
+
+hyve env create production --path ./hyve-prod
 ```
 
-See the [Git Management guide](/docs/guides/git-management) for full authentication options.
+See [Environments](/docs/concepts/repositories) and [Version Control](/docs/concepts/gitops) for the full picture.
 
 ## Directory Structure
 
+Your registered environment directory lives wherever you put it — hyve never copies or clones it anywhere:
+
+```
+<your registered directory>/
+├── clusters/       # Cluster YAML definitions
+├── workflows/      # Workflow YAML definitions
+├── templates/      # Template YAML definitions
+├── hyve.yaml       # Reconciliation config (optional)
+└── hyve.lock       # Module + remote workflow lock file (auto-managed)
+```
+
+Hyve's own data — the environment registry, cached secrets, cluster-mode sessions — lives separately, under `$HYVE_HOME` (default `~/.hyve`):
+
 ```
 ~/.hyve/
-├── repositories.db     # Repository configurations (SQLite)
-├── temp/               # Temporary kubeconfig files
-└── repositories/       # Cloned repository storage
-    └── <repo-name>/
-        ├── clusters/       # Cluster YAML definitions
-        ├── workflows/      # Workflow YAML definitions
-        ├── templates/      # Template YAML definitions
-        ├── hyve.yaml       # Reconciliation config (optional)
-        └── hyve.lock       # Module + remote workflow lock file (auto-managed)
+├── hyve.db          # SQLite — registered environments, cached secrets, sessions
+└── kubeconfigs/     # Per-cluster kubeconfig cache written by `hyve cluster auth`
 ```
 
 ## Configuration Priority
@@ -267,12 +277,12 @@ Hyve resolves values in this order:
     ```
   </Accordion>
 
-  <Accordion title="Use separate repositories per environment">
-    Keep production and development state in separate Git repositories with separate credentials:
+  <Accordion title="Use separate environments per stage">
+    Keep production and development state in separate directories/repositories:
 
     ```bash
-    hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    hyve env create production --path ~/repos/hyve-prod
+    hyve env create development --path ~/repos/hyve-dev
     ```
   </Accordion>
 
@@ -286,10 +296,8 @@ Hyve resolves values in this order:
     !.env.example
     ```
 
-    If you set `env.file` in `hyve.yaml` (via `hyve config set env.file <path>` or Hyve
-    Studio — see [`env` (optional)](#env-optional)), this is handled for you automatically:
-    the filename is appended to `.gitignore` the moment it's set, before it's ever written to
-    disk.
+    If you set `env.file` in `hyve.yaml` (see [`env` (optional)](#env-optional)), add that
+    filename to `.gitignore` yourself too — hyve doesn't do this automatically.
   </Accordion>
 </AccordionGroup>
 
@@ -308,7 +316,7 @@ Hyve resolves values in this order:
     Automate reconciliation in pipelines
   </Card>
 
-  <Card title="Git Management" icon="git" href="/docs/guides/git-management" color="#f97316">
-    Configure Git repositories
+  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#f97316">
+    Registering directories and cluster targets
   </Card>
 </CardGroup>

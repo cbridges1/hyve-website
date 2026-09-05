@@ -122,22 +122,22 @@ spec:
 
 ```yaml
 # clusters/staging.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
-  region: us-east-1
 spec:
-  provider: aws
-  awsAccount: main
-  awsVpcId: vpc-0abc123456789
-  awsEksRoleName: eks-cluster-role
-  awsNodeRoleName: node-role
-  kubernetesVersion: "1.30"
-  nodeGroups:
-    - name: system
-      instanceType: t3.medium
-      count: 2
+  region: us-east-1
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v2.1.3
+  params:
+    vpc_id: vpc-0abc123456789
+    eks_role_arn: arn:aws:iam::123456789012:role/eks-cluster-role
+    node_role_arn: arn:aws:iam::123456789012:role/node-role
+    kubernetes_version: "1.30"
+    instance_type: t3.medium
+    node_count: "2"
   workflows:
     onCreate:
       - install-argocd      # installs ArgoCD and registers cluster
@@ -297,32 +297,24 @@ VPC resources, Hyve creates the EKS cluster, and ArgoCD handles everything insid
 
 ```yaml
 # clusters/prod-us-east.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: prod-us-east
-  region: us-east-1
 spec:
-  provider: aws
-  awsAccount: production
-  awsProfile: prod-admin
-  awsKmsKeyAlias: alias/eks-secrets   # encrypt secrets at rest
-  kubernetesVersion: "1.30"
-  nodeGroups:
-    - name: system
-      instanceType: t3.medium
-      count: 3
-    - name: workers
-      instanceType: m5.xlarge
-      count: 5
-      minCount: 3
-      maxCount: 15
-  dynamicFields:
-    - awsVpcId
-    - awsEksRoleName
-    - awsNodeRoleName
-    - awsClusterSgId
-    - awsWorkerSgId
+  region: us-east-1
+  driver:
+    source: github.com/hyve-modules/eks
+    version: v2.1.3
+  params:
+    kubernetes_version: "1.30"
+    instance_type: m5.xlarge
+    node_count: "5"
+    # vpc_id / eks_role_arn / node_role_arn are deliberately NOT set here —
+    # provision-eks-prereqs (below) emits them as HYVE_VPC_ID=.../etc.
+    # output lines, which land in spec.driverOutputs and are automatically
+    # injected as env vars into every later module operation for this
+    # cluster (including create.yaml) — no separate declaration needed.
   workflows:
     beforeCreate:
       - provision-eks-prereqs     # creates VPC, IAM roles, SGs; outputs HYVE_* vars

@@ -1,0 +1,80 @@
+---
+title: "Access Control"
+description: "Roles, HyveAccessBinding, and how a cluster-mode login resolves to what you can do"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+
+Cluster mode ([overview](/docs/concepts/cluster-mode)) needs its own identity and authorization model — independent of Kubernetes RBAC, and independent of any external system. `HyveAccessBinding` is that model: a real Custom Resource mapping one external identity to one role, resolved fresh on every authenticated request.
+
+## Roles
+
+| Role | Grants |
+|---|---|
+| `admin` | Full read/write over the API's resources in its namespace |
+| `read-only` | Read-only |
+| `custom` | Whatever a custom `ServiceAccount` you point it at is bound to — for anything the two built-in roles don't fit |
+
+## Creating a user
+
+```bash
+hyve cluster-config api create-user alice --role admin | kubectl apply -f -
+```
+
+This emits — and only emits, never applies on its own — a paired `Secret` (holding a bcrypt password hash, never the plaintext) and a `HyveAccessBinding`:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: HyveAccessBinding
+metadata:
+  name: alice
+  namespace: hyve-system
+spec:
+  subject:
+    type: local
+    value: alice
+  role: admin
+  serviceAccountRef:
+    name: hyve-access-admin
+    namespace: hyve-system
+```
+
+<Note>
+  `subject.type` is a discriminator on purpose: `local` (username/password, implemented today) or `oidc` (reserved for a future external identity provider — no schema change needed when one is chosen).
+</Note>
+
+## How it's resolved
+
+Every authenticated request re-resolves the caller's role from their `HyveAccessBinding` — nothing is cached in the session token itself. Change a binding's `role`, and the effect is immediate on that user's *next* request, not their next login.
+
+<Warning>
+  **Namespace matters.** `HyveAccessBinding` is namespaced — one hyve install (one tenant, one namespace) never sees or resolves another tenant's identities, even when multiple installs share a cluster. See [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode) for the multi-tenant case.
+</Warning>
+
+## What a role actually gets you
+
+The built-in `admin`/`read-only` roles each point at a real Kubernetes `ServiceAccount` (`hyve-access-admin`/`hyve-access-readonly`), scoped by a `RoleBinding` to your install's own namespace — so an "admin" login is admin of *that namespace*, not the whole shared cluster. This is what backs the primary-cluster kubeconfig path (`hyve cluster auth <primary-cluster-name>`): the token you get mints against that same ServiceAccount, so your hyve role is genuinely what governs what you can do with it.
+
+<Note>
+  This only applies to the **primary cluster** — the one hyve's own controller/API run on. A *managed* cluster's kubeconfig (one hyve provisioned for you) comes from that cluster's own module or an [Access Method](/docs/concepts/access-method) instead, and is governed by whatever access model that cluster/provider itself uses.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve login" icon="key" href="/docs/cli/login" color="#f43f5e">
+    The session that gets resolved against a `HyveAccessBinding`
+  </Card>
+  <Card title="cluster-config CLI" icon="terminal" href="/docs/cli/cluster-config" color="#a855f7">
+    `create-user` reference
+  </Card>
+  <Card title="Access Method" icon="key" href="/docs/concepts/access-method" color="#f97316">
+    Getting a *managed* cluster's own kubeconfig
+  </Card>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    The wider concept this fits into
+  </Card>
+</CardGroup>

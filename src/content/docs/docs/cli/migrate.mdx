@@ -1,0 +1,138 @@
+---
+title: "'hyve migrate'"
+description: "'Three different commands for moving definitions into or between clusters'"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve migrate` is three distinct commands under one parent, each solving a different problem. Picking the right one matters — they're not interchangeable.
+
+| Command | Source → Destination | Needs `hyve login`? | Use it for |
+|---|---|---|---|
+| `hyve migrate [path]` | Local files → the cluster you're logged into | Yes | Day-to-day: pushing local definitions into an already-running cluster-mode deployment |
+| `hyve migrate to-cluster` | Local files → any cluster, via its kubeconfig | No | Bootstrapping — the target cluster's own API doesn't need to exist yet |
+| `hyve migrate cluster` | One cluster → another, via kubeconfigs | No | Moving the primary cluster itself (hardware/cloud migration) |
+
+## hyve migrate [path]
+
+```bash
+hyve migrate [path] [--dir <dir>] [--file <file>] [--write] [--skip-existing]
+```
+
+Reads CR-shaped YAML (a directory tree, walking `templates/`, `workflows/`, then `clusters/` in that order — or a single file) and creates each as a real resource via the API, going through your active [`hyve login`](/docs/cli/login) session.
+
+<ParamField path="[path]" type="string">
+  Directory or file to migrate. Defaults to the current working directory.
+</ParamField>
+
+<ParamField path="--write" type="boolean" default="false">
+  Actually create resources. Without it, this is a dry run — lists what would be created, writes nothing.
+</ParamField>
+
+<ParamField path="--skip-existing" type="boolean" default="true">
+  Treat an already-exists response as success rather than a failure, so a partial migration can just be re-run.
+</ParamField>
+
+```bash
+hyve migrate ./my-config --write
+```
+
+<Info>
+  Migrates `Workflow`s, `Template`s, and `ClusterDefinition`s — not `HyveConfig` or `HyveAccessBinding`s. For those, or for a target with no API to log into yet, use `to-cluster`/`cluster` below.
+</Info>
+
+---
+
+## hyve migrate to-cluster
+
+```bash
+hyve migrate to-cluster --to <kubeconfig> [--dir <dir>] [--namespace <ns>] [--config-name <name>] [--write] [--force]
+```
+
+Copies every `ClusterDefinition` (spec **and** status — `driverOutputs`/`appliedResources`, so the destination's controller can act on an already-provisioned cluster instead of mistaking it for brand new) plus `hyve.yaml` as a `HyveConfig` CR, directly onto a target cluster via its kubeconfig. No `hyve login` or API needed on the target — this talks straight to its Kubernetes API server, the same as `kubectl apply` would, which is exactly why it works for bootstrapping a cluster whose controller+API aren't deployed yet.
+
+<ParamField path="--to" type="string" required>
+  Path to the target cluster's kubeconfig.
+</ParamField>
+
+<ParamField path="--dir" type="string">
+  Local directory to migrate from. Defaults to the active environment's directory.
+</ParamField>
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  Namespace on the target cluster to create objects in.
+</ParamField>
+
+<ParamField path="--write" type="boolean" default="false">
+  Default is a dry run.
+</ParamField>
+
+<ParamField path="--force" type="boolean" default="false">
+  Overwrite an existing object with the same name instead of skipping it.
+</ParamField>
+
+```bash
+hyve migrate to-cluster --to ~/.kube/prod-config --namespace hyve-system --write
+```
+
+<Warning>
+  Does **not** touch your local directory, and does **not** copy `hyve.lock` — the target controller's image needs that baked in separately (see [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode)). Nothing stops you from continuing to run `hyve reconcile` locally against the same directory after migrating — don't; the target's controller now reconciles the same clusters too.
+</Warning>
+
+---
+
+## hyve migrate cluster
+
+```bash
+hyve migrate cluster --from <kubeconfig> --to <kubeconfig> --write --i-have-stopped-the-source-controller [--namespace <ns>] [--force] [--skip-access-bindings]
+```
+
+Moves which cluster hosts hyve's controller + API — hardware replacement, cloud migration, whatever the reason. Same mechanism as `to-cluster`, both ends read/written directly via kubeconfig — plus it also copies every `HyveAccessBinding` (and its paired credentials Secret, for local users), so existing users keep the same access on the new primary without re-onboarding.
+
+<ParamField path="--from" type="string" required>
+  Source primary cluster's kubeconfig.
+</ParamField>
+
+<ParamField path="--to" type="string" required>
+  Target primary cluster's kubeconfig.
+</ParamField>
+
+<ParamField path="--i-have-stopped-the-source-controller" type="boolean" default="false">
+  Required alongside `--write` — refuses to run past a dry run without it, an explicit acknowledgment (not just a warning) that dual-reconciliation is a real risk. See below.
+</ParamField>
+
+<ParamField path="--skip-access-bindings" type="boolean" default="false">
+  Skip copying `HyveAccessBinding`s and their credentials Secrets — only `ClusterDefinition`s/`HyveConfig`.
+</ParamField>
+
+<Warning>
+  **The real risk:** if the source cluster's controller is still running when the target's controller starts reconciling the copied `ClusterDefinition`s, both reconcile the *same* downstream clusters simultaneously. Correct order: (1) run this command, (2) deploy the controller+API to the target without cutting over traffic yet, (3) stop the source controller — verified, not assumed, (4) cut over DNS/whatever `hyve login` sessions point at, (5) only then treat the target as authoritative. This command does not automate steps 2–5 — deployment/DNS are environment-specific, explicit operator steps.
+</Warning>
+
+```bash
+hyve migrate cluster \
+  --from ~/.kube/old-primary \
+  --to ~/.kube/new-primary \
+  --write --i-have-stopped-the-source-controller
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    What a primary cluster actually is
+  </Card>
+  <Card title="Deploying Cluster Mode" icon="rocket" href="/docs/guides/deploying-cluster-mode" color="#22c55e">
+    Getting a controller+API onto the target in the first place
+  </Card>
+  <Card title="Access Control" icon="key" href="/docs/concepts/access-control" color="#f43f5e">
+    What a `HyveAccessBinding` is
+  </Card>
+  <Card title="hyve login" icon="key" href="/docs/cli/login" color="#8b5cf6">
+    The session `hyve migrate [path]` uses
+  </Card>
+</CardGroup>

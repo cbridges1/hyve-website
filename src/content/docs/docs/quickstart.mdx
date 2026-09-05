@@ -34,10 +34,8 @@ This guide walks you through creating your first Kubernetes cluster with Hyve us
     - **Azure**: Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) and run `az login`
   </Accordion>
 
-  <Accordion icon="git" title="Git repository for state">
-    Hyve stores all cluster definitions in a Git repository. You'll need:
-    - A Git repository (GitHub, GitLab, etc.) to store cluster state
-    - The `git` binary installed and available in your `PATH`
+  <Accordion icon="folder" title="A directory for cluster state">
+    Hyve reads and writes cluster YAML in a plain local directory — no database, no built-in git. A git repository is optional, only if you want version history and review (see [Environments](/docs/concepts/repositories)).
   </Accordion>
 
   <Accordion icon="code" title="Go 1.21+">
@@ -63,20 +61,22 @@ This guide walks you through creating your first Kubernetes cluster with Hyve us
   </Step>
 </Steps>
 
-## Step 2 — Add a Git repository
+## Step 2 — Point hyve at a directory
 
-Register a Git repository where Hyve will store your cluster YAML definitions:
-
-```bash
-hyve git add production --repo-url https://github.com/your-org/hyve-state.git
-```
-
-For private repositories, use SSH or set the `HYVE_GIT_TOKEN` environment variable:
+Hyve has no built-in git functionality — it just reads and writes plain files in whatever directory you register. If you want it version-controlled, clone it yourself first (using your own git credentials, however you normally authenticate — SSH key, token, whatever your provider needs):
 
 ```bash
-export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
-hyve git add production --repo-url https://github.com/your-org/hyve-state.git
+git clone https://github.com/your-org/hyve-state.git
+hyve env create production --path ./hyve-state
 ```
+
+Don't want git at all? Skip the clone — `hyve env create --path` works against any plain local directory:
+
+```bash
+mkdir my-hyve-config && hyve env create production --path ./my-hyve-config
+```
+
+Either way, `hyve env create` registers it *and* makes it active immediately — every command below operates against it. See [Environments](/docs/concepts/repositories).
 
 ## Step 3 — Install a module
 
@@ -268,19 +268,15 @@ This reads all cluster YAMLs from Git, calls the appropriate module, and reconci
     ```
   </Accordion>
 
-  <Accordion title="No repository configured">
-    You need to add a Git repository first:
+  <Accordion title="No environment configured">
+    You need to register one first:
 
     ```bash
-    hyve git add my-repo --repo-url https://github.com/user/repo.git
+    hyve env create my-project --path ./my-hyve-config
     ```
   </Accordion>
 
-  <Accordion title="Git authentication fails">
-    For private repositories, use SSH or set the token environment variable:
-
-    ```bash
-    export HYVE_GIT_TOKEN=your_personal_access_token
-    ```
+  <Accordion title="Cloning a private repository fails">
+    That's your own `git clone` step, before `hyve env create` — authenticate with `git` however you normally do (SSH key, a credential helper, a token in the URL). Hyve itself never touches the clone or its credentials.
   </Accordion>
 </AccordionGroup>

@@ -186,7 +186,7 @@ Create workflow files directly:
 
 ```bash
 # Navigate to repository
-cd ~/.hyve/repositories/production
+cd <environment directory>
 
 # Create workflow
 cat > workflows/deploy-app.yaml <<EOF
@@ -205,7 +205,7 @@ spec:
           command: kubectl apply -f manifests/
 EOF
 
-# Commit to Git
+# If your environment directory is git-backed, commit it (optional — see Environments)
 git add workflows/deploy-app.yaml
 git commit -m "Add deployment workflow"
 ```
@@ -439,14 +439,14 @@ Workflows in repository 'production':
 
 ```bash
 # View workflow definition
-cat ~/.hyve/repositories/production/workflows/deploy-app.yaml
+cat <environment directory>/workflows/deploy-app.yaml
 ```
 
 ### Edit Workflow
 
 ```bash
 # Edit workflow
-vim ~/.hyve/repositories/production/workflows/deploy-app.yaml
+vim <environment directory>/workflows/deploy-app.yaml
 
 # Commit changes
 git commit -am "Update deployment workflow"
@@ -643,7 +643,7 @@ See the [Workflow Examples](/docs/workflows/examples) page for complete real-wor
     hyve workflow list
 
     # Verify file exists
-    ls -la ~/.hyve/repositories/production/workflows/
+    ls -la <environment directory>/workflows/
 
     # Create workflow if missing
     hyve workflow create --template deployment-pipeline

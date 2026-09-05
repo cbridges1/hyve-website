@@ -8,11 +8,11 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-The `hyve cluster` command group manages Kubernetes cluster definitions stored in your Git state repository, and provides access to cluster authentication.
+The `hyve cluster` command group manages Kubernetes cluster definitions stored in your active [environment](/docs/concepts/repositories), and provides access to cluster authentication.
 
 ## Overview
 
-Clusters are defined as YAML files in the `clusters/` directory of your Git state repository. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you create, list, inspect, mark for deletion, and authenticate into clusters.
+Clusters are defined as YAML files in the `clusters/` directory of your active environment — a local directory, git-backed or not (see [Version Control](/docs/concepts/gitops)), or a live cluster-mode API. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you create, list, inspect, mark for deletion, and authenticate into clusters.
 
 To create a cluster, use `hyve cluster create <cluster-name> --template <template-name>` — it generates the cluster YAML from the named template and triggers reconciliation.
 
@@ -24,7 +24,7 @@ To create a cluster, use `hyve cluster create <cluster-name> --template <templat
 
 ### hyve cluster create
 
-Create a cluster from a template. Generates the cluster YAML, commits it to Git, and runs reconciliation.
+Create a cluster from a template. Generates the cluster YAML and runs reconciliation. If your directory is git-backed, committing and pushing that new file is your own step — see [Version Control](/docs/concepts/gitops).
 
 ```bash
 hyve cluster create <cluster-name> --template <template-name> [flags]
@@ -74,8 +74,7 @@ hyve cluster create staging-eks-01 --template prod-eks \
 2. Apply any `--region` and `--set` overrides
 3. Compute `spec.expiresAt` if the template has a `schedule`
 4. Generate the cluster YAML at `clusters/<cluster-name>.yaml`
-5. Commit the cluster YAML to Git
-6. Run reconciliation (create cluster via module, then run lifecycle workflows)
+5. Run reconciliation (create cluster via module, then run lifecycle workflows)
 
 **Output:**
 
@@ -87,7 +86,6 @@ Region: PHX1
 Params: node_size=g4s.kube.medium, node_count=3
 
 Cluster definition created: clusters/prod-cluster-01.yaml
-Committed and pushed to Git.
 
 Running reconciliation...
 [create] Provisioning cluster 'prod-cluster-01'...
@@ -155,12 +153,12 @@ hyve cluster show my-cluster
 **Output:**
 
 ```yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: my-cluster
-  region: PHX1
 spec:
+  region: PHX1
   driver:
     source: github.com/hyve-modules/civo
     version: v1.0.0
@@ -197,7 +195,7 @@ hyve cluster delete <name>
 hyve cluster delete my-cluster
 ```
 
-This sets `spec.delete: true` in the cluster YAML, commits the change to Git, and (in local mode) immediately runs reconciliation. The reconciler will:
+This sets `spec.delete: true` in the cluster YAML and (in local mode) immediately runs reconciliation. The reconciler will:
 
 1. Run any `onDelete` lifecycle workflows
 2. Call the module's `delete` operation to deprovision the cluster
@@ -207,8 +205,7 @@ This sets `spec.delete: true` in the cluster YAML, commits the change to Git, an
 **Output:**
 
 ```
-Marked cluster 'my-cluster' for deletion.
-Committed: set spec.delete=true in clusters/my-cluster.yaml
+Marked cluster 'my-cluster' for deletion (spec.delete=true in clusters/my-cluster.yaml).
 Running reconciliation...
 [onDelete] Running workflow: backup-data
 [onDelete] backup-data completed successfully
@@ -224,7 +221,7 @@ Removed clusters/my-cluster.yaml from repository.
 </Info>
 
 <Warning>
-  In CI/CD mode (`reconcile.mode: cicd`), setting `spec.delete: true` commits the change and exits. The actual deletion happens when your CI/CD pipeline runs `hyve reconcile --path .`.
+  In CI/CD mode (`reconcile.mode: cicd`), setting `spec.delete: true` and running `hyve reconcile` validates and exits — commit and push the change yourself. The actual deletion happens when your CI/CD pipeline runs `hyve reconcile --path .`.
 </Warning>
 
 ---
@@ -397,12 +394,12 @@ Tracked (spec.appliedResources):
 Clusters are stored as YAML files in `clusters/<name>.yaml`:
 
 ```yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: my-cluster
-  region: us-east-1
 spec:
+  region: us-east-1
   driver:
     source: github.com/hyve-modules/eks
     version: v1.0.0
@@ -462,7 +459,7 @@ appliedResources: {}
   Unique cluster identifier. Used as the filename (`clusters/<name>.yaml`) and as `HYVE_CLUSTER_NAME` in module operations.
 </ParamField>
 
-<ParamField path="metadata.region" type="string" required>
+<ParamField path="spec.region" type="string" required>
   Cloud provider region. Passed to module operations as `HYVE_CLUSTER_REGION`.
 </ParamField>
 
@@ -542,7 +539,7 @@ hyve reconcile --dry-run
 ```
 
 <ParamField path="--dry-run" type="boolean" default="false">
-  Makes the entire reconcile cycle read-only: cluster create/delete/scale, lifecycle workflows, and resource apply/delete are all skipped and logged as "would run" instead of executed. `spec.resources` drift is still resolved and diffed for real (both read-only operations) so it can be reported accurately — see [Cluster Resources](/docs/concepts/resources#dry-run-preview) for the report format. Nothing is committed to Git in dry-run mode.
+  Makes the entire reconcile cycle read-only: cluster create/delete/scale, lifecycle workflows, and resource apply/delete are all skipped and logged as "would run" instead of executed. `spec.resources` drift is still resolved and diffed for real (both read-only operations) so it can be reported accurately — see [Cluster Resources](/docs/concepts/resources#dry-run-preview) for the report format.
 </ParamField>
 
 See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
@@ -552,4 +549,4 @@ See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
 - [hyve module](/docs/cli/module) — Manage the modules that power cluster operations
 - [hyve template](/docs/cli/template) — Create cluster definitions from templates
 - [hyve workflow](/docs/cli/workflow) — Define and run lifecycle workflows
-- [hyve git](/docs/cli/git) — Manage Git repositories that store cluster definitions
+- [hyve env](/docs/cli/env) — Register the directory or cluster target `hyve cluster` operates against

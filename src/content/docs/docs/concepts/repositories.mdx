@@ -1,557 +1,77 @@
 ---
-title: "Repository Management"
-description: "Understanding Git repository structure and multi-repository support"
+title: "Environments"
+description: "How hyve tracks which local directory or cluster you're working against"
 ---
 
 import Card from '../../../../components/mdx/Card.astro';
 import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../../components/mdx/Tabs.astro';
-import Tab from '../../../../components/mdx/Tab.astro';
-import Steps from '../../../../components/mdx/Steps.astro';
-import Step from '../../../../components/mdx/Step.astro';
-import Accordion from '../../../../components/mdx/Accordion.astro';
-import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
 import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import Tip from '../../../../components/mdx/Tip.astro';
 
-## Overview
-
-Hyve uses Git repositories as the single source of truth for all infrastructure state. It supports multiple repositories, allowing you to isolate environments (dev/staging/prod) with separate configurations and credentials.
-
-<CardGroup cols={2}>
-  <Card title="Multi-Environment" icon="folder-tree" color="#8b5cf6">
-    Separate repositories for different environments
-  </Card>
-
-  <Card title="Version Control" icon="code-branch" color="#8b5cf6">
-    Full Git history for audit trails and rollbacks
-  </Card>
-
-  <Card title="Team Collaboration" icon="users" color="#ec4899">
-    Pull requests and code reviews for infrastructure changes
-  </Card>
-
-  <Card title="SQLite Backend" icon="database" color="#6366f1">
-    Local database tracks repository configurations
-  </Card>
-</CardGroup>
-
-## Repository Structure
-
-Each repository follows a standard structure:
-
-```
-my-hyve-repo/
-├── clusters/           # Cluster definitions
-│   ├── production.yaml
-│   ├── staging.yaml
-│   └── development.yaml
-├── workflows/          # Workflow definitions
-│   ├── deploy-app.yaml
-│   ├── setup-monitoring.yaml
-│   └── backup-db.yaml
-└── templates/          # Cluster templates
-    ├── prod-template.yaml
-    └── dev-template.yaml
-```
-
-<Note>
-  Hyve automatically creates these directories when you add a repository.
-</Note>
-
-## Adding Repositories
-
-### Basic Repository
-
-```bash
-# Add a repository
-hyve git add production --repo-url https://github.com/company/hyve-prod.git
-
-# This will:
-# 1. Clone the repository to ~/.hyve/repositories/production/
-# 2. Create standard directories (clusters/, workflows/, templates/)
-# 3. Set it as the active repository
-```
-
-### Private Repository
-
-For private repositories, configure Git credentials first:
-
-```bash
-# Set global Git credentials
-hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
-
-# Then add the repository
-hyve git add production --repo-url https://github.com/company/hyve-prod.git
-```
-
-### SSH Repository
-
-```bash
-# Ensure SSH key is loaded
-eval $(ssh-agent)
-ssh-add ~/.ssh/id_rsa
-
-# Add repository with SSH URL
-hyve git add production --repo-url git@github.com:company/hyve-prod.git
-```
-
-## Managing Repositories
-
-### List Repositories
-
-```bash
-# List all configured repositories
-hyve git list
-```
-
-Output:
-```
-Repositories:
-  * production (https://github.com/company/hyve-prod.git) [active]
-    staging (https://github.com/company/hyve-staging.git)
-    development (https://github.com/company/hyve-dev.git)
-```
-
-### Switch Active Repository
-
-```bash
-# Switch to different repository
-hyve git use staging
-
-# All subsequent commands use the staging repository
-hyve cluster list
-```
-
-<Note>
-  The active repository determines which clusters, workflows, and templates are used.
-</Note>
-
-### View Current Repository
-
-```bash
-# Show currently active repository
-hyve git current
-```
-
-Output:
-```
-Current repository: production
-URL: https://github.com/company/hyve-prod.git
-Path: ~/.hyve/repositories/production
-```
-
-### Remove Repository
-
-```bash
-# Remove repository configuration and local clone
-hyve git remove development
-
-# This deletes:
-# - Repository configuration from database
-# - Local clone at ~/.hyve/repositories/development/
-```
+An **environment** (`hyve env`) is a named pointer to either a local directory of cluster/template/workflow YAML, or a cluster-mode API URL — nothing more. Hyve has no built-in git functionality: it never clones, pulls, pushes, or commits anything on its own. `hyve env` just tracks *where* your commands read from and write to.
 
 <Warning>
-  Removing a repository deletes the local clone. Ensure changes are pushed to the remote first.
+  This replaces an earlier `hyve git`/`hyve set-state` split (both removed) — `hyve env` is the one command group for registering and switching between directories or cluster targets.
 </Warning>
 
-## Multi-Repository Workflows
-
-### Environment Isolation
-
-Separate repositories for each environment:
-
-<Tabs>
-  <Tab title="Production">
-    ```bash
-    # Production repository
-    hyve git add production \
-      --repo-url https://github.com/company/hyve-prod.git
-
-    hyve git use production
-
-    # Production cluster
-    hyve cluster add prod-app \
-      --provider civo \
-      --region NYC1 \
-      --nodes g4s.kube.large,g4s.kube.large,g4s.kube.large
-    ```
-  </Tab>
-
-  <Tab title="Staging">
-    ```bash
-    # Staging repository
-    hyve git add staging \
-      --repo-url https://github.com/company/hyve-staging.git
-
-    hyve git use staging
-
-    # Staging cluster
-    hyve cluster add staging-app \
-      --provider civo \
-      --region PHX1 \
-      --nodes g4s.kube.medium,g4s.kube.medium
-    ```
-  </Tab>
-
-  <Tab title="Development">
-    ```bash
-    # Development repository
-    hyve git add development \
-      --repo-url https://github.com/company/hyve-dev.git
-
-    hyve git use development
-
-    # Development cluster
-    hyve cluster add dev-app \
-      --provider civo \
-      --region LON1 \
-      --nodes g4s.kube.small
-    ```
-  </Tab>
-</Tabs>
-
-### Team Collaboration
-
-Multiple team members work on the same repository:
-
-<Steps>
-  <Step title="Clone repository">
-    ```bash
-    # Team member A
-    hyve git add shared \
-      --repo-url https://github.com/company/hyve-shared.git
-    ```
-  </Step>
-
-  <Step title="Create feature branch">
-    ```bash
-    # Team member A creates branch
-    cd ~/.hyve/repositories/shared
-    git checkout -b add-monitoring-cluster
-    ```
-  </Step>
-
-  <Step title="Make changes">
-    ```bash
-    # Add cluster definition
-    hyve cluster add monitoring --provider civo --region NYC1
-    ```
-  </Step>
-
-  <Step title="Commit and push">
-    ```bash
-    # Commit changes
-    git add clusters/monitoring.yaml
-    git commit -m "Add monitoring cluster"
-    git push origin add-monitoring-cluster
-    ```
-  </Step>
-
-  <Step title="Create pull request">
-    Create PR on GitHub/GitLab for team review
-  </Step>
-
-  <Step title="Team member B reviews">
-    ```bash
-    # Pull changes
-    cd ~/.hyve/repositories/shared
-    git fetch origin
-    git checkout add-monitoring-cluster
-
-    # Review changes
-    cat clusters/monitoring.yaml
-
-    # Approve PR
-    ```
-  </Step>
-
-  <Step title="Merge and reconcile">
-    ```bash
-    # After merge, pull main branch
-    git checkout main
-    git pull origin main
-
-    # Apply changes
-    hyve reconcile
-    ```
-  </Step>
-</Steps>
-
-## Repository Storage
-
-Repositories are stored in `~/.hyve/repositories/`:
-
-```
-~/.hyve/repositories/
-├── production/
-│   ├── .git/
-│   ├── clusters/
-│   │   ├── prod-app.yaml
-│   │   └── prod-db.yaml
-│   ├── workflows/
-│   │   └── deploy-app.yaml
-│   └── templates/
-│       └── prod-template.yaml
-├── staging/
-│   └── ...
-└── development/
-    └── ...
-```
-
-### Database Storage
-
-Repository configurations are stored in SQLite:
-
-```
-~/.hyve/repositories.db
-
-Tables:
-  - repositories (name, url, path, active)
-```
-
-## Synchronization
-
-<Warning>
-  Hyve does not sync with git automatically — no auto-pull before commands run, no auto-commit or auto-push after state changes. This is deliberate: syncing is your job (or your CI/CD pipeline's), using plain git or `hyve git pull`/`hyve git push`/`hyve git sync`. Hyve's own job is reading and writing the local files; it doesn't assume a git remote exists at all.
-</Warning>
-
-### Pull Changes
+## What an environment is
 
 ```bash
-# Pull latest changes from remote
-cd ~/.hyve/repositories/production
-git pull origin main
-
-# Or use the Hyve command
-hyve git pull
+hyve env create prod --path ~/repos/prod-config
+hyve env use prod              # subsequent commands read/write here
+hyve env current                # show the active environment
+hyve env list                   # show every registered environment
+hyve env remove staging         # deregister (never deletes the directory itself)
+hyve env path [name]            # print an environment's local path
 ```
 
-### Push Changes
+An environment is a thin record — a name, a local path, and (optionally) a cluster API URL — stored locally in `~/.hyve/hyve.db`. Hyve never manages a clone of anything; `--path` just points at a directory you already have.
 
-Hyve writes cluster definitions and reconciler-owned state (`driverOutputs`, applied-resource tracking) to local files, but never commits or pushes them on its own:
+## Local mode: a plain directory, git optional
 
 ```bash
-hyve cluster add new-cluster --provider civo --region PHX1
-# Creates clusters/new-cluster.yaml locally — not committed
-
-# Commit and push yourself
-hyve git push
-# (or: cd ~/.hyve/repositories/production && git add -A && git commit -m "..." && git push)
+hyve env create my-project --path ~/repos/my-project
 ```
+
+That directory holds `clusters/`, `templates/`, `workflows/`, `hyve.yaml`, and `hyve.lock` — plain files `hyve reconcile` reads and writes directly. Whether that directory happens to be a git working tree is entirely up to you:
 
 <Tip>
-  In CI/CD, wrap this explicitly: `git pull && hyve reconcile && git commit -am "..." && git push` as pipeline steps. That's the whole pattern — no separate "sync" feature to configure.
+  Want git? `git init`/`git clone` the directory yourself, `git add`/`git commit`/`git push` as you always would. Hyve never touches git at all — see [Version Control](/docs/concepts/gitops) for the full pattern (typically `git pull && hyve reconcile && git commit -am "..." && git push`, run locally or from CI).
 </Tip>
 
+Don't want git? Skip it entirely — `hyve env create --path` works against any plain directory, tracked or not.
+
+## Cluster mode: an API URL, no local directory required
+
+```bash
+hyve env create prod-cluster --api-url https://hyve-api.example.com
+hyve env use prod-cluster
+hyve login              # --api-url defaults to the active environment's
+```
+
 <Note>
-  Don't need a git remote at all? [`hyve set-state`](/docs/cli/state) registers a plain local directory with no git involvement whatsoever — useful for local development.
+  **Environments and `hyve login` are two independent concepts.** `hyve env` only ever picks which directory `hyve reconcile` reads from, or which API URL is "active" for `hyve login` to default to. `hyve login` is one global, machine-wide credential — like `gh auth login` — not scoped to whichever environment is active. Switching environments never logs you out; logging in/out never changes the active environment.
 </Note>
 
-## Advanced Patterns
-
-### Monorepo Pattern
-
-Single repository for all environments with subdirectories:
-
-```
-hyve-infra/
-├── production/
-│   ├── clusters/
-│   ├── workflows/
-│   └── templates/
-├── staging/
-│   ├── clusters/
-│   ├── workflows/
-│   └── templates/
-└── development/
-    ├── clusters/
-    ├── workflows/
-    └── templates/
-```
-
-```bash
-# Add with subdirectories
-hyve git add production --repo-url https://github.com/company/hyve-infra.git --path production
-hyve git add staging --repo-url https://github.com/company/hyve-infra.git --path staging
-```
-
-### Per-Team Repositories
-
-Different teams manage separate repositories:
-
-```bash
-# Platform team
-hyve git add platform --repo-url https://github.com/company/platform-infra.git
-
-# Application team
-hyve git add application --repo-url https://github.com/company/app-infra.git
-
-# Data team
-hyve git add data --repo-url https://github.com/company/data-infra.git
-```
-
-### Feature Branch Workflows
-
-Use Git branches for experimental changes:
-
-```bash
-# Create feature branch
-cd ~/.hyve/repositories/production
-git checkout -b experiment-new-region
-
-# Make experimental changes
-hyve cluster add test-cluster --provider civo --region FRA1
-
-# Test reconciliation
-hyve reconcile --dry-run
-
-# If successful, merge to main
-git checkout main
-git merge experiment-new-region
-hyve reconcile
-```
-
-## Best Practices
-
-<AccordionGroup>
-  <Accordion title="1. Separate Environments">
-    Use different repositories for production, staging, and development:
-
-    ```bash
-    hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    hyve git add staging --repo-url https://github.com/company/hyve-staging.git
-    hyve git add development --repo-url https://github.com/company/hyve-dev.git
-    ```
-
-    This provides isolation and prevents accidental cross-environment changes.
-  </Accordion>
-
-  <Accordion title="2. Use Protected Branches">
-    Configure branch protection on production repositories:
-
-    - Require pull request reviews
-    - Require status checks to pass
-    - Require signed commits
-    - Prevent force pushes
-  </Accordion>
-
-  <Accordion title="3. Document Repository Purpose">
-    Add README to each repository:
-
-    ```markdown
-    # Hyve Production Infrastructure
-
-    This repository contains Kubernetes cluster definitions for production.
-
-    ## Clusters
-    - prod-app: Main application cluster
-    - prod-db: Database cluster
-
-    ## Workflows
-    - deploy-app: Application deployment pipeline
-    ```
-  </Accordion>
-
-  <Accordion title="4. Regular Synchronization">
-    Keep repositories synchronized with remotes:
-
-    ```bash
-    # Pull before making changes
-    cd ~/.hyve/repositories/production
-    git pull origin main
-
-    # Push after changes
-    git push origin main
-    ```
-  </Accordion>
-
-  <Accordion title="5. Use .gitignore">
-    Exclude sensitive or temporary files:
-
-    ```bash
-    # .gitignore
-    .env
-    .env.*
-    *.tmp
-    *.log
-    ```
-  </Accordion>
-</AccordionGroup>
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="No repository configured">
-    Error: `No active repository configured`
-
-    **Solution:**
-    ```bash
-    # Add a repository
-    hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    ```
-  </Accordion>
-
-  <Accordion title="Git authentication fails">
-    Error: `Failed to authenticate with repository`
-
-    **Solution:**
-    ```bash
-    # Configure credentials
-    hyve git credentials --username myuser --password ghp_xxxxxxxxxxxx
-
-    # Or use SSH
-    eval $(ssh-agent)
-    ssh-add ~/.ssh/id_rsa
-    ```
-  </Accordion>
-
-  <Accordion title="Repository already exists">
-    Error: `Repository 'production' already exists`
-
-    **Solution:**
-    ```bash
-    # Remove existing repository first
-    hyve git remove production
-
-    # Then add again
-    hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    ```
-  </Accordion>
-
-  <Accordion title="Merge conflicts">
-    Error: `Merge conflict in clusters/production.yaml`
-
-    **Solution:**
-    ```bash
-    # Resolve manually
-    cd ~/.hyve/repositories/production
-    git status
-    # Edit conflicting files
-    git add .
-    git commit -m "Resolve merge conflict"
-    ```
-  </Accordion>
-</AccordionGroup>
+`hyve login --api-url <url>` also auto-registers the environment for you if that URL isn't already known — so a single `hyve login --api-url https://hyve-api.example.com` is often all you need; an explicit `hyve env create --api-url` is only for pre-registering a target before you're ready to log in.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="GitOps Principles" icon="code-branch" href="/docs/concepts/gitops" color="#8b5cf6">
-    Learn about GitOps
+  <Card title="Version Control" icon="code-branch" href="/docs/concepts/gitops" color="#8b5cf6">
+    How git fits in — entirely on your terms
   </Card>
 
-  <Card title="Git Management" icon="git" href="/docs/guides/git-management" color="#8b5cf6">
-    Complete Git management guide
+  <Card title="CLI Reference — env" icon="terminal" href="/docs/cli/env" color="#10b981">
+    Full command reference
   </Card>
 
-  <Card title="Clusters" icon="server" href="/docs/concepts/clusters" color="#3b82f6">
-    Cluster definitions
+  <Card title="CLI Reference — login" icon="key" href="/docs/cli/login" color="#f43f5e">
+    Cluster-mode authentication
   </Card>
 
-  <Card title="CLI Git" icon="terminal" href="/docs/cli/git" color="#10b981">
-    Git command reference
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    Running hyve as a controller + API
   </Card>
 </CardGroup>

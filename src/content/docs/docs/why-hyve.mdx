@@ -9,17 +9,19 @@ import Note from '../../../components/mdx/Note.astro';
 
 Terraform and similar infrastructure-as-code tools are excellent at provisioning static, long-lived cloud resources — VPCs, IAM roles, databases, and networking. When the resource being managed is a Kubernetes cluster that a team creates, destroys, and recreates regularly, general-purpose IaC introduces friction that Hyve is designed to eliminate.
 
-## State Backend vs. Git
+Everything below compares Hyve's local-directory CLI mode against Terraform — the comparison that matters most for how state and reconciliation work. Hyve can also run as a cluster-native controller + API for team/multi-tenant use, sharing the exact same reconcile engine and YAML; that mode doesn't change any of the reasoning below, it just moves where `hyve reconcile` runs from.
+
+## A Directory as State, Not a Service
 
 Terraform requires a remote state backend — S3, GCS, Azure Blob, or Terraform Cloud — with locking, versioning, access control, and its own operational overhead. Every team member needs the correct backend credentials, and the state file becomes a shared resource that can cause conflicts or corruption if mishandled.
 
-Hyve's state is the Git repository your team already uses. There is no separate backend to configure or pay for. The full history of every cluster change is inherent in Git: who changed what, when, and why, reviewed through pull requests like any other code.
+Hyve's state is just a local directory — `clusters/`, `templates/`, `workflows/`, plain YAML files. There is no separate backend to configure or pay for, and no requirement that it be anything more than a folder on disk. Put it under git (which most teams will) and the full history of every cluster change — who changed what, when, and why — comes from git itself, reviewed through pull requests like any other code, with zero extra tooling. Skip git and `hyve reconcile` works exactly the same against the same directory; you just lose that history.
 
 ## Desired-State Reconciliation
 
 Terraform models infrastructure changes as a plan-and-apply cycle. Destroying and recreating a cluster requires a destructive plan that demands careful human review. For environments where clusters are ephemeral — feature branches, load tests, short-lived demos — the plan/apply ceremony adds friction to every iteration.
 
-Hyve treats the cluster definition as continuous desired state. Commit a new cluster YAML and it is created. Remove the file and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command, or a CI/CD pipeline step, handles all three cases without separate plan files or manual approval gates.
+Hyve treats the cluster definition as continuous desired state. Add a new cluster YAML and it is created. Remove the file and the cluster is deleted. Update a field and Hyve reconciles the difference. The same `hyve reconcile` command, or a CI/CD pipeline step, handles all three cases without separate plan files or manual approval gates.
 
 ## Post-Provision Automation
 
@@ -86,17 +88,17 @@ Hyve has native cluster templates: define the shape of a cluster once, including
 hyve cluster create my-feature-cluster --template staging-standard
 ```
 
-The resulting cluster YAML is committed to the state repository, reconciled, and the `onCreate` workflows run — all in one step.
+The resulting cluster YAML is written to the environment directory, reconciled, and the `onCreate` workflows run — all in one step.
 
 ## The Summary
 
 <CardGroup cols={2}>
-  <Card title="Git is the state backend" icon="code-branch" color="#3b82f6">
-    No S3 bucket, no Terraform Cloud, no locking. The repository is the state.
+  <Card title="A directory is the state backend" icon="code-branch" color="#3b82f6">
+    No S3 bucket, no Terraform Cloud, no locking. Add git for free history and review — or don't.
   </Card>
 
   <Card title="Continuous reconciliation" icon="rotate" color="#f97316">
-    Commit to create, delete to destroy. No plan files or approval gates.
+    Add to create, delete to destroy. No plan files or approval gates.
   </Card>
 
   <Card title="Built-in post-deploy hooks" icon="gears" color="#22c55e">

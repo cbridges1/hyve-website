@@ -1,0 +1,103 @@
+---
+title: "Deploying Cluster Mode"
+description: "The Helm chart, values, and running multiple tenants on one cluster"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Steps from '../../../../components/mdx/Steps.astro';
+import Step from '../../../../components/mdx/Step.astro';
+
+`deploy/helm/hyve` is a single Helm chart deploying both components of [Cluster Mode](/docs/concepts/cluster-mode) — the controller and the API — together.
+
+## Install
+
+<Steps>
+  <Step title="Create the namespace">
+    ```bash
+    kubectl create namespace hyve-system
+    ```
+  </Step>
+
+  <Step title="Create the API's signing-key Secret">
+    Hyve never generates or stores this for you:
+
+    ```bash
+    kubectl -n hyve-system create secret generic hyve-api-credentials \
+      --from-literal=session-signing-key="$(openssl rand -hex 32)"
+    ```
+  </Step>
+
+  <Step title="Install the chart">
+    ```bash
+    helm install hyve deploy/helm/hyve \
+      --namespace hyve-system \
+      --set image.repository=<your-registry>/hyve \
+      --set image.tag=<version> \
+      --set namespace=hyve-system
+    ```
+  </Step>
+
+  <Step title="Create your first admin user">
+    ```bash
+    hyve cluster-config api create-user admin --role admin --namespace hyve-system | kubectl apply -f -
+    ```
+  </Step>
+
+  <Step title="Log in">
+    ```bash
+    hyve login --api-url https://your-hyve-api-host
+    ```
+  </Step>
+</Steps>
+
+## Key values
+
+| Value | Purpose |
+|---|---|
+| `namespace` | The one namespace both components watch/deploy into |
+| `controller.configName` | Name of the singleton `HyveConfig` object |
+| `api.publicBaseURL` | The API's own public address — required for the primary-cluster kubeconfig path |
+| `api.ingress.enabled` / `api.ingress.host` | Exposure — disabled by default, a real install makes its own decision |
+| `api.accessRoles.clusterScoped` | See the warning below — leave at its default |
+
+<Warning>
+  **Leave `api.accessRoles.clusterScoped` at its default (`false`) on any cluster with more than one tenant.** `true` grants the built-in `admin` role literal `cluster-admin` over the *entire shared cluster*, not just this install's namespace — only appropriate for a genuinely single-tenant cluster.
+</Warning>
+
+## Running multiple tenants on one cluster
+
+Multiple hyve installs (each its own controller + API pair) can safely share one cluster, isolated by namespace — every `hyve.io` CRD is namespaced, and (with `clusterScoped: false`, the default) each install's roles are scoped to its own namespace only:
+
+```bash
+kubectl create namespace tenant-a
+helm install hyve-tenant-a deploy/helm/hyve \
+  --namespace tenant-a \
+  --set namespace=tenant-a \
+  --set api.ingress.host=tenant-a.hyve.example.com
+```
+
+A second tenant is the identical pattern with a different namespace and host — no shared config beyond a common image.
+
+<Note>
+  **CRDs are cluster-global, shared by every tenant.** `helm install` only applies `deploy/helm/hyve/crds/` on a chart's *first* install in a cluster — `helm upgrade` never touches them (standard Helm behavior). Only the first tenant's install actually creates them; a later CRD schema change needs a manual `kubectl apply -f deploy/helm/hyve/crds/` before any tenant upgrades.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    What you're actually deploying
+  </Card>
+  <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Getting existing definitions onto this cluster
+  </Card>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles, `HyveAccessBinding`, and the escalation risk above
+  </Card>
+  <Card title="cluster-config CLI" icon="terminal" href="/docs/cli/cluster-config" color="#a855f7">
+    What's actually running inside these pods
+  </Card>
+</CardGroup>
