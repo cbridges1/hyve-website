@@ -1,6 +1,6 @@
 ---
 title: "Access Method"
-description: "Rancher-backed kubeconfig access for managed clusters, decoupled from any specific module"
+description: "External identity-service kubeconfig access for managed clusters, via an ordinary auth-only module run server-side"
 ---
 
 import Card from '../../../../components/mdx/Card.astro';
@@ -10,7 +10,13 @@ import Warning from '../../../../components/mdx/Warning.astro';
 import Steps from '../../../../components/mdx/Steps.astro';
 import Step from '../../../../components/mdx/Step.astro';
 
-Most managed clusters get their kubeconfig straight from the cloud provider's own auth (`hyve cluster auth <name>` running the driver module's `auth.yaml`) — see [Access Control](/docs/concepts/access-control) for why that's fine for the person who effectively owns the cluster, but doesn't differentiate access by hyve role. `AccessMethod` is the alternative for when you want an *external identity service* (Rancher today; Teleport is designed for but not yet implemented) to govern who can get a kubeconfig for a cluster, and with what access.
+Most managed clusters get their kubeconfig straight from the cloud provider's own auth (`hyve cluster auth <name>` running the driver module's `auth.yaml`) — see [Access Control](/docs/concepts/access-control) for why that's fine for the person who effectively owns the cluster, but doesn't differentiate access by hyve role. `AccessMethod` is the alternative for when you want an *external identity service* (Rancher, Teleport, or anything else with its own login-and-mint-a-kubeconfig flow) to govern who can get a kubeconfig for a cluster, and with what access.
+
+Hyve itself has no idea what "Rancher" means, the same way it has no idea what "AWS" means: an `AccessMethod` implements the actual login and kubeconfig-minting calls either via `driver`, an ordinary **auth-only module** (see [Modules — Auth-only modules](/docs/concepts/modules#auth-only-modules)), or via `inlineAuth`, a script inlined directly in the object with nothing to host at all (see below). Either way, that logic always runs **server-side**, inside a short-lived Kubernetes Job — never in hyve's own binary, and never on your own machine. This requires cluster mode (`hyve login`); there's no local-mode equivalent.
+
+<Note>
+  Why server-side, not client-side? An AccessMethod's whole point is often exactly the case where the identity service is only reachable from inside the cluster's own network, or your own machine doesn't have the module's tools installed. A container with the right tools pre-installed, dispatched on demand, covers that case; running on your own machine structurally can't.
+</Note>
 
 ## Why it's a separate object, not module config
 
@@ -23,8 +29,12 @@ metadata:
   name: corp-rancher
   namespace: hyve-system
 spec:
-  provider: rancher
-  serverURL: https://rancher.example.com
+  serverURL: https://rancher.internal.corp.svc.cluster.local
+  driver:
+    source: github.com/example/hyve-rancher-access   # an ordinary auth-only module
+    version: v1.0.0
+  runner:
+    image: ghcr.io/example/hyve-rancher-access-runner:v1.0.0   # needs curl + whatever the module itself needs
 ```
 
 ```yaml
@@ -32,25 +42,59 @@ spec:
 spec:
   access:
     accessMethodRef: corp-rancher
-    accessMethodClusterID: c-abc123   # this cluster's own ID within Rancher
+    accessMethodClusterID: c-abc123   # this cluster's own ID within whatever the module talks to
 ```
+
+<Warning>
+  `serverURL` must be reachable from *inside* the cluster's own pod network — the module's auth operation runs there now, not on your machine. Use the identity service's in-cluster Service DNS (`https://rancher.cattle-system.svc.cluster.local`, for example), not the external address a browser or `kubectl` on your own machine would use. `127.0.0.1` inside the dispatched Job's pod refers to that pod itself, not your host.
+</Warning>
 
 <Note>
   Holds only connection config, never a credential — the credential comes from whichever user is requesting access, at request time. Safe to read broadly, safe to version-control if you choose to.
 </Note>
 
+## No module to host: `inlineAuth`
+
+`driver` is the right call for anything meant to be versioned or shared across multiple `AccessMethod`s. For a small, self-contained script with no need for either, `inlineAuth` skips module resolution entirely — the script's text lives directly in the object, nothing to publish or host anywhere:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: AccessMethod
+metadata:
+  name: corp-rancher
+  namespace: hyve-system
+spec:
+  serverURL: https://rancher.internal.corp.svc.cluster.local
+  requiredEnv: [RANCHER_USERNAME, RANCHER_PASSWORD]
+  runner:
+    image: ghcr.io/example/some-image-with-curl:latest
+  inlineAuth: |
+    set -e
+    RANCHER_TOKEN=$(curl -sf -X POST "$HYVE_ACCESS_METHOD_SERVER_URL/v3-public/localProviders/local?action=login" \
+      -H 'Content-Type: application/json' \
+      -d "{\"username\":\"$RANCHER_USERNAME\",\"password\":\"$RANCHER_PASSWORD\"}" | jq -r '.token')
+    curl -sf -X POST "$HYVE_ACCESS_METHOD_SERVER_URL/v3/clusters/$HYVE_ACCESS_METHOD_CLUSTER_ID?action=generateKubeconfig" \
+      -H "Authorization: Bearer $RANCHER_TOKEN" | jq -r '.config' > "$KUBECONFIG"
+```
+
+It receives the exact same environment and goes through the exact same push-based relay as a `driver`-resolved module's auth operation — only where the script's text comes from differs. `requiredEnv` is `inlineAuth`'s equivalent of a module's own declared credential env vars. Set exactly one of `driver`/`inlineAuth`, never both or neither.
+
 ## How the mint actually works
 
 ```bash
+export RANCHER_USERNAME=alice RANCHER_PASSWORD=********
 hyve cluster auth prod-aws-workload
 ```
 
 <Steps>
   <Step title="Resolve">
-    The CLI reads `prod-aws-workload`'s `accessMethodRef`, then the named `AccessMethod` object (locally, or via a small read-only API lookup in cluster mode).
+    The CLI reads `prod-aws-workload`'s `accessMethodRef`, then `GET`s the named `AccessMethod` object — the response includes the required credential env var names (a `driver` module's own declared `spec.requirements.env`, or the object's own `requiredEnv` for `inlineAuth`). The CLI reads exactly those names from your local environment — never your whole environment — to send along.
   </Step>
-  <Step title="Authenticate — your own credentials, not a shared one">
-    Since Rancher is directly reachable from your own machine, the CLI itself talks to Rancher's REST API — no external `rancher` CLI required, and no hyve server round trip for the credential exchange at all. Prompts for your Rancher username/password, or reuses an already-held token (`RANCHER_TOKEN`) if you have one.
+  <Step title="Dispatch — server-side, never on your machine">
+    The API resolves the auth operation (a `driver` module against its own module cache, or `inlineAuth`'s script directly) and dispatches it to a short-lived Job running `spec.runner.image`. Your credential rides along in a Secret created just for this request, mounted into the Job — never a literal, widely-visible pod-spec env var — and deleted the moment the Job is.
+  </Step>
+  <Step title="Push, not pull">
+    Once the module's script succeeds and writes a kubeconfig, the Job actively pushes it back over an internal-only channel and exits — it's never printed to a log, never written to a Secret that outlives the request. The API relays it straight back over your original, already-authenticated connection.
   </Step>
   <Step title="Merge">
     The resulting kubeconfig is merged into your real `~/.kube/config`, same as every other `hyve cluster auth` path.
@@ -58,17 +102,21 @@ hyve cluster auth prod-aws-workload
 </Steps>
 
 ```
-$ RANCHER_TOKEN=... hyve cluster auth prod-aws-workload
-kubectl context for 'prod-aws-workload' configured (via corp-rancher)
+$ export RANCHER_USERNAME=alice RANCHER_PASSWORD=********
+$ hyve cluster auth prod-aws-workload
+kubectl context for 'prod-aws-workload' configured (via access method 'corp-rancher')
 ```
 
 <Warning>
-  What you can actually do once connected is entirely up to **Rancher's own RBAC** for your Rancher identity — hyve never re-implements or overrides it. This is the whole point: Rancher already ties identity to authorization, which is what makes per-user differentiated access to a *managed* cluster possible at all (the module-auth default can't do this — see [Access Control](/docs/concepts/access-control)).
+  What you can actually do once connected is entirely up to the identity service's **own RBAC** for your identity there — hyve never re-implements or overrides it. This is the whole point: a service like Rancher already ties identity to authorization, which is what makes per-user differentiated access to a *managed* cluster possible at all (the module-auth default can't do this — see [Access Control](/docs/concepts/access-control)).
 </Warning>
 
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    Auth-only modules — the mechanism an AccessMethod's driver resolves to
+  </Card>
   <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
     Roles and `HyveAccessBinding` — the primary-cluster equivalent
   </Card>
