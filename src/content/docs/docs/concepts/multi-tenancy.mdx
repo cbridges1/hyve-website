@@ -1,0 +1,99 @@
+---
+title: "Multi-Tenancy"
+description: "Namespace-per-tenant isolation on a single shared cluster-mode install"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Info from '../../../../components/mdx/Info.astro';
+
+A single [cluster-mode](/docs/concepts/cluster-mode) install can serve many tenants at once, isolated by Kubernetes namespace and enforced entirely at the application level — no separate Helm release per tenant, no separate controller+API pod pair to operate and upgrade for each one.
+
+<Note>
+  This is additive, not a replacement. Running one install per tenant namespace still works, and is the better choice when you want the strongest possible blast-radius isolation (a bug in one tenant's controller process can't touch another tenant's namespace at all, since it's a wholly separate process). Multi-tenancy is for the operational-scale case — many small tenants, most idle most of the time, where N Helm releases is a real, permanent cost.
+</Note>
+
+## Namespace is chosen at login, not fixed at install time
+
+Every `HyveAccessBinding` (see [Access Control](/docs/concepts/access-control)) is namespaced, and which namespace a session resolves against is decided by the login request itself:
+
+```bash
+hyve login --api-url https://hyve-api.example.com --org acme
+```
+
+`--org` is resolved to a namespace client-side, today by a trivial identity mapping (the org name *is* the namespace name). The API itself was never taught the concept of "org" — only "namespace" — which is deliberate: a future hosted product spreading tenants across multiple clusters just swaps that one client-side resolution step for a real directory lookup (`org → {apiURL, namespace}`), without anything about the API changing at all.
+
+Omit `--org` entirely to log in at the control-plane tier instead — see `superadmin` below.
+
+## The `superadmin` role
+
+Above the namespace-scoped `admin`/`read-only` roles sits one intentionally cluster-scoped tier: `superadmin`. It exists for exactly two things, and nothing else:
+
+- Create a new tenant environment (below).
+- Access the [host cluster](#host-cluster-access) hyve's own controller/API run on.
+
+It's never the default role, and no tenant `admin` can grant it to themselves — see [Access Control](/docs/concepts/access-control) for the full role model.
+
+## Onboarding a new tenant
+
+```bash
+POST /environments
+{ "name": "acme" }
+```
+
+Superadmin-only, and deliberately narrow: it turns a namespace into a real, hyve-recognized tenant and nothing more.
+
+<Info>
+  In order: (1) create the namespace, (2) create that namespace's own `hyve-access-admin`/`hyve-access-readonly` `ServiceAccount`s and `RoleBinding`s to the built-in `admin`/`view` `ClusterRole`s — the same RBAC scaffolding a one-install-per-tenant deployment gets from the Helm chart at install time, created programmatically here instead, once per tenant, (3) register a `HyveEnvironment{namespace: acme}` object so this tenant shows up in `GET /environments` and in a full [migration](/docs/cli/migrate) enumeration. Each step checks "does this already exist" first — safe to re-run after a partial failure, no rollback needed.
+</Info>
+
+Creating the tenant's first user is a separate, already-existing call — `POST /accounts` (see [Access Control](/docs/concepts/access-control#creating-a-user)) — with an explicit target namespace, since a superadmin has no tenant namespace of their own to default to.
+
+```bash
+GET /environments
+# [{"name": "acme", "namespace": "acme"}, ...]
+```
+
+<Warning>
+  Why is a registry object needed at all, rather than just listing namespaces with a `ClusterDefinition` in them? A freshly-created tenant — namespace and RBAC scaffolding in place, but no cluster created yet — would be invisible to that check. `HyveEnvironment` is written down the moment a tenant is created, independent of whether they've made a cluster yet, so a full migration (below) never silently leaves an idle tenant behind.
+</Warning>
+
+## Host cluster access
+
+`hyve-controller`/`hyve-api` run *on* some cluster — the "host." Getting a kubeconfig for that cluster (not a cluster hyve *manages*, but the one running hyve *itself*) is its own path, gated to `superadmin` only:
+
+```bash
+hyve cluster auth <host-cluster-name>
+```
+
+The host cluster is a real `ClusterDefinition` like any other, with `spec.access.method: primary` — no `driver`, and `create`/`delete` refused outright (it already exists by definition; hyve can't provision or delete the cluster it's running on). The minted token is deliberately **full `cluster-admin`**, against a dedicated `hyve-host-admin` `ServiceAccount` — not a scoped-down role. The host cluster *is* the entire control plane (every tenant namespace, every controller/API pod, every Secret), so the safety here comes entirely from gating *who* can request the token, not from narrowing what it can do once granted. The token itself is short-lived (an hour by default, shorter than an ordinary login session) — re-run the command to refresh it.
+
+<Warning>
+  A tenant `admin` can never reach this, no matter how the request is scoped — it's a separate, superadmin-only authorization check on top of (not instead of) the namespace isolation everything else relies on.
+</Warning>
+
+## Moving tenants and hosts: `hyve migrate`
+
+[`hyve migrate cluster`](/docs/cli/migrate#hyve-migrate-cluster) understands this model directly via `--namespace`:
+
+- A tenant namespace scopes the migration to *just that tenant* — split one tenant onto its own dedicated cluster while the source keeps running for everyone else.
+- `hyve-system` (the default) migrates *everything* — every tenant enumerated via `HyveEnvironment`, plus the control plane's own objects. This falls directly out of what `hyve-system` is: the control plane's own home, not a tenant, so moving it necessarily takes everything it's responsible for.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles, `HyveAccessBinding`, and how a session resolves to what you can do
+  </Card>
+  <Card title="hyve login" icon="key" href="/docs/cli/login" color="#f43f5e">
+    The `--org` flag in full
+  </Card>
+  <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Moving tenants and hosts between clusters
+  </Card>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    The wider concept this fits into
+  </Card>
+</CardGroup>

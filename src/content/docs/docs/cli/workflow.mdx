@@ -229,6 +229,10 @@ Execute a workflow on a cluster. Accepts a local workflow name or a remote sourc
 hyve workflow run [workflow-name-or-source] [flags]
 ```
 
+<Info>
+  Works in both modes. In local mode, the workflow's steps run directly on your machine. Logged in via `hyve login` (cluster mode), this instead dispatches a `WorkflowRun` object that the controller executes the same way it runs a cluster's own lifecycle hooks (`afterCreate`, etc.) — the CLI polls its status and prints the result once it completes.
+</Info>
+
 <ParamField path="workflow-name-or-source" type="string" required>
   A local workflow name (resolved against `workflows/`, then against `hyve.lock` by name), or a
   full remote source string (`github.com/org/repo//path.yaml@version`). Any `/` in the argument

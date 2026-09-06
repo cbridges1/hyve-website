@@ -231,7 +231,7 @@ Removed clusters/my-cluster.yaml from repository.
 Run the module's auth operation to merge the cluster's kubeconfig into `~/.kube/config`.
 
 ```bash
-hyve cluster auth <name> [--method <method-name>]
+hyve cluster auth <name> [--method <method-name>] [--set KEY=VALUE ...]
 ```
 
 <ParamField path="name" type="string" required>
@@ -240,6 +240,10 @@ hyve cluster auth <name> [--method <method-name>]
 
 <ParamField path="--method" type="string">
   Name of the auth method to use. When omitted, Hyve runs the first method defined in the module's `auth.yaml`. Use this flag when a module declares multiple auth methods and you need a specific one.
+</ParamField>
+
+<ParamField path="--set" type="string (repeatable)">
+  `KEY=VALUE` — an explicit credential value for a cluster using an [Access Method](/docs/concepts/access-method), instead of expecting it already set in your shell's environment. Takes precedence over the same name found in your environment; useful for scripting/CI. Has no effect for a cluster using ordinary module auth.
 </ParamField>
 
 **Examples:**
@@ -251,7 +255,15 @@ hyve cluster auth my-cluster
 # Explicitly select a named method
 hyve cluster auth my-cluster --method headless
 hyve cluster auth my-cluster --method local
+
+# A cluster whose access is governed by an Access Method (e.g. Rancher) —
+# pass its required credentials explicitly instead of exporting them first
+hyve cluster auth prod-workload --set RANCHER_USERNAME=alice --set RANCHER_PASSWORD=********
 ```
+
+<Info>
+  If the cluster's `ClusterDefinition` references an [Access Method](/docs/concepts/access-method) (`spec.access.accessMethodRef`), this requires an active `hyve login` session — the access method's auth logic always runs server-side, in a short-lived Job, never on your machine.
+</Info>
 
 **Output:**
 

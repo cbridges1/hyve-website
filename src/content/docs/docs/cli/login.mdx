@@ -19,11 +19,15 @@ import ParamField from '../../../../components/mdx/ParamField.astro';
 ### hyve login
 
 ```bash
-hyve login [--api-url <url>] [--username <user>] [--password <password>]
+hyve login [--api-url <url>] [--org <name>] [--username <user>] [--password <password>]
 ```
 
 <ParamField path="--api-url" type="string">
   The cluster-mode API to authenticate against. Defaults to the active environment's `--api-url`, if it has one. If the URL isn't already registered as an environment, it's auto-registered for you — a plain `hyve login --api-url https://hyve-api.example.com` is usually all you need on a new machine.
+</ParamField>
+
+<ParamField path="--org" type="string">
+  Which tenant to log into, on a [shared, multi-tenant install](/docs/concepts/multi-tenancy). Resolved to a namespace client-side — omit entirely for the control-plane/`superadmin` tier, which has no tenant namespace of its own.
 </ParamField>
 
 <ParamField path="--username" type="string">
@@ -35,7 +39,7 @@ hyve login [--api-url <url>] [--username <user>] [--password <password>]
 </ParamField>
 
 ```bash
-hyve login --api-url https://hyve-api.example.com
+hyve login --api-url https://hyve-api.example.com --org acme
 # Username: alice
 # Password: ********
 # ✅ Logged in as alice against https://hyve-api.example.com

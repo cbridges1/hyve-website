@@ -69,6 +69,7 @@ export default defineConfig({
             { label: 'Cluster Mode', link: '/docs/concepts/cluster-mode' },
             { label: 'Access Control', link: '/docs/concepts/access-control' },
             { label: 'Access Method', link: '/docs/concepts/access-method' },
+            { label: 'Multi-Tenancy', link: '/docs/concepts/multi-tenancy' },
             { label: 'Version Control (Optional)', link: '/docs/concepts/gitops' },
           ],
         },

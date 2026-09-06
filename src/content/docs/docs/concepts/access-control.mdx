@@ -14,9 +14,14 @@ Cluster mode ([overview](/docs/concepts/cluster-mode)) needs its own identity an
 
 | Role | Grants |
 |---|---|
-| `admin` | Full read/write over the API's resources in its namespace |
-| `read-only` | Read-only |
+| `admin` | Full read/write over the API's resources in its tenant namespace |
+| `read-only` | Read-only, same namespace scope |
 | `custom` | Whatever a custom `ServiceAccount` you point it at is bound to — for anything the two built-in roles don't fit |
+| `superadmin` | The one intentionally cluster-scoped role — see below |
+
+<Note>
+  `superadmin` is deliberately narrow: it can create a new tenant environment (see [Multi-Tenancy](/docs/concepts/multi-tenancy)) and access the *host* cluster hyve itself runs on. It's never the default role, and no tenant `admin` can grant it to themselves.
+</Note>
 
 ## Creating a user
 
@@ -51,15 +56,15 @@ spec:
 Every authenticated request re-resolves the caller's role from their `HyveAccessBinding` — nothing is cached in the session token itself. Change a binding's `role`, and the effect is immediate on that user's *next* request, not their next login.
 
 <Warning>
-  **Namespace matters.** `HyveAccessBinding` is namespaced — one hyve install (one tenant, one namespace) never sees or resolves another tenant's identities, even when multiple installs share a cluster. See [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode) for the multi-tenant case.
+  **Namespace matters.** `HyveAccessBinding` is namespaced, and which namespace a session resolves against is chosen at login time (`hyve login --org <name>`), not fixed by which install you happen to be talking to — one tenant never sees or resolves another tenant's identities, whether they're on separate installs or sharing one. See [Multi-Tenancy](/docs/concepts/multi-tenancy) for the full model.
 </Warning>
 
 ## What a role actually gets you
 
-The built-in `admin`/`read-only` roles each point at a real Kubernetes `ServiceAccount` (`hyve-access-admin`/`hyve-access-readonly`), scoped by a `RoleBinding` to your install's own namespace — so an "admin" login is admin of *that namespace*, not the whole shared cluster. This is what backs the primary-cluster kubeconfig path (`hyve cluster auth <primary-cluster-name>`): the token you get mints against that same ServiceAccount, so your hyve role is genuinely what governs what you can do with it.
+The built-in `admin`/`read-only` roles each point at a real Kubernetes `ServiceAccount` (`hyve-access-admin`/`hyve-access-readonly`), scoped by a `RoleBinding` to your own tenant namespace — so an "admin" login is admin of *that namespace*, never the whole shared cluster.
 
 <Note>
-  This only applies to the **primary cluster** — the one hyve's own controller/API run on. A *managed* cluster's kubeconfig (one hyve provisioned for you) comes from that cluster's own module or an [Access Method](/docs/concepts/access-method) instead, and is governed by whatever access model that cluster/provider itself uses.
+  Getting a kubeconfig for the **host cluster** — the one hyve's own controller/API run on — is a separate, `superadmin`-only path (`ClusterDefinition.spec.access.method: primary`), deliberately not available to an ordinary tenant `admin`. See [Multi-Tenancy](/docs/concepts/multi-tenancy#host-cluster-access) for why it's scoped that way. A *managed* cluster's own kubeconfig (one hyve provisioned for you) comes from that cluster's own module or an [Access Method](/docs/concepts/access-method) instead, governed by whatever access model that cluster/provider itself uses.
 </Note>
 
 ## Related
