@@ -99,6 +99,8 @@ export default defineConfig({
             { label: 'template', link: '/docs/cli/template' },
             { label: 'workflow', link: '/docs/cli/workflow' },
             { label: 'resource', link: '/docs/cli/resource' },
+            { label: 'organization', link: '/docs/cli/organization' },
+            { label: 'reconciling-cluster', link: '/docs/cli/reconciling-cluster' },
             { label: 'cluster-config', link: '/docs/cli/cluster-config' },
           ],
         },

@@ -1,0 +1,55 @@
+---
+title: "'hyve reconciling-cluster'"
+description: "'Register physical clusters an organization's own resources can live on'"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve reconciling-cluster` manages the **shared registry** of physical Kubernetes clusters a superadmin can assign an [organization](/docs/concepts/multi-tenancy) onto (`hyve organization migrate --reconciling-cluster`) — distinct from the control plane's own home cluster, and distinct from an organization's own *dedicated* self-service cluster (registered directly by that organization's own admin, with no shared registry involved at all — see the web console's Reconciling cluster page, or `PUT /organizations/{name}/reconciling-cluster`). Cluster-mode only, same reasoning as `hyve organization` — a reconciling cluster is hyve-api's own multi-tenant concept, with no local-directory equivalent.
+
+## hyve reconciling-cluster create
+
+```bash
+hyve reconciling-cluster create <name> --kubeconfig-file <path>
+```
+
+<ParamField path="<name>" type="string" required>
+  Name to register this cluster under — what `hyve organization migrate --reconciling-cluster` and `hyve organization create --reconciling-cluster` refer to it by.
+</ParamField>
+
+<ParamField path="--kubeconfig-file" type="string" required>
+  Path to the cluster's kubeconfig, or `-` to read from stdin.
+</ParamField>
+
+```bash
+hyve reconciling-cluster create cell-a --kubeconfig-file ./cell-a.yaml
+```
+
+<Note>
+  Re-running this against an existing name rotates its stored kubeconfig rather than erroring — a real, expected operational need (kubeconfigs expire/get regenerated). The kubeconfig content itself is never echoed back by any endpoint once registered.
+</Note>
+
+---
+
+## hyve reconciling-cluster list
+
+```bash
+hyve reconciling-cluster list
+```
+
+Lists every registered reconciling cluster along with its live reachability, last-checked time, and last error (if any) — checked on a recurring interval by hyve-api itself.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve organization" icon="terminal" href="/docs/cli/organization" color="#a855f7">
+    `migrate --reconciling-cluster` — attaching a registered cluster to an organization
+  </Card>
+  <Card title="Multi-Tenancy" icon="server" href="/docs/concepts/multi-tenancy" color="#3b82f6">
+    Reconciling clusters, self-service registration, and the control plane's own placement
+  </Card>
+</CardGroup>

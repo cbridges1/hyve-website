@@ -1,0 +1,130 @@
+---
+title: "'hyve organization'"
+description: "'Create, rename, delete, and manage organizations — hyve-api's own multi-tenant isolation unit'"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve organization` manages [organizations](/docs/concepts/multi-tenancy) — hyve-api's own multi-tenant isolation unit, one Kubernetes namespace plus a set of environments/RBAC bindings/reconciling-cluster assignment, backed by a real row in hyve-api's own datastore rather than a Kubernetes object. Cluster-mode only — organizations have no local-directory equivalent — every command here requires an active session (`hyve env login`) against a superadmin account.
+
+<Note>
+  Creating an organization only provisions the namespace/environment — it grants no one access. Use `hyve cluster-config api create-user` (see [Access Control](/docs/concepts/access-control)) to create its first account.
+</Note>
+
+## hyve organization create
+
+```bash
+hyve organization create <name> [--admin-identity <identity> --admin-role <role>] [--reconciling-cluster <name>]
+```
+
+<ParamField path="<name>" type="string" required>
+  The new organization's name — also becomes its Kubernetes namespace, and must not collide with `hyve-system` or any form of `control plane`, both permanently reserved.
+</ParamField>
+
+<ParamField path="--admin-identity" type="string">
+  Identity (username or OIDC subject) to grant an initial admin binding to, in the same transaction as the organization itself. Requires `--admin-role`.
+</ParamField>
+
+<ParamField path="--admin-role" type="string">
+  Role for `--admin-identity` (`admin` or `read-only`).
+</ParamField>
+
+<ParamField path="--reconciling-cluster" type="string">
+  Name of an already-registered [reconciling cluster](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live) this organization's resources should live on instead of the control plane's own home cluster. Omit to use the home cluster.
+</ParamField>
+
+```bash
+hyve organization create acme --reconciling-cluster cell-a
+```
+
+---
+
+## hyve organization list
+
+```bash
+hyve organization list
+```
+
+Lists every organization on the install, its namespace, plan, current reconciling cluster (if any), and whether it's mid-migration.
+
+---
+
+## hyve organization delete
+
+```bash
+hyve organization delete <name>
+```
+
+Marks the organization for deletion and issues a standard Kubernetes namespace delete — permanent, and asynchronous: Kubernetes' own cascade tears everything down, and the organization's row disappears once the namespace finishes terminating.
+
+<Warning>
+  The control plane's own organization (`hyve-system`) can never be deleted this way, no matter who's asking.
+</Warning>
+
+---
+
+## hyve organization migrate
+
+```bash
+hyve organization migrate <name> (--reconciling-cluster <name> | --home)
+```
+
+Moves an organization onto a different [reconciling cluster](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live), or back to the control plane's own home cluster.
+
+<ParamField path="--reconciling-cluster" type="string">
+  Name of an already-registered reconciling cluster (see `hyve reconciling-cluster create`/`list`) to move the organization onto.
+</ParamField>
+
+<ParamField path="--home" type="boolean">
+  Move the organization back to the control plane's own home cluster. Only possible for an install that has one — see `--home-cluster` on `hyve cluster-config api run`.
+</ParamField>
+
+```bash
+hyve organization migrate acme --reconciling-cluster cell-b
+```
+
+<Info>
+  Renaming an organization's own display name (its namespace never changes) goes through the same underlying `PATCH /organizations/{name}` this command uses — reach it via the web console's Organizations page today; a dedicated `hyve organization rename` CLI command may follow.
+</Info>
+
+---
+
+## hyve organization environments
+
+```bash
+hyve organization environments <name>
+```
+
+Lists an organization's own named sub-scopes (`default`, plus anything added via `create-environment` below).
+
+---
+
+## hyve organization create-environment
+
+```bash
+hyve organization create-environment <name> <environment>
+```
+
+Adds a new environment to an existing organization — every organization already gets a `default` one automatically at creation; this is for every one after that.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Multi-Tenancy" icon="server" href="/docs/concepts/multi-tenancy" color="#3b82f6">
+    Organizations, environments, and reconciling clusters in full
+  </Card>
+  <Card title="hyve reconciling-cluster" icon="terminal" href="/docs/cli/reconciling-cluster" color="#a855f7">
+    Registering the shared cluster pool `--reconciling-cluster` names
+  </Card>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Creating a user for a newly-created organization
+  </Card>
+  <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Moving definitions between clusters directly
+  </Card>
+</CardGroup>

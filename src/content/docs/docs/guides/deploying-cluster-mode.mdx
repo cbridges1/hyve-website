@@ -48,7 +48,7 @@ import Step from '../../../../components/mdx/Step.astro';
 
   <Step title="Log in">
     ```bash
-    hyve login --api-url https://your-hyve-api-host
+    hyve env login --api-url https://your-hyve-api-host
     ```
   </Step>
 </Steps>
@@ -95,7 +95,7 @@ A second tenant is the identical pattern with a different namespace and host —
     Getting existing definitions onto this cluster
   </Card>
   <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
-    Roles, `HyveAccessBinding`, and the escalation risk above
+    Roles, access bindings, and the escalation risk above
   </Card>
   <Card title="cluster-config CLI" icon="terminal" href="/docs/cli/cluster-config" color="#a855f7">
     What's actually running inside these pods

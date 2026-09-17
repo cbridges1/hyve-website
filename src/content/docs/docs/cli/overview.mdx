@@ -98,7 +98,7 @@ hyve env path [name]
 ### login
 
 ```bash
-hyve login [--api-url <url>] [--username <user>] [--password <pw>]
+hyve env login [--api-url <url>] [--username <user>] [--password <pw>]
 hyve logout
 hyve whoami
 ```
@@ -308,7 +308,7 @@ hyve cluster delete my-cluster
 
   <Accordion title="Cluster-mode login failed">
     ```bash
-    hyve login --api-url https://hyve-api.example.com
+    hyve env login --api-url https://hyve-api.example.com
     hyve whoami   # confirm who you're authenticated as, and where
     ```
     See [Login](/docs/cli/login).

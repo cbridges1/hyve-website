@@ -1,5 +1,5 @@
 ---
-title: "'hyve login'"
+title: "'hyve env login'"
 description: "'Authenticate against a deployed hyve cluster-mode API'"
 ---
 
@@ -8,26 +8,26 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-`hyve login`/`hyve logout`/`hyve whoami` authenticate the CLI against a deployed cluster-mode API — see [Cluster Mode](/docs/concepts/cluster-mode). Local/directory-based work never needs any of these.
+`hyve env login`/`hyve env logout`/`hyve env whoami` authenticate the CLI against a deployed cluster-mode API — see [Cluster Mode](/docs/concepts/cluster-mode). Local/directory-based work never needs any of these.
 
 <Note>
-  **A login is one global, machine-wide credential — like `gh auth login` — not scoped to whichever [environment](/docs/concepts/repositories) is active.** Switching environments never logs you out; logging in or out never changes which environment is active.
+  **A login is one global, machine-wide credential — like `gh auth login` — not scoped to whichever [environment](/docs/concepts/repositories) is active.** Switching environments never logs you out; logging in or out never changes which environment is active, except that the very first login on a machine with no environment registered yet also activates the one it creates.
 </Note>
 
 ## Commands
 
-### hyve login
+### hyve env login
 
 ```bash
-hyve login [--api-url <url>] [--org <name>] [--username <user>] [--password <password>]
+hyve env login [--api-url <url>] [--org <name>] [--username <user>] [--password <password>] [--ca-cert <path>]
 ```
 
 <ParamField path="--api-url" type="string">
-  The cluster-mode API to authenticate against. Defaults to the active environment's `--api-url`, if it has one. If the URL isn't already registered as an environment, it's auto-registered for you — a plain `hyve login --api-url https://hyve-api.example.com` is usually all you need on a new machine.
+  The cluster-mode API to authenticate against. Defaults to the current environment's `--api-url`, if it has one. If the URL isn't already registered as an environment, one is registered automatically (named from the URL's host, deduplicated on collision) — so a bare `hyve env login --api-url ...` is enough to both authenticate and make that cluster visible in `hyve env list` afterward.
 </ParamField>
 
 <ParamField path="--org" type="string">
-  Which tenant to log into, on a [shared, multi-tenant install](/docs/concepts/multi-tenancy). Resolved to a namespace client-side — omit entirely for the control-plane/`superadmin` tier, which has no tenant namespace of its own.
+  Which [organization](/docs/concepts/multi-tenancy) to log into, on a shared, multi-tenant install. Resolved server-side to that organization's real namespace — omit entirely for the control-plane/`superadmin` tier, which has no tenant namespace of its own.
 </ParamField>
 
 <ParamField path="--username" type="string">
@@ -38,27 +38,31 @@ hyve login [--api-url <url>] [--org <name>] [--username <user>] [--password <pas
   Local account password. Omit to be prompted without echo — scripting/CI is the only real reason to pass this as a flag instead.
 </ParamField>
 
+<ParamField path="--ca-cert" type="string">
+  Path to a PEM-encoded CA certificate to trust in addition to the system trust store — for an API whose TLS certificate isn't publicly trusted (a self-signed CA behind a bare IP/nip.io address with no real domain). Stored on the registered environment once login succeeds, so later commands against it (`hyve cluster auth`, `hyve env whoami`, ...) trust it too without repeating the flag.
+</ParamField>
+
 ```bash
-hyve login --api-url https://hyve-api.example.com --org acme
+hyve env login --api-url https://hyve-api.example.com --org acme
 # Username: alice
 # Password: ********
-# ✅ Logged in as alice against https://hyve-api.example.com
+# ✅ Logged in as alice against https://hyve-api.example.com (session expires ...)
 ```
 
-### hyve whoami
+### hyve env whoami
 
 Confirm who you're authenticated as, and where.
 
 ```bash
-hyve whoami
+hyve env whoami
 ```
 
-### hyve logout
+### hyve env logout
 
 Revoke the current session and clear the locally cached credential.
 
 ```bash
-hyve logout
+hyve env logout
 ```
 
 ---
@@ -72,14 +76,19 @@ hyve logout
 - **Access token** — short-lived (~30 minutes), used on every API call, verified locally with no round trip to the cluster on the hot path.
 - **Session token** — long-lived (~30 days), kept only to silently mint a fresh access token when the cached one expires — no password re-entry needed for routine use, which is what makes unattended use (a cron job, a CI pipeline already logged in) practical.
 
-The session itself is a real, revocable object on the cluster you logged into (a `HyveAccessBinding`-adjacent `HyveSession` — see [Access Control](/docs/concepts/access-control)) — an admin can list active logins directly via `kubectl`, and `hyve logout` (or deleting that object) revokes it immediately, not just locally.
+The session itself is a real, revocable row in hyve-api's own datastore — see [Access Control](/docs/concepts/access-control) — and `hyve env logout` revokes it immediately server-side, not just locally.
 
 <Warning>
-  Your role (admin / read-only / custom) is resolved fresh from your `HyveAccessBinding` on every request, not baked into the token — a role change by an admin takes effect on your very next command, not your next login.
+  Your role (admin / read-only / custom) is resolved fresh from your own access binding on every request, not baked into the token — a role change by an admin takes effect on your very next command, not your next login.
 </Warning>
+
+<Note>
+  If a cluster-mode command seems to be talking to the wrong server even after `hyve env use` switched you to a local/different environment, check `hyve env whoami` first — a still-active session takes precedence over the current environment for any cluster-mode-aware command, by design. `hyve env logout` first if that's not what you want.
+</Note>
 
 ## Related
 
 - [Cluster Mode](/docs/concepts/cluster-mode) — what logging in actually gets you
-- [Access Control](/docs/concepts/access-control) — roles and `HyveAccessBinding`
+- [Access Control](/docs/concepts/access-control) — roles and access bindings
+- [Multi-Tenancy](/docs/concepts/multi-tenancy) — how `--org` resolves to a namespace
 - [Environments](/docs/concepts/repositories) — the independent concept of "which directory/API is active"

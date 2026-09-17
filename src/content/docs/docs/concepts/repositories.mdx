@@ -47,14 +47,14 @@ Don't want git? Skip it entirely — `hyve env create --path` works against any 
 ```bash
 hyve env create prod-cluster --api-url https://hyve-api.example.com
 hyve env use prod-cluster
-hyve login              # --api-url defaults to the active environment's
+hyve env login              # --api-url defaults to the active environment's
 ```
 
 <Note>
-  **Environments and `hyve login` are two independent concepts.** `hyve env` only ever picks which directory `hyve reconcile` reads from, or which API URL is "active" for `hyve login` to default to. `hyve login` is one global, machine-wide credential — like `gh auth login` — not scoped to whichever environment is active. Switching environments never logs you out; logging in/out never changes the active environment.
+  **Environments and `hyve env login` are two independent concepts.** `hyve env` only ever picks which directory `hyve reconcile` reads from, or which API URL is "active" for `hyve env login` to default to. `hyve env login` is one global, machine-wide credential — like `gh auth login` — not scoped to whichever environment is active. Switching environments never logs you out; logging in/out never changes the active environment.
 </Note>
 
-`hyve login --api-url <url>` also auto-registers the environment for you if that URL isn't already known — so a single `hyve login --api-url https://hyve-api.example.com` is often all you need; an explicit `hyve env create --api-url` is only for pre-registering a target before you're ready to log in.
+`hyve env login --api-url <url>` also auto-registers the environment for you if that URL isn't already known — so a single `hyve env login --api-url https://hyve-api.example.com` is often all you need; an explicit `hyve env create --api-url` is only for pre-registering a target before you're ready to log in.
 
 ## Related
 
