@@ -10,6 +10,7 @@ import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../components/mdx/AccordionGroup.astro';
 import Info from '../../../components/mdx/Info.astro';
+import Note from '../../../components/mdx/Note.astro';
 import Warning from '../../../components/mdx/Warning.astro';
 import Tip from '../../../components/mdx/Tip.astro';
 
@@ -60,7 +61,7 @@ env:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `env.file` | — | Path, relative to the repo root, to a `.env`-style file loaded into the process environment before reconciling or running a workflow. Unset means nothing extra is loaded. |
+| `env.file` | `hyve.env` | Path, relative to the repo root (or absolute), to a `.env`-style file loaded into the process environment before every command. Loaded from both the current directory and the active context's directory, so it works wherever you run hyve. |
 
 Set it by editing `hyve.yaml` directly — there's no CLI command for this anymore:
 
@@ -95,9 +96,9 @@ spec:
   Additive, not overriding: a variable already present in the real process environment (a CI secret, or something your shell already exported) always wins over `env.file` — the file only fills gaps. This is the same precedence hyve's own bootstrap `.env` loading already uses, and matches [workflow step `env`](/docs/workflows/variables)'s own inherited-environment-wins convention.
 </Info>
 
-<Warning>
-  A configured path can't point outside the repository — absolute paths and any path containing `..` are rejected. `env.file` is for local convenience scoped to this repo, not a pointer to an arbitrary filesystem location.
-</Warning>
+<Note>
+  A relative path resolves against the directory hyve.yaml lives in; an absolute path is used as-is. Keep the file out of git (add it to `.gitignore`) — it usually holds credentials.
+</Note>
 
 See [`hyve.yaml`](#hyveyaml) above for every field.
 
