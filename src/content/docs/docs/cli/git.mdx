@@ -1,24 +1,24 @@
 ---
 title: "'hyve git'"
-description: "'Removed — hyve never syncs git itself; use your own git CLI plus `hyve env`'"
+description: "'Removed — hyve never syncs git itself; use your own git CLI plus `hyve context`'"
 ---
 
 import Warning from '../../../../components/mdx/Warning.astro';
 
 <Warning>
-  `hyve git` has been removed. Hyve never had built-in git clone/pull/push/commit functionality of its own — this command family only ever managed a registry of local directories, and that registry is now `hyve env`. See [Environments](/docs/concepts/repositories) and the [`env` CLI reference](/docs/cli/env).
+  `hyve git` has been removed. Hyve never had built-in git clone/pull/push/commit functionality of its own — this command family only ever managed a registry of local directories, and that registry is now `hyve context`. See [Contexts](/docs/concepts/contexts) and the [`context` CLI reference](/docs/cli/context).
 </Warning>
 
 ## What changed
 
-`hyve git add/list/use/remove/status/path/branch/pull/push/sync/credentials` are all gone. None of them ever ran real git operations beyond a thin credentials-store wrapper — the actual clone/pull/push was always your own `git` CLI, called by hand or from CI. What they *did* do — register a local directory as the one `hyve reconcile`/`hyve cluster`/etc. operate against — is now `hyve env create [--path]`/`hyve env use`/`hyve env list`/`hyve env remove`.
+`hyve git add/list/use/remove/status/path/branch/pull/push/sync/credentials` are all gone. None of them ever ran real git operations beyond a thin credentials-store wrapper — the actual clone/pull/push was always your own `git` CLI, called by hand or from CI. What they *did* do — register a local directory as the one `hyve reconcile`/`hyve cluster`/etc. operate against — is now `hyve context create [--path]`/`hyve context use`/`hyve context list`/`hyve context remove`.
 
 ## What still works
 
-If you want your state directory backed by git, that's exactly the same as before: `git clone`, `git add`, `git commit`, `git push` — your own tooling, your own remote, your own credentials. Hyve reads and writes plain files in whatever directory `hyve env` has registered as active; it has no opinion about whether that directory happens to be a git working tree. See [Version Control](/docs/concepts/gitops) for the full picture.
+If you want your state directory backed by git, that's exactly the same as before: `git clone`, `git add`, `git commit`, `git push` — your own tooling, your own remote, your own credentials. Hyve reads and writes plain files in whatever directory `hyve context` has registered as active; it has no opinion about whether that directory happens to be a git working tree. See [Version Control](/docs/concepts/gitops) for the full picture.
 
 ## Related
 
-- [Environments](/docs/concepts/repositories) — the concept `hyve env` replaces "git repositories" with
-- [CLI Reference — env](/docs/cli/env)
+- [Contexts](/docs/concepts/contexts) — the concept `hyve context` replaces "git repositories" with
+- [CLI Reference — context](/docs/cli/context)
 - [Version Control](/docs/concepts/gitops)

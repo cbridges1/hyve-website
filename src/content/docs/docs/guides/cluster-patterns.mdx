@@ -1,0 +1,289 @@
+---
+title: "Cluster Patterns"
+description: "Creating clusters and host clusters — locally and from pipelines"
+---
+
+import Note from '../../../../components/mdx/Note.astro';
+import Tip from '../../../../components/mdx/Tip.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+
+Four common ways to use hyve, from a laptop to a fully pipeline-driven setup. They combine: a typical path is to create a **host cluster** once (pattern 3 or 4), then create everything else through it (pattern 1 or 2 in cluster mode).
+
+| | Locally | Through a pipeline |
+|---|---|---|
+| **Clusters** | [1. Clusters locally](#1-creating-clusters-locally) | [2. Clusters through pipelines](#2-creating-clusters-through-pipelines) |
+| **Host clusters** (running hyve itself) | [3. Host clusters locally](#3-creating-host-clusters-locally) | [4. Host clusters through pipelines](#4-creating-host-clusters-through-pipelines) |
+
+A **host cluster** is a cluster that runs hyve's own controller + API ([cluster mode](/docs/concepts/cluster-mode)). Every other cluster is just a cluster hyve manages.
+
+---
+
+## 1. Creating clusters locally
+
+### Local mode — a directory on your machine
+
+No server needed. Hyve reads and writes plain YAML in a [context](/docs/concepts/contexts) directory and provisions from your machine with your own credentials.
+
+```bash
+hyve context create my-infra --path ~/repos/my-infra
+hyve module add github.com/cbridges1/hyve-civo-module
+export CIVO_TOKEN=...                                  # whatever the module needs
+
+hyve cluster create dev --template civo --set node_count=2   # writes clusters/dev.yaml
+hyve reconcile                                         # provisions it
+hyve cluster auth dev                                  # merges its kubeconfig
+kubectl get nodes
+
+# Optional: if the directory is a git checkout, commit the result yourself
+git add clusters cluster-state && git commit -m "Add dev" && git push
+```
+
+Delete by marking it and reconciling again: `hyve cluster delete dev && hyve reconcile`.
+
+### Cluster mode — against a hyve-api server
+
+When a host cluster already runs hyve, the CLI talks to its API and the controller does the provisioning.
+
+```bash
+hyve context login --api-url https://hyve.example.com --org acme
+hyve environment use staging                  # which environment new clusters land in
+hyve cluster create dev --file clusters/dev.yaml
+hyve cluster logs dev                         # watch the controller create it
+hyve cluster auth dev
+```
+
+The web console at the same URL does the same thing.
+
+---
+
+## 2. Creating clusters through pipelines
+
+### Local mode — GitOps from a state repository
+
+The state repository holds `clusters/`, `templates/`, `workflows/`, and a `hyve.yaml` with `reconcile.mode: cicd` (so a local `hyve reconcile` only validates). The pipeline provisions with `hyve reconcile --path .` and then **commits the results back itself** — hyve never commits or pushes.
+
+This `workflow_dispatch` pipeline creates or deletes a cluster from a template on demand:
+
+```yaml
+# .github/workflows/cluster.yml
+name: Cluster lifecycle
+on:
+  workflow_dispatch:
+    inputs:
+      action:   { type: choice, options: [create, delete], required: true }
+      cluster:  { type: string, required: true }
+      template: { type: string, required: false }
+      params:   { type: string, required: false, description: "KEY=VALUE, one per line" }
+
+concurrency: { group: hyve-reconcile, cancel-in-progress: false }
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install hyve
+        run: |
+          curl -sL https://github.com/cbridges1/hyve/releases/latest/download/hyve_linux_amd64.tar.gz | tar xz hyve
+          sudo mv hyve /usr/local/bin/
+
+      - name: Register a context for this checkout
+        run: hyve context create ci --path .
+
+      - name: Create or mark for deletion
+        run: |
+          if [ "${{ inputs.action }}" = create ]; then
+            args=""
+            while IFS= read -r kv; do [ -n "$kv" ] && args="$args --set $kv"; done <<< "${{ inputs.params }}"
+            hyve cluster create "${{ inputs.cluster }}" --template "${{ inputs.template }}" $args
+          else
+            hyve cluster delete "${{ inputs.cluster }}"
+          fi
+
+      - name: Reconcile
+        env:
+          CIVO_TOKEN: ${{ secrets.CIVO_TOKEN }}   # whatever your modules and workflows need
+        run: hyve reconcile --path .
+
+      - name: Commit and push state
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A clusters cluster-state
+          git diff --cached --quiet || { git commit -m "hyve: ${{ inputs.action }} ${{ inputs.cluster }}" && git push; }
+```
+
+For continuous GitOps instead, trigger the same reconcile + commit steps on `push` to `clusters/**` and on a `schedule` (drift correction and `expiresAt` cleanup). See [CI/CD](/docs/guides/cicd).
+
+### Cluster mode — a pipeline that talks to hyve-api
+
+The pipeline doesn't provision anything itself — it hands definitions to hyve-api and the host's controller does the rest. Create a dedicated account for it once:
+
+```bash
+kubectl -n hyve-system exec deploy/hyve-api -- \
+  hyve cluster-config api create-user ci-bot --role admin --namespace acme --password "$CI_PASSWORD"
+```
+
+```yaml
+      - name: Push new cluster definitions to hyve-api
+        env:
+          HYVE_CI_PASSWORD: ${{ secrets.HYVE_CI_PASSWORD }}
+        run: |
+          hyve context login --api-url https://hyve.example.com --org acme \
+            --username ci-bot --password "$HYVE_CI_PASSWORD"
+          hyve migrate --dir . --write --env production   # creates anything not there yet
+```
+
+<Note>
+  `hyve migrate` and `hyve apply` only **create** — an existing definition is skipped (`migrate`) or rejected (`apply`). Change or delete existing clusters with `hyve cluster delete`, the web console, or `kubectl apply` against the host's CRDs.
+</Note>
+
+---
+
+## 3. Creating host clusters locally
+
+### For development — k3d on your machine
+
+From a hyve checkout, two tasks give you a local host cluster running your working copy of hyve, with the API and web console at `http://hyve-api.127.0.0.1.nip.io`:
+
+```bash
+task cluster:local     # k3d cluster with host ports 80/443 mapped to its ingress
+task install:local     # build the image, import it, apply CRDs, helm install, ingress
+kubectl exec -n hyve-system deploy/hyve-api -- \
+  hyve cluster-config api create-user admin --role superadmin --namespace hyve-system
+hyve context login --api-url http://hyve-api.127.0.0.1.nip.io
+```
+
+Set `HYVE_INSTALL_MULTI_TENANT=true` before `install:local` to serve several organizations from it.
+
+### For real — provision it with hyve, then install hyve on it
+
+Use local mode to create the cluster, then install the chart onto it:
+
+```bash
+# 1. Provision the host like any other cluster
+hyve context use my-infra
+hyve cluster create home --template unraid-k3s
+hyve reconcile
+hyve cluster auth home
+
+# 2. Install hyve onto it (from a hyve checkout)
+kubectl --context home apply -f deploy/helm/hyve/crds/
+helm upgrade --install hyve deploy/helm/hyve --kube-context home \
+  --namespace hyve-system --create-namespace \
+  --set image.repository=ghcr.io/cbridges1/hyve --set image.tag=<version> \
+  --set api.publicBaseURL=https://hyve.example.com \
+  --set api.multiTenant.enabled=true
+
+# 3. Expose hyve-api (Service hyve-api, port 80) — Ingress, LoadBalancer, or a tunnel
+#    — then create the first superadmin and log in
+kubectl --context home -n hyve-system exec deploy/hyve-api -- \
+  hyve cluster-config api create-user admin --role superadmin --namespace hyve-system
+hyve context login --api-url https://hyve.example.com
+
+# 4. Optional: hand your local definitions over to the new host
+hyve migrate to-cluster --to-cluster home --write
+```
+
+Mark the host's own definition with `spec.access.method: primary` so hyve knows it's the host (see [The host cluster](/docs/concepts/multi-tenancy#the-host-cluster)). Because it keeps its real `spec.driver`, it's still authenticated to through that driver like any other cluster.
+
+<Tip>
+  Exposing hyve-api through a tunnel needs nothing inbound on the host. With Pangolin, for example, a `PangolinResource` targeting `hyve-api.hyve-system.svc.cluster.local:80` with `auth.method: none` works — hyve has its own login, and the CLI can't follow an SSO redirect.
+</Tip>
+
+---
+
+## 4. Creating host clusters through pipelines
+
+Put the hyve install into the host's **template**, as an `afterCreate` workflow, so the pipeline in [pattern 2](#local-mode--gitops-from-a-state-repository) creates a working host with no manual steps:
+
+```yaml
+# templates/hyve-host.yaml
+apiVersion: hyve.io/v1alpha1
+kind: Template
+metadata:
+  name: hyve-host
+spec:
+  driver:
+    source: github.com/cbridges1/hyve-unraid-k3s-module
+    version: latest
+  params:
+    ip_address: 192.168.50.100
+  access:
+    method: primary                # marks clusters from this template as the host
+  workflows:
+    afterCreate:
+      - name: install-hyve
+```
+
+```yaml
+# workflows/install-hyve.yaml
+apiVersion: hyve.io/v1alpha1
+kind: Workflow
+metadata:
+  name: install-hyve
+spec:
+  description: Install hyve's controller + API onto a freshly created host cluster.
+  requirements:
+    tools:
+      - name: kubectl
+      - name: helm
+      - name: git
+    secrets:
+      - name: HYVE_ADMIN_PASSWORD
+        required: true
+        description: Password for the first superadmin account
+  jobs:
+    - name: install
+      steps:
+        - name: chart-and-crds
+          script: |
+            set -e
+            rm -rf /tmp/hyve-src
+            git clone --depth 1 https://github.com/cbridges1/hyve.git /tmp/hyve-src
+            kubectl apply -f /tmp/hyve-src/deploy/helm/hyve/crds/
+            helm upgrade --install hyve /tmp/hyve-src/deploy/helm/hyve \
+              --namespace hyve-system --create-namespace \
+              --set image.repository=ghcr.io/cbridges1/hyve --set image.tag=latest \
+              --set api.publicBaseURL=https://hyve.example.com \
+              --set api.multiTenant.enabled=true \
+              --wait --timeout 5m
+        - name: first-superadmin
+          dependsOn: ["chart-and-crds"]
+          script: |
+            kubectl -n hyve-system exec deploy/hyve-api -- \
+              hyve cluster-config api create-user admin --role superadmin \
+              --namespace hyve-system --password "$HYVE_ADMIN_PASSWORD"
+```
+
+Then dispatch the lifecycle pipeline with `action: create`, `template: hyve-host`, and `HYVE_ADMIN_PASSWORD` (plus the module's own credentials) in the reconcile step's `env:`. Expose hyve-api the same way as in pattern 3 — a tunnel resource can go straight into the template's `spec.resources`, ordered after whatever installs the tunnel operator.
+
+<Warning>
+  Workflows run with the pipeline's environment, so `HYVE_ADMIN_PASSWORD` must come from a pipeline secret — never commit it. Create the superadmin once; on a re-run, `create-user` for an existing name fails harmlessly.
+</Warning>
+
+<Note>
+  The chart isn't published to a Helm repository, which is why the workflow clones hyve for it rather than using a template `helm:` resource. Pin `--branch`/`image.tag` to a release instead of the default branch and `latest` for a repeatable install.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Deploying Cluster Mode" icon="server" href="/docs/guides/deploying-cluster-mode" color="#3b82f6">
+    Chart values and exposure
+  </Card>
+  <Card title="CI/CD" icon="rotate" href="/docs/guides/cicd" color="#22c55e">
+    Scheduled reconciles, teardown, and branch protection
+  </Card>
+  <Card title="Contexts & Environments" icon="folder-tree" href="/docs/concepts/contexts" color="#8b5cf6">
+    Local contexts vs. server environments
+  </Card>
+  <Card title="Cluster Access" icon="key" href="/docs/concepts/cluster-access" color="#f97316">
+    How each cluster's kubeconfig is minted
+  </Card>
+</CardGroup>

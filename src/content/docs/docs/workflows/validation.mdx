@@ -513,14 +513,14 @@ hyve workflow validate deploy-app
   <Accordion title="4. Test in Development First">
     ```bash
     # Switch to development
-    hyve env use development
+    hyve context use development
 
     # Test new workflow
     hyve workflow validate new-workflow
     hyve workflow run new-workflow --cluster dev-cluster
 
     # If successful, switch to production
-    hyve env use production
+    hyve context use production
     ```
   </Accordion>
 

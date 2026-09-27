@@ -119,7 +119,7 @@ hyve workflow create my-workflow --file ./workflow.yaml
 
 ```
 ✅ Created workflow template 'deploy-app'
-📁 Location: <environment directory>/workflows/deploy-app.yaml
+📁 Location: <context directory>/workflows/deploy-app.yaml
 🔧 Edit the file to customize your workflow
 ```
 
@@ -230,7 +230,7 @@ hyve workflow run [workflow-name-or-source] [flags]
 ```
 
 <Info>
-  Works in both modes. In local mode, the workflow's steps run directly on your machine. Logged in via `hyve login` (cluster mode), this instead dispatches a `WorkflowRun` object that the controller executes the same way it runs a cluster's own lifecycle hooks (`afterCreate`, etc.) — the CLI polls its status and prints the result once it completes.
+  Works in both modes. In local mode, the workflow's steps run directly on your machine. Logged in via `hyve context login` (cluster mode), this instead dispatches a `WorkflowRun` object that the controller executes the same way it runs a cluster's own lifecycle hooks (`afterCreate`, etc.) — the CLI polls its status and prints the result once it completes.
 </Info>
 
 <ParamField path="workflow-name-or-source" type="string" required>
@@ -911,7 +911,7 @@ spec:
 Workflow definitions are stored in:
 
 ```
-<environment directory>/
+<context directory>/
 └── workflows/
     ├── deploy-app.yaml
     ├── setup-monitoring.yaml

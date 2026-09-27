@@ -14,41 +14,47 @@ import Step from '../../../../components/mdx/Step.astro';
 
 ## Install
 
+The chart isn't published to a Helm repository — install it from a hyve checkout. The image is published to `ghcr.io/cbridges1/hyve` with every release.
+
 <Steps>
-  <Step title="Create the namespace">
+  <Step title="Get the chart and apply the CRDs">
     ```bash
-    kubectl create namespace hyve-system
-    ```
-  </Step>
-
-  <Step title="Create the API's signing-key Secret">
-    Hyve never generates or stores this for you:
-
-    ```bash
-    kubectl -n hyve-system create secret generic hyve-api-credentials \
-      --from-literal=session-signing-key="$(openssl rand -hex 32)"
+    git clone https://github.com/cbridges1/hyve.git && cd hyve
+    kubectl apply -f deploy/helm/hyve/crds/
     ```
   </Step>
 
   <Step title="Install the chart">
     ```bash
-    helm install hyve deploy/helm/hyve \
-      --namespace hyve-system \
-      --set image.repository=<your-registry>/hyve \
+    helm upgrade --install hyve deploy/helm/hyve \
+      --namespace hyve-system --create-namespace \
+      --set image.repository=ghcr.io/cbridges1/hyve \
       --set image.tag=<version> \
-      --set namespace=hyve-system
+      --set api.publicBaseURL=https://hyve.example.com \
+      --set api.multiTenant.enabled=true
     ```
+
+    hyve-api generates and stores its own session-signing key on first start — there's no Secret to create.
   </Step>
 
-  <Step title="Create your first admin user">
+  <Step title="Expose hyve-api">
+    The chart creates a plain `ClusterIP` Service (`hyve-api`, port 80) and no Ingress. Expose it however your cluster already does — an Ingress, a LoadBalancer Service, a tunnel (e.g. Pangolin or Cloudflare), or `kubectl port-forward` for a quick look. Terminate TLS in front of it and set `api.publicBaseURL` to that HTTPS address. The same address serves the web console.
+  </Step>
+
+  <Step title="Create the first superadmin">
+    Accounts live in hyve-api's own datastore, so this runs inside the API pod:
+
     ```bash
-    hyve cluster-config api create-user admin --role admin --namespace hyve-system | kubectl apply -f -
+    kubectl -n hyve-system exec deploy/hyve-api -- \
+      hyve cluster-config api create-user admin --role superadmin --namespace hyve-system
     ```
+
+    Pass `--password` for scripting; omit it to be prompted. Or skip this step entirely by setting `api.bootstrapAdmin.username` and `api.bootstrapAdmin.passwordSecret.name` (an existing Secret with a `password` key) at install time.
   </Step>
 
   <Step title="Log in">
     ```bash
-    hyve env login --api-url https://your-hyve-api-host
+    hyve context login --api-url https://hyve.example.com
     ```
   </Step>
 </Steps>
@@ -57,15 +63,24 @@ import Step from '../../../../components/mdx/Step.astro';
 
 | Value | Purpose |
 |---|---|
-| `namespace` | The one namespace both components watch/deploy into |
-| `controller.configName` | Name of the singleton `HyveConfig` object |
-| `api.publicBaseURL` | The API's own public address — required for the primary-cluster kubeconfig path |
-| `api.ingress.enabled` / `api.ingress.host` | Exposure — disabled by default, a real install makes its own decision |
+| `image.repository` / `image.tag` | The hyve image — `ghcr.io/cbridges1/hyve` and a release tag |
+| `namespace` | The control-plane namespace both components run in (default `hyve-system`) |
+| `api.publicBaseURL` | The HTTPS address callers reach hyve-api on — required for host-cluster and hyve-agent kubeconfigs |
+| `api.multiTenant.enabled` | Lets one install serve many organizations (a ClusterRole instead of a namespaced Role) |
+| `api.db.driver` | `sqlite` (default, one API replica, stored on a PVC) or `postgres` — required for more than one replica or for moving organizations onto reconciling clusters |
+| `api.requireReconcilingCluster` | Refuse to let any tenant organization live on the home cluster |
+| `api.bootstrapAdmin.username` / `.passwordSecret` | Create the first superadmin on startup, only while none exists — replaces the manual `create-user` step. Not an API endpoint; the password is read from a mounted Secret |
+| `api.smtp.host` / `.port` / `.username` / `.fromAddress` / `.passwordSecret` | Seed outbound email (password resets) on first start; settings saved later in the console always win |
+| `api.service.type` / `api.service.nodePort` | `ClusterIP` by default; `NodePort` only where node ports are reachable |
 | `api.accessRoles.clusterScoped` | See the warning below — leave at its default |
 
 <Warning>
   **Leave `api.accessRoles.clusterScoped` at its default (`false`) on any cluster with more than one tenant.** `true` grants the built-in `admin` role literal `cluster-admin` over the *entire shared cluster*, not just this install's namespace — only appropriate for a genuinely single-tenant cluster.
 </Warning>
+
+<Note>
+  To install hyve on a cluster hyve itself provisions — a **host cluster** — see [Cluster Patterns](/docs/guides/cluster-patterns), which covers doing it locally and from a pipeline.
+</Note>
 
 ## Running multiple tenants on one cluster
 
@@ -76,10 +91,10 @@ kubectl create namespace tenant-a
 helm install hyve-tenant-a deploy/helm/hyve \
   --namespace tenant-a \
   --set namespace=tenant-a \
-  --set api.ingress.host=tenant-a.hyve.example.com
+  --set image.repository=ghcr.io/cbridges1/hyve --set image.tag=<version>
 ```
 
-A second tenant is the identical pattern with a different namespace and host — no shared config beyond a common image.
+A second tenant is the identical pattern with a different namespace — no shared config beyond a common image. For most setups, one install serving several [organizations](/docs/concepts/multi-tenancy) (`api.multiTenant.enabled=true`) is simpler than one install per tenant.
 
 <Note>
   **CRDs are cluster-global, shared by every tenant.** `helm install` only applies `deploy/helm/hyve/crds/` on a chart's *first* install in a cluster — `helm upgrade` never touches them (standard Helm behavior). Only the first tenant's install actually creates them; a later CRD schema change needs a manual `kubectl apply -f deploy/helm/hyve/crds/` before any tenant upgrades.

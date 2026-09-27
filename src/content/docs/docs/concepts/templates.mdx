@@ -30,7 +30,7 @@ Templates in Hyve are reusable cluster configurations that combine a driver/regi
   </Card>
 
   <Card title="Version Controlled" icon="code-branch" color="#8b5cf6">
-    Plain YAML in your environment directory — add git for full history, entirely optional
+    Plain YAML in your context directory — add git for full history, entirely optional
   </Card>
 </CardGroup>
 
@@ -162,7 +162,7 @@ hyve template create prod-template \
   EOF
   ```
 
-  If your environment directory is git-backed (optional — see [Version Control](/docs/concepts/gitops)), commit it like any other file.
+  If your context directory is git-backed (optional — see [Version Control](/docs/concepts/gitops)), commit it like any other file.
 </Note>
 
 ## Executing Templates
@@ -173,7 +173,7 @@ hyve cluster create my-prod-cluster --template prod-template
 
 <Steps>
   <Step title="Load template">
-    Read the template YAML from the active environment.
+    Read the template YAML from the active context.
   </Step>
   <Step title="Generate + provision">
     Generate the cluster definition, then run reconciliation: `beforeCreate` → provision via the driver module → wait for `ACTIVE`.
@@ -199,7 +199,7 @@ hyve cluster create my-prod-cluster --template prod-template
 | `afterDelete` | After the cluster is deleted | No | Tear down VPC, IAM roles, DNS zones |
 
 <Note>
-  Workflows referenced in a template must exist in the same environment's `workflows/` directory (or as real `Workflow` objects, in cluster mode).
+  Workflows referenced in a template must exist in the same context's `workflows/` directory (or as real `Workflow` objects, in cluster mode).
 </Note>
 
 ## Managing Templates
@@ -235,11 +235,11 @@ hyve cluster create eu-prod --template prod-template --region FRA1
 ### Testing Infrastructure Changes
 
 ```bash
-hyve env use development
+hyve context use development
 hyve cluster create test-new-config --template prod-template
 
 # If successful
-hyve env use production
+hyve context use production
 hyve cluster create prod-new-cluster --template prod-template
 ```
 
@@ -275,16 +275,16 @@ hyve cluster create prod-new-cluster --template prod-template
 
   <Accordion title="Test templates in development first">
     ```bash
-    hyve env use development
+    hyve context use development
     hyve cluster create test-cluster --template new-template
     # Verify workflows run successfully, then:
-    hyve env use production
+    hyve context use production
     hyve cluster create prod-cluster --template new-template
     ```
   </Accordion>
 
   <Accordion title="Version control templates (optional)">
-    If your environment directory is git-backed, commit template changes with descriptive messages — tags work fine too for marking a template version you want to be able to return to:
+    If your context directory is git-backed, commit template changes with descriptive messages — tags work fine too for marking a template version you want to be able to return to:
 
     ```bash
     git commit -am "Update production template: add cert-manager to onCreate"

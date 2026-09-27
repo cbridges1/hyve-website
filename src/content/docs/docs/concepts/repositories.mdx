@@ -1,77 +1,10 @@
 ---
-title: "Environments"
-description: "How hyve tracks which local directory or cluster you're working against"
+title: "Environments (local)"
+description: "Moved — local directories and API targets are now called contexts"
 ---
 
-import Card from '../../../../components/mdx/Card.astro';
-import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
-import Tip from '../../../../components/mdx/Tip.astro';
-
-An **environment** (`hyve env`) is a named pointer to either a local directory of cluster/template/workflow YAML, or a cluster-mode API URL — nothing more. Hyve has no built-in git functionality: it never clones, pulls, pushes, or commits anything on its own. `hyve env` just tracks *where* your commands read from and write to.
 
 <Warning>
-  This replaces an earlier `hyve git`/`hyve set-state` split (both removed) — `hyve env` is the one command group for registering and switching between directories or cluster targets.
+  What this page used to call an "environment" — a named pointer to a local directory or hyve-api URL — is now a **context** (`hyve context`). "Environment" now means a scope within your organization on a hyve-api server. Both are explained in [Contexts & Environments](/docs/concepts/contexts).
 </Warning>
-
-## What an environment is
-
-```bash
-hyve env create prod --path ~/repos/prod-config
-hyve env use prod              # subsequent commands read/write here
-hyve env current                # show the active environment
-hyve env list                   # show every registered environment
-hyve env remove staging         # deregister (never deletes the directory itself)
-hyve env path [name]            # print an environment's local path
-```
-
-An environment is a thin record — a name, a local path, and (optionally) a cluster API URL — stored locally in `~/.hyve/hyve.db`. Hyve never manages a clone of anything; `--path` just points at a directory you already have.
-
-## Local mode: a plain directory, git optional
-
-```bash
-hyve env create my-project --path ~/repos/my-project
-```
-
-That directory holds `clusters/`, `templates/`, `workflows/`, `hyve.yaml`, and `hyve.lock` — plain files `hyve reconcile` reads and writes directly. Whether that directory happens to be a git working tree is entirely up to you:
-
-<Tip>
-  Want git? `git init`/`git clone` the directory yourself, `git add`/`git commit`/`git push` as you always would. Hyve never touches git at all — see [Version Control](/docs/concepts/gitops) for the full pattern (typically `git pull && hyve reconcile && git commit -am "..." && git push`, run locally or from CI).
-</Tip>
-
-Don't want git? Skip it entirely — `hyve env create --path` works against any plain directory, tracked or not.
-
-## Cluster mode: an API URL, no local directory required
-
-```bash
-hyve env create prod-cluster --api-url https://hyve-api.example.com
-hyve env use prod-cluster
-hyve env login              # --api-url defaults to the active environment's
-```
-
-<Note>
-  **Environments and `hyve env login` are two independent concepts.** `hyve env` only ever picks which directory `hyve reconcile` reads from, or which API URL is "active" for `hyve env login` to default to. `hyve env login` is one global, machine-wide credential — like `gh auth login` — not scoped to whichever environment is active. Switching environments never logs you out; logging in/out never changes the active environment.
-</Note>
-
-`hyve env login --api-url <url>` also auto-registers the environment for you if that URL isn't already known — so a single `hyve env login --api-url https://hyve-api.example.com` is often all you need; an explicit `hyve env create --api-url` is only for pre-registering a target before you're ready to log in.
-
-## Related
-
-<CardGroup cols={2}>
-  <Card title="Version Control" icon="code-branch" href="/docs/concepts/gitops" color="#8b5cf6">
-    How git fits in — entirely on your terms
-  </Card>
-
-  <Card title="CLI Reference — env" icon="terminal" href="/docs/cli/env" color="#10b981">
-    Full command reference
-  </Card>
-
-  <Card title="CLI Reference — login" icon="key" href="/docs/cli/login" color="#f43f5e">
-    Cluster-mode authentication
-  </Card>
-
-  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
-    Running hyve as a controller + API
-  </Card>
-</CardGroup>

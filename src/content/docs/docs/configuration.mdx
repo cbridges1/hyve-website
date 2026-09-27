@@ -185,7 +185,7 @@ For CI/CD pipelines, store credentials as pipeline secrets (e.g., GitHub Actions
 
 ## Git Credentials
 
-Hyve never clones or authenticates against git itself — if your environment directory is git-backed, cloning and authenticating is your own `git` step, using whatever you'd normally use (SSH key, a credential helper, a token in the URL):
+Hyve never clones or authenticates against git itself — if your context directory is git-backed, cloning and authenticating is your own `git` step, using whatever you'd normally use (SSH key, a credential helper, a token in the URL):
 
 ```bash
 # SSH
@@ -196,14 +196,14 @@ git clone git@github.com:company/hyve-prod.git
 # HTTPS with a token
 git clone https://<token>@github.com/company/hyve-prod.git
 
-hyve env create production --path ./hyve-prod
+hyve context create production --path ./hyve-prod
 ```
 
-See [Environments](/docs/concepts/repositories) and [Version Control](/docs/concepts/gitops) for the full picture.
+See [Contexts](/docs/concepts/contexts) and [Version Control](/docs/concepts/gitops) for the full picture.
 
 ## Directory Structure
 
-Your registered environment directory lives wherever you put it — hyve never copies or clones it anywhere:
+Your registered context directory lives wherever you put it — hyve never copies or clones it anywhere:
 
 ```
 <your registered directory>/
@@ -214,11 +214,11 @@ Your registered environment directory lives wherever you put it — hyve never c
 └── hyve.lock       # Module + remote workflow lock file (auto-managed)
 ```
 
-Hyve's own data — the environment registry, cached secrets, cluster-mode sessions — lives separately, under `$HYVE_HOME` (default `~/.hyve`):
+Hyve's own data — the context registry, cached secrets, cluster-mode sessions — lives separately, under `$HYVE_HOME` (default `~/.hyve`):
 
 ```
 ~/.hyve/
-├── hyve.db          # SQLite — registered environments, cached secrets, sessions
+├── hyve.db          # SQLite — registered contexts, cached secrets, sessions
 └── kubeconfigs/     # Per-cluster kubeconfig cache written by `hyve cluster auth`
 ```
 
@@ -281,8 +281,8 @@ Hyve resolves values in this order:
     Keep production and development state in separate directories/repositories:
 
     ```bash
-    hyve env create production --path ~/repos/hyve-prod
-    hyve env create development --path ~/repos/hyve-dev
+    hyve context create production --path ~/repos/hyve-prod
+    hyve context create development --path ~/repos/hyve-dev
     ```
   </Accordion>
 
@@ -316,7 +316,7 @@ Hyve resolves values in this order:
     Automate reconciliation in pipelines
   </Card>
 
-  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#f97316">
+  <Card title="Contexts" icon="folder-tree" href="/docs/concepts/contexts" color="#f97316">
     Registering directories and cluster targets
   </Card>
 </CardGroup>

@@ -11,7 +11,7 @@ import ParamField from '../../../../components/mdx/ParamField.astro';
 
 `hyve migrate` is three distinct commands under one parent, each solving a different problem. Picking the right one matters — they're not interchangeable.
 
-| Command | Source → Destination | Needs `hyve login`? | Use it for |
+| Command | Source → Destination | Needs `hyve context login`? | Use it for |
 |---|---|---|---|
 | `hyve migrate [path]` | Local files → the cluster you're logged into | Yes | Day-to-day: pushing local definitions into an already-running cluster-mode deployment |
 | `hyve migrate to-cluster` | Local files → any cluster, by name or kubeconfig | No | Bootstrapping — the target cluster's own API doesn't need to exist yet |
@@ -23,7 +23,7 @@ import ParamField from '../../../../components/mdx/ParamField.astro';
 hyve migrate [path] [--dir <dir>] [--file <file>] [--write] [--skip-existing]
 ```
 
-Reads CR-shaped YAML (a directory tree, walking `templates/`, `workflows/`, then `clusters/` in that order — or a single file) and creates each as a real resource via the API, going through your active [`hyve login`](/docs/cli/login) session.
+Reads CR-shaped YAML (a directory tree, walking `templates/`, `workflows/`, then `clusters/` in that order — or a single file) and creates each as a real resource via the API, going through your active [`hyve context login`](/docs/cli/context) session.
 
 <ParamField path="[path]" type="string">
   Directory or file to migrate. Defaults to the current working directory.
@@ -53,7 +53,7 @@ hyve migrate ./my-config --write
 hyve migrate to-cluster (--to <kubeconfig> | --to-cluster <name>) [--dir <dir>] [--namespace <ns>] [--config-name <name>] [--write] [--force]
 ```
 
-Copies every `ClusterDefinition` (spec **and** status — `driverOutputs`/`appliedResources`, so the destination's controller can act on an already-provisioned cluster instead of mistaking it for brand new), `Template`s and `Workflow`s, plus `hyve.yaml` as a `HyveConfig` CR, directly onto a target cluster. No `hyve login` or API needed on the target — this talks straight to its Kubernetes API server, the same as `kubectl apply` would, which is exactly why it works for bootstrapping a cluster whose controller+API aren't deployed yet.
+Copies every `ClusterDefinition` (spec **and** status — `driverOutputs`/`appliedResources`, so the destination's controller can act on an already-provisioned cluster instead of mistaking it for brand new), `Template`s and `Workflow`s, plus `hyve.yaml` as a `HyveConfig` CR, directly onto a target cluster. No `hyve context login` or API needed on the target — this talks straight to its Kubernetes API server, the same as `kubectl apply` would, which is exactly why it works for bootstrapping a cluster whose controller+API aren't deployed yet.
 
 <ParamField path="--to" type="string">
   Path to the target cluster's kubeconfig — a fallback for ad hoc cases with no convenient `ClusterDefinition` to point at (disaster recovery, or a cluster hyve doesn't otherwise know about yet).
@@ -68,7 +68,7 @@ Copies every `ClusterDefinition` (spec **and** status — `driverOutputs`/`appli
 </Info>
 
 <ParamField path="--dir" type="string">
-  Local directory to migrate from. Defaults to the active environment's directory.
+  Local directory to migrate from. Defaults to the active context's directory.
 </ParamField>
 
 <ParamField path="--namespace" type="string" default="hyve-system">
@@ -99,7 +99,7 @@ hyve migrate to-cluster --to-cluster unraid-host --namespace hyve-system --write
 hyve migrate cluster (--to <kubeconfig> | --to-cluster <name>) --write --i-have-stopped-the-source-controller [--namespace <ns>] [--force] [--skip-access-bindings]
 ```
 
-Moves (all or part of) which cluster hosts hyve's control plane — hardware replacement, cloud migration, splitting one tenant onto its own dedicated cluster, whatever the reason. The **source is always the current host** — whatever [`hyve env current`](/docs/concepts/repositories) resolves to — there's no `--from` flag; a wrong guess here is the one place this command could cause real damage (see the risk warning below), so it isn't left to be specified, it's read directly off your own active session. The target works the same as `to-cluster` above: `--to-cluster <name>` (preferred) or `--to <kubeconfig>` as a fallback.
+Moves (all or part of) which cluster hosts hyve's control plane — hardware replacement, cloud migration, splitting one tenant onto its own dedicated cluster, whatever the reason. The **source is always the current host** — whatever [`hyve context current`](/docs/concepts/contexts) resolves to — there's no `--from` flag; a wrong guess here is the one place this command could cause real damage (see the risk warning below), so it isn't left to be specified, it's read directly off your own active session. The target works the same as `to-cluster` above: `--to-cluster <name>` (preferred) or `--to <kubeconfig>` as a fallback.
 
 <ParamField path="--to" type="string">
   Path to the target cluster's kubeconfig (fallback — prefer `--to-cluster`).
@@ -130,7 +130,7 @@ Moves (all or part of) which cluster hosts hyve's control plane — hardware rep
 </ParamField>
 
 <Warning>
-  **The real risk:** if the source cluster's controller is still running when the target's controller starts reconciling the copied `ClusterDefinition`s, both reconcile the *same* downstream clusters simultaneously. Correct order: (1) run this command, (2) deploy the controller+API to the target without cutting over traffic yet, (3) stop the source controller — verified, not assumed, (4) cut over DNS/whatever `hyve env login` sessions point at, (5) only then treat the target as authoritative. This command does not automate steps 2–5 — deployment/DNS are environment-specific, explicit operator steps.
+  **The real risk:** if the source cluster's controller is still running when the target's controller starts reconciling the copied `ClusterDefinition`s, both reconcile the *same* downstream clusters simultaneously. Correct order: (1) run this command, (2) deploy the controller+API to the target without cutting over traffic yet, (3) stop the source controller — verified, not assumed, (4) cut over DNS/whatever `hyve context login` sessions point at, (5) only then treat the target as authoritative. This command does not automate steps 2–5 — deployment/DNS are environment-specific, explicit operator steps.
 </Warning>
 
 ```bash
@@ -156,7 +156,7 @@ hyve migrate cluster --to-cluster acme-dedicated --namespace acme \
   <Card title="Access Control" icon="key" href="/docs/concepts/access-control" color="#f43f5e">
     What an access binding is
   </Card>
-  <Card title="hyve env login" icon="key" href="/docs/cli/login" color="#8b5cf6">
+  <Card title="hyve context login" icon="key" href="/docs/cli/context" color="#8b5cf6">
     The session `hyve migrate [path]` uses
   </Card>
 </CardGroup>

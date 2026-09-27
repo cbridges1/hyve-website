@@ -65,10 +65,10 @@ export default defineConfig({
             { label: 'Templates', link: '/docs/concepts/templates' },
             { label: 'Workflows', link: '/docs/concepts/workflows' },
             { label: 'Resources', link: '/docs/concepts/resources' },
-            { label: 'Environments', link: '/docs/concepts/repositories' },
+            { label: 'Contexts & Environments', link: '/docs/concepts/contexts' },
             { label: 'Cluster Mode', link: '/docs/concepts/cluster-mode' },
             { label: 'Access Control', link: '/docs/concepts/access-control' },
-            { label: 'Access Method', link: '/docs/concepts/access-method' },
+            { label: 'Cluster Access', link: '/docs/concepts/cluster-access' },
             { label: 'Multi-Tenancy', link: '/docs/concepts/multi-tenancy' },
             { label: 'Version Control (Optional)', link: '/docs/concepts/gitops' },
           ],
@@ -76,6 +76,7 @@ export default defineConfig({
         {
           label: 'Guides',
           items: [
+            { label: 'Cluster Patterns', link: '/docs/guides/cluster-patterns' },
             { label: 'Cluster Management', link: '/docs/guides/cluster-management' },
             { label: 'Workflow Management', link: '/docs/guides/workflow-management' },
             { label: 'Resource Management', link: '/docs/guides/resource-management' },
@@ -90,8 +91,8 @@ export default defineConfig({
           label: 'CLI Reference',
           items: [
             { label: 'Overview', link: '/docs/cli/overview' },
-            { label: 'env', link: '/docs/cli/env' },
-            { label: 'login', link: '/docs/cli/login' },
+            { label: 'context', link: '/docs/cli/context' },
+            { label: 'environment', link: '/docs/cli/environment' },
             { label: 'apply', link: '/docs/cli/apply' },
             { label: 'migrate', link: '/docs/cli/migrate' },
             { label: 'cluster', link: '/docs/cli/cluster' },

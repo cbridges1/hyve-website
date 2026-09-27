@@ -392,7 +392,7 @@ hyve cluster create test-talos-cluster --template test-talos
   </Accordion>
 
   <Accordion title="Version control templates">
-    If your environment directory is git-backed (optional — see [Version Control](/docs/concepts/gitops)), commit template changes with descriptive messages, same as any other file:
+    If your context directory is git-backed (optional — see [Version Control](/docs/concepts/gitops)), commit template changes with descriptive messages, same as any other file:
 
     ```bash
     git commit -am "Add production-ha template with 5-node configuration"
@@ -437,7 +437,7 @@ hyve cluster create test-talos-cluster --template test-talos
   <Accordion title="Template not found">
     ```bash
     hyve template list
-    ls "$(hyve env path)/templates/"
+    ls "$(hyve context path)/templates/"
 
     # If git-backed, pull the latest first
     git pull
@@ -470,7 +470,7 @@ hyve cluster create test-talos-cluster --template test-talos
     Create workflows for templates
   </Card>
 
-  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#8b5cf6">
+  <Card title="Contexts" icon="folder-tree" href="/docs/concepts/contexts" color="#8b5cf6">
     Where templates actually live
   </Card>
 

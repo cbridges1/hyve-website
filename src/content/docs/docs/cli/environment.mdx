@@ -1,0 +1,52 @@
+---
+title: "'hyve environment'"
+description: "'Manage and select your organization's environments on a hyve-api server'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+An **environment** is a named scope within your [organization](/docs/concepts/multi-tenancy) on a hyve-api server — `default`, `staging`, `production`, and so on. Clusters are created in one, and two environments can each have a cluster with the same name. Every organization starts with `default`. Cluster mode only.
+
+<Info>
+  Not the same as a [context](/docs/cli/context). A context is this machine's pointer at where state lives; an environment lives on the server and is shared by everyone in the organization.
+</Info>
+
+## Commands
+
+```bash
+hyve environment list            # your organization's environments, marking the selected one
+hyve environment create <name>   # add one
+hyve environment delete <name>   # refused while it still has clusters
+hyve environment use <name>      # select it for cluster commands
+hyve environment unset           # clear the selection
+hyve environment current         # show the selection
+```
+
+<ParamField path="--org" type="string">
+  On `list`/`create`/`delete`/`use`: act on another organization. Defaults to your own; only a superadmin can name a different one.
+</ParamField>
+
+## Selecting an environment
+
+`use` records the selection on the **active context**, and every cluster-mode command then sends it to the server until you change it. Each context keeps its own selection, so `hyve context use` switches environments with it.
+
+```bash
+hyve environment use staging
+hyve cluster list                    # staging's clusters only
+hyve cluster create web --file web.yaml
+hyve cluster show web --env default   # one-off override for a single command
+```
+
+The global `--env` flag overrides the selection for one command.
+
+<Note>
+  With nothing selected, the server picks the organization's only environment when it has exactly one, and asks you to choose when it has several. `hyve cluster list` with nothing selected shows every environment's clusters, each labeled.
+</Note>
+
+## Related
+
+- [`hyve context`](/docs/cli/context) — where the selection is stored
+- [Multi-Tenancy](/docs/concepts/multi-tenancy) — organizations and environments
+- [`hyve cluster`](/docs/cli/cluster)

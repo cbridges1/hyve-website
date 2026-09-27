@@ -16,7 +16,7 @@ Everything else in these docs describes **local mode** — `hyve reconcile` read
   </Card>
 
   <Card title="Cluster Mode" icon="server" color="#3b82f6">
-    `hyve` deployed as a controller + API inside a Kubernetes cluster, reconciling continuously. The CLI becomes an HTTP client of that API once you `hyve env login`.
+    `hyve` deployed as a controller + API inside a Kubernetes cluster, reconciling continuously. The CLI becomes an HTTP client of that API once you `hyve context login`.
   </Card>
 </CardGroup>
 
@@ -50,24 +50,26 @@ spec:
 
 `kubectl apply -f` works on it unmodified once the CRDs are installed — cluster mode is not a different data model, just a different place for the reconcile loop and the CRUD surface to live.
 
-## Talking to it: `hyve env login`, not a different CLI
+## Talking to it: `hyve context login`, not a different CLI
 
 ```bash
-hyve env create prod-cluster --api-url https://hyve-api.example.com
-hyve env login
+hyve context create prod-cluster --api-url https://hyve-api.example.com
+hyve context login
 hyve cluster list        # now an HTTP call, not a local file read
 ```
 
 <Note>
-  **`hyve env` and `hyve env login` are two independent concepts.** An environment only ever picks which directory or API URL is "active" — `hyve env login` is one global, machine-wide credential, not scoped to whichever environment is active. See [Environments](/docs/concepts/repositories) and [`hyve env login`](/docs/cli/login).
+  The **active context** decides the mode: one with an API URL sends commands to that server, one without works on local files. Your login is a separate, machine-wide credential — switching contexts never logs you out. See [Contexts & Environments](/docs/concepts/contexts).
 </Note>
 
-Once logged in, every `hyve cluster`/`template`/`workflow`/`resource` command you already know works identically — same flags, same output shape — just talking to the API instead of local files.
+Once logged in, every `hyve cluster`/`template`/`workflow`/`resource` command you already know works identically — same flags, same output shape — just talking to the API instead of local files. The same API also serves a web console at its root URL.
+
+On the server, clusters belong to an [organization](/docs/concepts/multi-tenancy) and are grouped into **environments** (`default`, `staging`, ...) selected with [`hyve environment use`](/docs/cli/environment). Each organization's resources reconcile on its own [reconciling cluster](/docs/cli/reconciling-cluster) or the install's home cluster.
 
 ## Access is real, not implied
 
 <Info>
-  Cluster mode introduces genuinely new infrastructure, not just a network hop: identity (`hyve env login`, local username/password today), authorization (access bindings — admin/read-only/custom roles, resolved fresh on every request), and an `AccessMethod` mechanism for getting a *managed* cluster's own kubeconfig via an external identity provider like Rancher. See [Access Control](/docs/concepts/access-control) and [Access Method](/docs/concepts/access-method).
+  Cluster mode introduces genuinely new infrastructure, not just a network hop: identity (`hyve context login`, local username/password today), authorization (access bindings — admin/read-only/custom roles, resolved fresh on every request), and per-cluster `spec.access` options for how a *managed* cluster's kubeconfig is minted (client-side module auth, server-side module auth, a stored tunnel kubeconfig, or hyve-agent proxying). See [Access Control](/docs/concepts/access-control) and [Cluster Access](/docs/concepts/cluster-access).
 </Info>
 
 ## Moving between modes
@@ -84,16 +86,16 @@ Once logged in, every `hyve cluster`/`template`/`workflow`/`resource` command yo
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#8b5cf6">
+  <Card title="Contexts" icon="folder-tree" href="/docs/concepts/contexts" color="#8b5cf6">
     Registering directories and cluster targets
   </Card>
-  <Card title="hyve env login" icon="key" href="/docs/cli/login" color="#f43f5e">
+  <Card title="hyve context login" icon="key" href="/docs/cli/context" color="#f43f5e">
     Authentication and the session model
   </Card>
   <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
     Roles and access bindings
   </Card>
-  <Card title="Access Method" icon="key" href="/docs/concepts/access-method" color="#f97316">
-    Rancher/Teleport-backed kubeconfig access for managed clusters
+  <Card title="Cluster Access" icon="key" href="/docs/concepts/cluster-access" color="#f97316">
+    How each cluster's kubeconfig is minted
   </Card>
 </CardGroup>

@@ -8,11 +8,11 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-The `hyve cluster` command group manages Kubernetes cluster definitions stored in your active [environment](/docs/concepts/repositories), and provides access to cluster authentication.
+The `hyve cluster` command group manages Kubernetes cluster definitions stored in your active [context](/docs/concepts/contexts), and provides access to cluster authentication.
 
 ## Overview
 
-Clusters are defined as YAML files in the `clusters/` directory of your active environment — a local directory, git-backed or not (see [Version Control](/docs/concepts/gitops)), or a live cluster-mode API. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you create, list, inspect, mark for deletion, and authenticate into clusters.
+Clusters are defined as YAML files in the `clusters/` directory of your active context — a local directory, git-backed or not (see [Version Control](/docs/concepts/gitops)), or a live cluster-mode API. They specify a driver (module), region, params, and optional lifecycle workflows. The `hyve cluster` commands let you create, list, inspect, mark for deletion, and authenticate into clusters.
 
 To create a cluster, use `hyve cluster create <cluster-name> --template <template-name>` — it generates the cluster YAML from the named template and triggers reconciliation.
 
@@ -40,14 +40,6 @@ hyve cluster create <cluster-name> --template <template-name> [flags]
 
 <ParamField path="--region" type="string">
   Override the template's default region for this cluster
-</ParamField>
-
-<ParamField path="--set" type="string (repeatable)">
-  Override or supply a param value for this specific cluster. Takes precedence over template defaults.
-
-  ```bash
-  --set node_count=5 --set instance_type=t3.large
-  ```
 </ParamField>
 
 **Examples:**
@@ -231,7 +223,7 @@ Removed clusters/my-cluster.yaml from repository.
 Run the module's auth operation to merge the cluster's kubeconfig into `~/.kube/config`.
 
 ```bash
-hyve cluster auth <name> [--method <method-name>] [--set KEY=VALUE ...]
+hyve cluster auth <name> [--method <method-name>]
 ```
 
 <ParamField path="name" type="string" required>
@@ -255,14 +247,10 @@ hyve cluster auth my-cluster
 # Explicitly select a named method
 hyve cluster auth my-cluster --method headless
 hyve cluster auth my-cluster --method local
-
-# A cluster whose access is governed by an Access Method (e.g. Rancher) —
-# pass its required credentials explicitly instead of exporting them first
-hyve cluster auth prod-workload --set RANCHER_USERNAME=alice --set RANCHER_PASSWORD=********
 ```
 
 <Info>
-  If the cluster's `ClusterDefinition` references an [Access Method](/docs/concepts/access-method) (`spec.access.accessMethodRef`), this requires an active `hyve login` session — the access method's auth logic always runs server-side, in a short-lived Job, never on your machine.
+  By default the module runs on your machine in both local and cluster mode. A cluster can instead set `spec.access` to have hyve-api mint the kubeconfig (`module-auth`, `tunnel`, hyve-agent proxying, or the host cluster) — `--method` doesn't apply to those. See [Cluster Access](/docs/concepts/cluster-access).
 </Info>
 
 **Output:**
@@ -561,4 +549,4 @@ See the [CI/CD guide](/docs/guides/cicd) for a full pipeline example.
 - [hyve module](/docs/cli/module) — Manage the modules that power cluster operations
 - [hyve template](/docs/cli/template) — Create cluster definitions from templates
 - [hyve workflow](/docs/cli/workflow) — Define and run lifecycle workflows
-- [hyve env](/docs/cli/env) — Register the directory or cluster target `hyve cluster` operates against
+- [hyve context](/docs/cli/context) — Register the directory or cluster target `hyve cluster` operates against

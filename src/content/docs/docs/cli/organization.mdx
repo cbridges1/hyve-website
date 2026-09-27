@@ -10,7 +10,7 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-`hyve organization` manages [organizations](/docs/concepts/multi-tenancy) — hyve-api's own multi-tenant isolation unit, one Kubernetes namespace plus a set of environments/RBAC bindings/reconciling-cluster assignment, backed by a real row in hyve-api's own datastore rather than a Kubernetes object. Cluster-mode only — organizations have no local-directory equivalent — every command here requires an active session (`hyve env login`) against a superadmin account.
+`hyve organization` manages [organizations](/docs/concepts/multi-tenancy) — hyve-api's own multi-tenant isolation unit, one Kubernetes namespace plus a set of environments/RBAC bindings/reconciling-cluster assignment, backed by a real row in hyve-api's own datastore rather than a Kubernetes object. Cluster-mode only — organizations have no local-directory equivalent — every command here requires an active session (`hyve context login`) against a superadmin account.
 
 <Note>
   Creating an organization only provisions the namespace/environment — it grants no one access. Use `hyve cluster-config api create-user` (see [Access Control](/docs/concepts/access-control)) to create its first account.
@@ -35,7 +35,7 @@ hyve organization create <name> [--admin-identity <identity> --admin-role <role>
 </ParamField>
 
 <ParamField path="--reconciling-cluster" type="string">
-  Name of an already-registered [reconciling cluster](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live) this organization's resources should live on instead of the control plane's own home cluster. Omit to use the home cluster.
+  Name of a pool [reconciling cluster](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live) (see `hyve reconciling-cluster pool add`) this organization's resources should live on instead of the control plane's own home cluster. Omit to use the home cluster; the organization's own admin can later add and switch to clusters of its own.
 </ParamField>
 
 ```bash
@@ -77,7 +77,7 @@ hyve organization migrate <name> (--reconciling-cluster <name> | --home)
 Moves an organization onto a different [reconciling cluster](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live), or back to the control plane's own home cluster.
 
 <ParamField path="--reconciling-cluster" type="string">
-  Name of an already-registered reconciling cluster (see `hyve reconciling-cluster create`/`list`) to move the organization onto.
+  Name of a pool reconciling cluster (see `hyve reconciling-cluster pool add`/`pool list`) to move the organization onto. To switch between an organization's *own* stored clusters, its admin uses [`hyve reconciling-cluster use`](/docs/cli/reconciling-cluster) instead.
 </ParamField>
 
 <ParamField path="--home" type="boolean">
@@ -94,23 +94,9 @@ hyve organization migrate acme --reconciling-cluster cell-b
 
 ---
 
-## hyve organization environments
+## Environments
 
-```bash
-hyve organization environments <name>
-```
-
-Lists an organization's own named sub-scopes (`default`, plus anything added via `create-environment` below).
-
----
-
-## hyve organization create-environment
-
-```bash
-hyve organization create-environment <name> <environment>
-```
-
-Adds a new environment to an existing organization — every organization already gets a `default` one automatically at creation; this is for every one after that.
+An organization's environments are managed with [`hyve environment`](/docs/cli/environment) (`list`/`create`/`delete`/`use`, with `--org <name>` for a superadmin acting on another organization). The older `hyve organization environments` and `hyve organization create-environment` still work but are deprecated.
 
 ## Related
 
@@ -119,7 +105,7 @@ Adds a new environment to an existing organization — every organization alread
     Organizations, environments, and reconciling clusters in full
   </Card>
   <Card title="hyve reconciling-cluster" icon="terminal" href="/docs/cli/reconciling-cluster" color="#a855f7">
-    Registering the shared cluster pool `--reconciling-cluster` names
+    Organization-owned clusters, and the pool `--reconciling-cluster` names
   </Card>
   <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
     Creating a user for a newly-created organization

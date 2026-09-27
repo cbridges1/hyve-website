@@ -12,7 +12,7 @@ import Note from '../../../../components/mdx/Note.astro';
 
 ## Overview
 
-Hyve manages Kubernetes clusters through declarative YAML definitions in a local directory — [environments](/docs/concepts/repositories), git-backed or not. This guide covers the full lifecycle: installing modules, creating templates, provisioning clusters, managing them day-to-day, and safely deleting them.
+Hyve manages Kubernetes clusters through declarative YAML definitions in a local directory — [contexts](/docs/concepts/contexts), git-backed or not. This guide covers the full lifecycle: installing modules, creating templates, provisioning clusters, managing them day-to-day, and safely deleting them.
 
 <CardGroup cols={2}>
   <Card title="Declarative" icon="code-branch" color="#3b82f6">
@@ -37,7 +37,7 @@ Hyve manages Kubernetes clusters through declarative YAML definitions in a local
 Before managing clusters you need:
 
 1. Hyve installed (`go install github.com/cbridges1/hyve@latest`)
-2. An environment registered (`hyve env create production --path ~/repos/hyve-prod`)
+2. A context registered (`hyve context create production --path ~/repos/hyve-prod`)
 3. The cloud CLI for your provider installed and authenticated
 
 See [Installation](/docs/installation) and [Quick Start](/docs/quickstart) for setup.
@@ -128,22 +128,22 @@ hyve cluster show my-prod-cluster
 
 ## Multi-environment strategy
 
-Manage separate directories for different environments — see [Environments](/docs/concepts/repositories):
+Manage separate directories for different environments — see [Contexts](/docs/concepts/contexts):
 
 ```bash
-# Register each environment
-hyve env create production --path ~/repos/hyve-prod
-hyve env create staging --path ~/repos/hyve-staging
-hyve env create development --path ~/repos/hyve-dev
+# Register each context
+hyve context create production --path ~/repos/hyve-prod
+hyve context create staging --path ~/repos/hyve-staging
+hyve context create development --path ~/repos/hyve-dev
 
-# Switch active environment
-hyve env use staging
+# Switch active context
+hyve context use staging
 
 # Create cluster in staging
 hyve cluster create staging-cluster --template prod-civo --set node_count=2
 
 # Switch to production
-hyve env use production
+hyve context use production
 hyve cluster create prod-cluster-01 --template prod-civo
 ```
 
@@ -153,11 +153,11 @@ To change a cluster's scale, edit the cluster YAML directly:
 
 ```bash
 # Edit the cluster YAML
-vim <environment directory>/clusters/my-cluster.yaml
+vim <context directory>/clusters/my-cluster.yaml
 # Change: node_count: "3" → node_count: "5"
 
-# If your environment directory is git-backed, commit it (optional)
-cd <environment directory>
+# If your context directory is git-backed, commit it (optional)
+cd <context directory>
 git add clusters/my-cluster.yaml
 git commit -m "Scale my-cluster to 5 nodes"
 git push
@@ -187,10 +187,10 @@ Pause a cluster to temporarily prevent Hyve from touching it (useful during main
 
 ```bash
 # Set spec.pause: true in the cluster YAML
-vim <environment directory>/clusters/my-cluster.yaml
+vim <context directory>/clusters/my-cluster.yaml
 # Change: pause: false → pause: true
 
-# If your environment directory is git-backed, commit it (optional)
+# If your context directory is git-backed, commit it (optional)
 git add clusters/my-cluster.yaml
 git commit -m "Pause my-cluster for maintenance"
 git push
@@ -204,10 +204,10 @@ For ephemeral clusters, set an auto-delete timestamp:
 
 ```bash
 # Set expiry in the cluster YAML
-vim <environment directory>/clusters/dev-cluster.yaml
+vim <context directory>/clusters/dev-cluster.yaml
 # Set: expiresAt: "2026-09-01T00:00:00Z"
 
-# If your environment directory is git-backed, commit it (optional)
+# If your context directory is git-backed, commit it (optional)
 git add clusters/dev-cluster.yaml
 git commit -m "Set dev-cluster to expire on 2026-09-01"
 git push

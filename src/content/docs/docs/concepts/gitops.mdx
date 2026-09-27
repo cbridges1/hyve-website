@@ -13,7 +13,7 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import Tip from '../../../../components/mdx/Tip.astro';
 
-Hyve's core model is: a cluster is one YAML file in a local directory, and `hyve reconcile` makes reality match whatever that file says — created, updated, or deleted. That directory doesn't need to be anything more than a folder on disk (see [Environments](/docs/concepts/repositories)). Putting it under git is entirely your own choice, not a requirement — but it's a natural fit, applying the same version control, review, and continuous-reconciliation discipline to infrastructure that's already applied to application code (the pattern commonly called "GitOps"). This page covers that optional layer.
+Hyve's core model is: a cluster is one YAML file in a local directory, and `hyve reconcile` makes reality match whatever that file says — created, updated, or deleted. That directory doesn't need to be anything more than a folder on disk (see [Contexts](/docs/concepts/contexts)). Putting it under git is entirely your own choice, not a requirement — but it's a natural fit, applying the same version control, review, and continuous-reconciliation discipline to infrastructure that's already applied to application code (the pattern commonly called "GitOps"). This page covers that optional layer.
 
 <CardGroup cols={2}>
   <Card title="Declarative" icon="file-code" color="#06b6d4">
@@ -55,7 +55,7 @@ spec:
 hyve reconcile
 ```
 
-Commit that file and reconcile creates the cluster. Edit `node_count` and reconcile scales it. Delete the file and reconcile tears it down. One command, three outcomes, depending purely on what's in the directory `hyve env` currently points at — see [Environments](/docs/concepts/repositories).
+Commit that file and reconcile creates the cluster. Edit `node_count` and reconcile scales it. Delete the file and reconcile tears it down. One command, three outcomes, depending purely on what's in the directory `hyve context` currently points at — see [Contexts](/docs/concepts/contexts).
 
 ## Hyve does not sync git for you
 
@@ -75,7 +75,7 @@ git add -A && git commit -m "hyve: reconcile" && git push
 ```
 
 <Tip>
-  In CI/CD, this is exactly the pattern: `git pull && hyve reconcile && git commit -am "..." && git push` as pipeline steps — no separate "sync" feature to configure. Don't want a git remote at all? [Environments](/docs/concepts/repositories) work against any plain local directory, tracked or not.
+  In CI/CD, this is exactly the pattern: `git pull && hyve reconcile && git add -A && git commit -m "..." && git push` as pipeline steps — no separate "sync" feature to configure. Don't want a git remote at all? [Contexts](/docs/concepts/contexts) work against any plain local directory, tracked or not.
 </Tip>
 
 ## A real change, end to end
@@ -123,8 +123,8 @@ git add -A && git commit -m "hyve: reconcile" && git push
 
   <Step title="Point hyve at it">
     ```bash
-    hyve env create prod --path .
-    hyve env use prod
+    hyve context create prod --path .
+    hyve context use prod
     ```
   </Step>
 
@@ -152,7 +152,7 @@ git add -A && git commit -m "hyve: reconcile" && git push
   </Accordion>
 
   <Accordion title="Separate environments, separate directories">
-    One `hyve env` per environment (`hyve env create prod --path ...`, `hyve env create staging --path ...`) keeps production and staging changes from ever touching the same reconcile run — see [Environments](/docs/concepts/repositories).
+    One `hyve context` per environment (`hyve context create prod --path ...`, `hyve context create staging --path ...`) keeps production and staging changes from ever touching the same reconcile run — see [Contexts](/docs/concepts/contexts).
   </Accordion>
 
   <Accordion title="Automate reconciliation in CI">
@@ -163,7 +163,7 @@ git add -A && git commit -m "hyve: reconcile" && git push
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Environments" icon="folder-tree" href="/docs/concepts/repositories" color="#8b5cf6">
+  <Card title="Contexts" icon="folder-tree" href="/docs/concepts/contexts" color="#8b5cf6">
     Registering and switching directories or cluster targets
   </Card>
 

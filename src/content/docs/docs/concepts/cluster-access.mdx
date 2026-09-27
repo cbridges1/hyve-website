@@ -1,0 +1,91 @@
+---
+title: "Cluster Access"
+description: "How `hyve cluster auth` gets a kubeconfig for a cluster — client-side module auth, server-side module auth, tunnel, hyve-agent, or the host cluster"
+---
+
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+
+`hyve cluster auth <name>` merges a kubeconfig for a cluster into `~/.kube/config`. Where that kubeconfig comes from is set per cluster by `spec.access` on its `ClusterDefinition`:
+
+| `spec.access` | Where the kubeconfig comes from | Modes |
+|---|---|---|
+| *(unset — the default)* | The driver module's `auth.yaml`, run **on your machine** with your own credentials | Local and cluster |
+| `method: module-auth` | The driver module's `auth.yaml`, run **inside the hyve-api pod** | Cluster |
+| `method: tunnel` | A pre-minted kubeconfig stored in a Secret | Cluster |
+| `agent: {enabled: true, proxy: true}` | hyve-api, relaying traffic over hyve-agent's outbound tunnel | Cluster |
+| `method: primary`, no driver | hyve-api mints a token for the host cluster itself (superadmin only) | Cluster |
+
+## Default: client-side module auth
+
+With `spec.access` unset, the module's `auth.yaml` runs locally, the same way in both modes — in cluster mode the CLI just fetches the driver details from hyve-api (`GET /api/clusters/<name>/auth-context`) instead of reading them from a local file. Your own cloud CLI config and credentials mint the kubeconfig, so access is exactly what the provider grants *you*.
+
+```bash
+hyve cluster auth prod
+hyve cluster auth prod --method headless   # pick a named method from auth.yaml
+```
+
+## `module-auth`: server-side module auth
+
+```yaml
+spec:
+  access:
+    method: module-auth
+```
+
+The module's `auth.yaml` runs inside the hyve-api pod on every request, using the pod's own credentials rather than yours. hyve injects the caller's identity (`HYVE_CALLER_USERNAME`, `HYVE_CALLER_ROLE`) so the module can decide what to mint for whom.
+
+<Warning>
+  Only use this with a module written to run server-side and enforce its own authorization from those variables — otherwise every caller gets whatever the pod's credentials can mint.
+</Warning>
+
+## `tunnel`: a pre-minted kubeconfig
+
+```yaml
+spec:
+  access:
+    method: tunnel
+    tunnel:
+      provider: rancher   # or teleport
+```
+
+For clusters with no reachable endpoint of their own (on-prem, home networks behind NAT). hyve-api serves the kubeconfig stored in the `<cluster>-access-kubeconfig` Secret (key `kubeconfig`) in `hyve-system`. How that Secret gets populated — an identity service like Rancher or Teleport, a workflow, or by hand — is up to you.
+
+## hyve-agent
+
+```yaml
+spec:
+  access:
+    agent:
+      enabled: true   # install hyve-agent and report live connection status
+      proxy: true     # also route kubectl traffic through it
+```
+
+hyve installs **hyve-agent** on the cluster, which dials *out* to hyve-api over an SSH tunnel — the cluster never needs an inbound, reachable endpoint. With `proxy: true`, `hyve cluster auth` returns a kubeconfig whose server points at hyve-api's own `/api/agent-proxy/<name>` path, carrying your hyve session; hyve-api relays each request through the agent with Kubernetes impersonation derived from your hyve role. `agent` is independent of `method` — a cluster can use both.
+
+<Note>
+  The agent-proxy kubeconfig authenticates with your hyve session token, so hyve-api must be reachable over HTTPS — client-go drops bearer tokens sent to a plain `http://` server. Set the chart's `api.publicBaseURL` to the HTTPS address callers reach it on.
+</Note>
+
+## `primary`: the host cluster
+
+The cluster hyve itself runs on. With no `spec.driver`, `hyve cluster auth` gets a short-lived `cluster-admin` token minted by hyve-api — **superadmin only**. With a real driver, it authenticates like any other cluster. See [Multi-Tenancy — The host cluster](/docs/concepts/multi-tenancy#the-host-cluster).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Kubeconfig Management" icon="key" href="/docs/guides/kubeconfig-management" color="#3b82f6">
+    Working with the merged kubeconfigs
+  </Card>
+  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    Writing a module's `auth.yaml`
+  </Card>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles and bindings inside hyve itself
+  </Card>
+  <Card title="Cluster Patterns" icon="diagram-project" href="/docs/guides/cluster-patterns" color="#f97316">
+    Creating clusters and host clusters, locally and in pipelines
+  </Card>
+</CardGroup>

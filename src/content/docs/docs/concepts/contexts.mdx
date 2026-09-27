@@ -1,0 +1,78 @@
+---
+title: "Contexts & Environments"
+description: "Where the CLI's state lives (a context) vs. which scope of your organization you're working in (an environment)"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Tip from '../../../../components/mdx/Tip.astro';
+
+Hyve has two similar-sounding ideas that do different jobs:
+
+| | Context | Environment |
+|---|---|---|
+| **What it is** | This machine's pointer at where state lives | A named scope inside your organization on a hyve-api server |
+| **Lives** | Locally, in `~/.hyve/hyve.db` | On the server, shared by everyone in the organization |
+| **Points at** | A local directory, a hyve-api URL, or both | A set of clusters (`default`, `staging`, `production`, ...) |
+| **Command** | [`hyve context`](/docs/cli/context) | [`hyve environment`](/docs/cli/environment) |
+| **Modes** | Local and cluster mode | Cluster mode only |
+
+## Contexts
+
+A **context** is a thin record — a name, a local path, and optionally a hyve-api URL. Hyve has no built-in git functionality: it never clones, pulls, pushes, or commits anything. A context only tracks *where* your commands read from and write to.
+
+```bash
+hyve context create prod --path ~/repos/prod-config
+hyve context use prod          # subsequent commands read/write here
+hyve context current
+hyve context list
+```
+
+### Local mode: a plain directory, git optional
+
+A local-directory context holds `clusters/`, `templates/`, `workflows/`, `resources/`, `hyve.yaml`, and `hyve.lock` — plain files `hyve reconcile` reads and writes directly.
+
+<Tip>
+  Want git? `git clone` the directory yourself and `git add`/`git commit`/`git push` around your workflow — typically `git pull && hyve reconcile && git add -A && git commit -m "..." && git push`, locally or from CI. See [Version Control](/docs/concepts/gitops).
+</Tip>
+
+### Cluster mode: a hyve-api server
+
+```bash
+hyve context login --api-url https://hyve.example.com   # registers the context too, if it's new
+```
+
+The active context decides the mode: a context with an API URL sends cluster commands to that server; one without works on local files. Switching contexts never logs you out, and logging in never switches which context is active (except that your very first login on a machine activates the context it registers).
+
+## Environments
+
+Once you're in cluster mode, an **environment** scopes the clusters you work with. Every organization starts with `default`; create more as you need them. Clusters are created in one environment, and two environments can each hold a cluster with the same name.
+
+```bash
+hyve environment create staging
+hyve environment use staging         # remembered on the active context
+hyve cluster list                    # only staging's clusters
+hyve cluster show web --env default  # one-off override
+```
+
+<Note>
+  Each context that points at a server remembers its own selected environment, so switching contexts switches environments with it. With nothing selected, the server picks when the organization has exactly one environment.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve context" icon="terminal" href="/docs/cli/context" color="#10b981">
+    Contexts, login, and secrets
+  </Card>
+  <Card title="hyve environment" icon="layer-group" href="/docs/cli/environment" color="#8b5cf6">
+    Server-side environments
+  </Card>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    Running hyve as a controller + API
+  </Card>
+  <Card title="Version Control" icon="code-branch" href="/docs/concepts/gitops" color="#f43f5e">
+    How git fits in
+  </Card>
+</CardGroup>

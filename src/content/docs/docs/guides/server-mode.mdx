@@ -1,23 +1,16 @@
 ---
 title: "Server Mode"
-description: "'Removed — hyve no longer ships a REST/WebSocket API server'"
+description: "'Removed — replaced by cluster mode'"
 ---
 
 import Warning from '../../../../components/mdx/Warning.astro';
 
 <Warning>
-  Server mode has been removed. `hyve serve`, its REST/WebSocket API, and `hyve open` no longer exist. Hyve Studio (the browser UI built on that API) is unmaintained as a result — it isn't deleted, but it won't work against current hyve versions.
+  The old server mode (`hyve serve`, its REST/WebSocket API, `hyve open`, and Hyve Studio) has been removed, along with every `hyve.yaml` `server.*` key. Its replacement is [cluster mode](/docs/concepts/cluster-mode) — hyve-controller plus hyve-api, deployed with the Helm chart, with a built-in web console served by hyve-api.
 </Warning>
-
-## What changed
-
-Hyve's core REST/WebSocket API server (`internal/server`), its execution-streaming registry, and every `hyve.yaml` `server.*` configuration key were removed. This was a deliberate simplification — the server was substantial, largely unmaintained surface area whose only real consumer was Hyve Studio, and it added meaningful ongoing maintenance cost (its own auth-mode handling, an API contract to keep in sync with every CLI operation) beyond what the CLI itself needs.
-
-## What still works
-
-Every CLI command documented elsewhere in these docs works exactly as before — this only removes the optional HTTP layer, not any underlying functionality. `hyve reconcile`, `hyve cluster`, `hyve workflow`, `hyve template`, `hyve module`, `hyve git`, and `hyve config` are all unaffected.
 
 ## Related
 
-- [Configuration](/docs/configuration) — `hyve.yaml` reference (server keys removed)
-- [CLI Reference — config](/docs/cli/config)
+- [Cluster Mode](/docs/concepts/cluster-mode)
+- [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode)
+- [Cluster Patterns](/docs/guides/cluster-patterns)

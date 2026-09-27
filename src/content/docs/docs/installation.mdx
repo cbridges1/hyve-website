@@ -57,13 +57,13 @@ import Note from '../../../components/mdx/Note.astro';
 
 ## Git (optional)
 
-Hyve has no built-in git functionality — no clone, pull, push, or commit. `hyve env create --path <dir>` points hyve at any local directory directly; whether that directory is a git working tree is entirely up to you. If you do want it version-controlled, that's your own `git` CLI, same as any other project:
+Hyve has no built-in git functionality — no clone, pull, push, or commit. `hyve context create --path <dir>` points hyve at any local directory directly; whether that directory is a git working tree is entirely up to you. If you do want it version-controlled, that's your own `git` CLI, same as any other project:
 
 ```bash
 git --version   # verify it's installed, if you're using it
 ```
 
-See [Environments](/docs/concepts/repositories) and [Version Control](/docs/concepts/gitops) for how this fits together.
+See [Contexts](/docs/concepts/contexts) and [Version Control](/docs/concepts/gitops) for how this fits together.
 
 ## Cloud Provider Setup
 
@@ -79,11 +79,11 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── hyve.db     # Registry of environments (hyve env create/list/use)
+├── hyve.db     # Registry of contexts (hyve context create/list/use)
 └── temp/       # Temporary kubeconfig files
 ```
 
-Environment directories themselves live wherever you put them — Hyve never copies or clones anything into `~/.hyve`; `hyve.db` just tracks *where* each registered environment's directory is. See [Environments](/docs/concepts/repositories).
+Context directories themselves live wherever you put them — Hyve never copies or clones anything into `~/.hyve`; `hyve.db` just tracks *where* each registered context's directory is. See [Contexts](/docs/concepts/contexts).
 
 ### Overriding the data directory
 
@@ -95,7 +95,7 @@ hyve --home /tmp/hyve-staging reconcile
 
 # Set it persistently for a shell session
 export HYVE_HOME=~/hyve-staging
-hyve env create staging --path ~/repos/staging-state
+hyve context create staging --path ~/repos/staging-state
 
 # Or point to an existing directory
 HYVE_HOME=/opt/hyve hyve cluster list
@@ -115,7 +115,7 @@ The `--home` flag takes precedence over `HYVE_HOME`.
   </Accordion>
 
   <Accordion title="Linux">
-    No system dependencies required for hyve itself. If you're using a git-backed environment directory (optional — see [Git](#git-optional) above):
+    No system dependencies required for hyve itself. If you're using a git-backed context directory (optional — see [Git](#git-optional) above):
 
     ```bash
     # Debian/Ubuntu
@@ -141,8 +141,8 @@ Run these commands to verify everything is set up correctly:
 # Check Hyve installation
 hyve --help
 
-# List configured environments (after registering one)
-hyve env list
+# List registered contexts (after registering one)
+hyve context list
 ```
 
 ## Troubleshooting

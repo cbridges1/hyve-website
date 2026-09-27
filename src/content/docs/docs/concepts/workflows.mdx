@@ -716,13 +716,13 @@ jobs:
 
     ```bash
     # Switch to development
-    hyve env use development
+    hyve context use development
 
     # Test workflow
     hyve workflow run deploy-app --cluster dev-cluster
 
     # If successful, run in production
-    hyve env use production
+    hyve context use production
     hyve workflow run deploy-app --cluster prod-cluster
     ```
   </Accordion>
