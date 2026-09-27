@@ -60,7 +60,34 @@ spec:
         keys: [PANGOLIN_ENDPOINT, NEWT_ID, NEWT_SECRET]
 ```
 
-`source` reuses the exact same source-string convention as `spec.driver.source` and remote workflow references: a local path, or `github.com/<org>/<repo>[//<path>][@<version>]`. It always names a single file — there's no directory-expansion form, since each resource needs one clear identity to track and prune. Omit the version to track the latest commit; unlike modules and workflows, resources aren't locked in `hyve.lock` — they're meant to be freshly checked every reconcile cycle by design, so drift in the *source itself* (someone pushed a new commit to the manifest repo) is exactly the kind of drift this feature is built to catch.
+`source` reuses the exact same source-string convention as `spec.driver.source` and remote workflow references: a local path (`./`, `../`, or absolute), or `github.com/<org>/<repo>[//<path>][@<version>]`. It names a single file, or — ending in `/` — a [directory](#directory-sources). Omit the version for the newest semver tag (or the default branch's latest commit if the repo has no tags); pin `@<branch>`, `@<tag>`, or `@<commit>` otherwise. A single remote file is pinned by content hash in `hyve.lock` once `hyve resource install` has run (the controller does this itself); a directory is resolved fresh on every reconcile.
+
+### Directory sources
+
+A source ending in `/` applies **every `*.yaml` file directly in that directory**, in name order, each as its own tracked resource named `<name>/<file-stem>`:
+
+```yaml
+spec:
+  resources:
+    - name: platform
+      source: github.com/myorg/manifests//platform/@main
+```
+
+```
+platform/
+  00-namespace.yaml   → tracked as platform/00-namespace, applied first
+  10-crds.yaml        → platform/10-crds
+  20-operator.yaml    → platform/20-operator
+  chart/values.yaml   → ignored (subdirectories aren't included)
+  notes.md            → ignored (only *.yaml)
+```
+
+- **Order is file-name order**, so use numeric prefixes when one file depends on another (a namespace before what goes in it, CRDs before custom resources).
+- **Each file drifts, applies, and prunes separately.** Remove a file and, with `reconcile.strictResourceDelete: true`, just that file's objects are pruned; otherwise it's reported as orphaned.
+- **`delete: true` on the entry removes every file it applied** — without needing the directory to still exist.
+- **A directory that can't be fetched fails the reconcile but never prunes.** Its already-applied files are left in place until it resolves again.
+- The rule is explicit: `.../platform/` is a directory, `.../platform` is not (the same rule as workflow references). A local path that is a directory but has no trailing slash is rejected with an error saying so.
+
 
 ### Field reference
 
@@ -69,7 +96,7 @@ spec:
 </ParamField>
 
 <ParamField path="source" type="string">
-  A local path or remote ref, resolving to exactly one manifest file. Mutually exclusive with `helm`/`secret`.
+  A local path or remote ref to one manifest file, or — ending in `/` — to a directory of them (see [Directory sources](#directory-sources)). Mutually exclusive with `helm`/`secret`.
 </ParamField>
 
 <ParamField path="namespace" type="string">

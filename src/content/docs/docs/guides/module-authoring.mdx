@@ -253,7 +253,7 @@ hyve module add github.com/your-org/hyve-my-provider@v1.2.0     # exact tag
 hyve module add github.com/your-org/hyve-my-provider@main       # any branch, tag, or commit
 ```
 
-`hyve module add` pins the resolved version and a SHA256 of its contents in the consumer's `hyve.lock`; `hyve module update` re-resolves it. With no semver tags, `latest` resolves to the default branch's `HEAD`.
+`hyve module add` pins the resolved version and a SHA256 of its contents in the consumer's `hyve.lock`; `hyve module update <source> <version>` re-resolves it (e.g. `hyve module update github.com/your-org/hyve-my-provider latest` after tagging a new release). With no semver tags, `latest` resolves to the default branch's `HEAD`.
 
 **Private repositories** work too. Hyve fetches with a real `git clone`, so any host works with whatever git credentials the machine already has (SSH key, credential helper). For github.com, a `GITHUB_TOKEN` in the environment is also used. In cluster mode, set `GITHUB_TOKEN` as a secret on hyve-api (`hyve context secrets set GITHUB_TOKEN`).
 
