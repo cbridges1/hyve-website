@@ -16,12 +16,13 @@ A module is a versioned directory that implements the cluster lifecycle operatio
 - **delete** — deprovision a cluster
 - **status** — query the current cluster status
 - **auth** — merge the cluster kubeconfig into `~/.kube/config`
-- **scale** (optional) — adjust node count without full reprovisioning
+- **scale** (optional) — apply param changes to a live cluster without reprovisioning
+- **describe** (optional) — report a live cluster's params, for `hyve cluster adopt`
 
 Hyve does not embed any cloud SDKs. All cloud operations are delegated to modules, which in turn invoke whatever CLI tools are already installed in your environment (the Civo CLI, AWS CLI, gcloud, az, etc.).
 
 <Info>
-  Operations don't have to be written *in* shell — they just have to be invoked as a shell entry point. Hyve always runs the operation file (`create.yaml`, `create.sh`, or a bare `create`) through `/bin/sh`, but that file can be a one-line wrapper that calls out to a Python script, a compiled Go binary, Terraform, Pulumi, or anything else — the implementation language is entirely up to you. The only real requirement is the output contract: print `HYVE_KEY=value` lines (and `HYVE_CLUSTER_STATUS=<value>` for `status`) to stdout. See [Outputs protocol](#outputs-protocol).
+  Operations don't have to be written *in* shell — they just have to be invoked as a shell entry point. Hyve always runs the operation file (`create.yaml`, `create.sh`, or a bare `create`) through `/bin/sh`, but that file can be a one-line wrapper that calls out to a Python script, a compiled Go binary, Terraform, Pulumi, or anything else — the implementation language is entirely up to you. The only real requirement is the output contract: print `HYVE_KEY=value` lines (and `HYVE_CLUSTER_STATUS=<value>` for `status`) to stdout. See [Outputs protocol](#outputs-protocol), and [Writing a Module](/docs/guides/module-authoring) for a step-by-step guide.
 </Info>
 
 ## Why modules?
@@ -42,7 +43,8 @@ The module system decouples Hyve's core reconciliation logic from cloud-provider
   delete.yaml      — kind: Workflow; deprovisions the cluster
   status.yaml      — kind: Workflow; emits HYVE_CLUSTER_STATUS=<value>
   auth.yaml        — kind: ClusterAuth; one or more named auth methods
-  scale.yaml       — kind: Workflow; optional; adjusts node count
+  scale.yaml       — kind: Workflow; optional; applies param changes
+  describe.yaml    — kind: Workflow; optional; used by `hyve cluster adopt`
   README.md
 ```
 
@@ -80,14 +82,16 @@ spec:
         description: Kubernetes CLI — required for auth
 ```
 
-`spec.requirements.tools` is checked with a plain `PATH` lookup (`exec.LookPath`) before *every* module operation — create, delete, status, scale, and auth — not just once at install time. A missing tool fails fast with a clear error naming every missing tool, before the operation's script ever runs:
+In **local mode**, `spec.requirements.tools` is checked with a plain `PATH` lookup before *every* module operation — create, delete, status, scale, and auth — not just once at install time. A missing tool fails fast with a clear error naming every missing tool, before the operation's script ever runs. (In cluster mode operations run in a Job container, so the tools must be in its image — see [Running in cluster mode](/docs/guides/module-authoring#running-in-cluster-mode).)
 
 ```
 module tool requirements not met:
   - required tool 'civo' not found in PATH (Civo CLI — https://github.com/civo/cli)
 ```
 
-`spec.requirements.env` is documentation-only today — Hyve doesn't enforce it, it's there so a module's expected environment is visible in the manifest itself rather than only discoverable by reading its scripts.
+`spec.requirements.env` is enforced in **cluster mode**: a missing variable fails the operation with a clear error before its script runs. It isn't enforced in local mode, where a credential may legitimately come from somewhere else (a CLI's own config file).
+
+`spec.params` is documentation only — shown by `hyve module info`. `default`, `required`, and `choices` aren't applied or enforced, so scripts must supply their own fallbacks (`${HYVE_PARAM_NODE_COUNT:-1}`).
 
 ## Module sources
 
@@ -95,9 +99,11 @@ Modules are referenced by source string in templates:
 
 | Source format | Example | When to use |
 |---------------|---------|-------------|
-| GitHub (org/repo) | `github.com/hyve-modules/civo` | First-party or community modules |
-| GitHub with subdirectory | `github.com/org/repo//modules/k8s` | Monorepo with multiple modules |
-| Local path | `./local/my-module` | Module development and testing |
+| Git repository | `github.com/your-org/hyve-my-provider` | A module in its own repository, on any git host |
+| Git repository with subdirectory | `github.com/your-org/modules//my-provider` | A monorepo holding several modules |
+| Local path (`./`, `../`, or absolute) | `../hyve-my-provider` | Developing and testing a module, relative to the consuming repo's root |
+
+Versions: omitted or `latest` resolves to the newest semver tag (or `HEAD` if there are none), a semver constraint to the best matching tag, and anything else is used as a branch, tag, or commit. Private repositories work with the machine's own git credentials, plus `GITHUB_TOKEN` for github.com.
 
 ## Module params
 
@@ -108,7 +114,7 @@ Params declared in `module.yaml` map from `cluster.spec.params` to environment v
 ```yaml
 spec:
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-my-provider
     version: v1.0.0
   params:
     node_size: g4s.kube.medium
@@ -124,7 +130,7 @@ spec:
 | `node_count` | `HYVE_PARAM_NODE_COUNT` |
 | `cluster_type` | `HYVE_PARAM_CLUSTER_TYPE` |
 
-The rule is: `HYVE_PARAM_` + uppercase key with hyphens/dots replaced by underscores.
+The rule is: `HYVE_PARAM_` + the key uppercased. Nothing else is converted, so use `snake_case` keys — a key like `node-size` produces an unusable variable name.
 
 ## Standard environment variables
 
@@ -134,10 +140,13 @@ In addition to `HYVE_PARAM_*` variables, every module operation also receives:
 |----------|-------|
 | `HYVE_CLUSTER_NAME` | `cluster.metadata.name` |
 | `HYVE_CLUSTER_REGION` | `cluster.spec.region` |
+| every `driverOutputs` key | values `create` printed, re-injected as-is |
+
+Scripts run with the working directory set to the **consuming repository's root**, not the module's own directory — so don't `source` another file from your module by relative path.
 
 ## Outputs protocol
 
-Operations emit outputs by printing `HYVE_KEY=value` lines to stdout. Hyve captures these and stores them in `cluster.spec.driverOutputs`.
+Operations emit outputs by printing `HYVE_KEY=value` lines to stdout (anything else on stdout is ignored — log to stderr). Outputs from `create` are stored in the cluster's `driverOutputs`; other operations' outputs are only read for that run.
 
 ```bash
 # Inside create.yaml — a shell step outputs values for later use
@@ -154,19 +163,20 @@ On every subsequent reconcile, all keys in `cluster.spec.driverOutputs` are re-i
 
 ### Status values
 
-The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value is:
+The `status` operation must emit `HYVE_CLUSTER_STATUS=<value>`, uppercase:
 
-| Value | Meaning |
+| Value | What the reconciler does |
 |-------|---------|
-| `active` | Cluster is running and ready |
-| `provisioning` | Cluster is being created |
-| `deleting` | Cluster is being deleted |
-| `error` | Cluster is in an error state |
-| `unknown` | Status could not be determined |
+| `NOT_FOUND` | Runs `create` — or, if the cluster is marked `delete: true`, treats it as gone and removes its definition |
+| `ACTIVE` | Runs `auth`, `scale` on param drift, then applies `spec.resources` — or runs `delete` if marked for deletion |
+| `FAILED` | Retries `create` — or runs `delete` if marked for deletion |
+| `CREATING` / `UPDATING` / `DELETING` | Skips this cycle while the operation finishes |
+
+Any other value, or none, is reported as an error. Only emit `NOT_FOUND` when certain — if the provider can't be reached, exit non-zero instead; a false `NOT_FOUND` on a cluster marked for deletion drops its definition without running `delete`.
 
 ## How auth works
 
-The `auth.yaml` file has `kind: ClusterAuth`. Hyve runs this operation when `hyve cluster auth <name>` is called. The operation merges the cluster's kubeconfig into `~/.kube/config`.
+The `auth.yaml` file has `kind: ClusterAuth`. Hyve runs it when `hyve cluster auth <name>` is called, and on every reconcile of an `ACTIVE` cluster (to apply `spec.resources`). With `exports: KUBECONFIG`, hyve sets `$KUBECONFIG` to a per-cluster file before the script runs; the script writes the kubeconfig there, and `hyve cluster auth` merges it into `~/.kube/config`.
 
 A module can declare one or more named auth methods under `spec.methods`. Hyve runs the first method by default; pass `--method <name>` to select a specific one.
 
@@ -186,9 +196,7 @@ spec:
       auth:
         script: |
           civo kubernetes config "$HYVE_CLUSTER_NAME" \
-            --region "$HYVE_CLUSTER_REGION" \
-            --save \
-            --yes
+            --region "$HYVE_CLUSTER_REGION" > "$KUBECONFIG"
       exports: KUBECONFIG
 ```
 
@@ -225,7 +233,7 @@ spec:
 | `description` | Human-readable explanation of this auth path. |
 | `deps` | Tools the script requires (informational; checked before execution). |
 | `auth.script` | Shell script that performs the auth. Receives all `HYVE_*` env vars. |
-| `exports` | Signal to Hyve about what the auth script produces. `KUBECONFIG` — Hyve sets the `KUBECONFIG` environment variable in the reconciler process after auth, pointing to `~/.kube/config` (the default location written by tools like the Civo CLI with `--save`). `KEEPER_KUBECONFIG` — reserved for Keeper-based auth flows. |
+| `exports` | `KUBECONFIG` (or `KEEPER_KUBECONFIG`) — hyve points `$KUBECONFIG` at a per-cluster file before running the script, and the script writes the kubeconfig there. Works unchanged in cluster mode, where hyve relays the file back from the Job. |
 
 ### Backward compatibility
 
@@ -242,9 +250,9 @@ Single-method `auth.yaml` files using the legacy `spec.bootstrap` / `spec.verify
 ```yaml
 version: 1
 modules:
-  github.com/hyve-modules/civo@v1.0.0:
-    source: github.com/hyve-modules/civo@v1.0.0
-    resolved: https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz
+  github.com/your-org/hyve-my-provider@v1.0.0:
+    source: github.com/your-org/hyve-my-provider@v1.0.0
+    resolved: https://github.com/your-org/hyve-my-provider/archive/refs/tags/v1.0.0.tar.gz
     sha256: "abc123..."
 ```
 
@@ -261,7 +269,7 @@ Keep `hyve.lock` in your context directory and share it however you share the re
 
 ## driverOutputs
 
-`cluster.spec.driverOutputs` is a key-value map populated by the reconciler after every successful create (or any operation that emits `HYVE_KEY=value` lines). It's written to a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). If your context directory is git-backed, that sidecar file gets committed like any other change; hyve itself never commits it for you.
+`cluster.spec.driverOutputs` is a key-value map populated by the reconciler from a successful `create`'s `HYVE_KEY=value` lines, plus hyve's own `HYVE_LAST_PARAMS_HASH`. It's written to a reconciler-owned sidecar file (`cluster-state/<name>.state.yaml`, a sibling of the `clusters/` directory the desired-state YAML lives in), not inline in it — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). If your context directory is git-backed, that sidecar file gets committed like any other change; hyve itself never commits it for you.
 
 ```yaml
 spec:
@@ -275,58 +283,9 @@ spec:
   Do not edit `driverOutputs` manually. These values are managed by the reconciler and will be overwritten on the next reconcile.
 </Warning>
 
-## First-party modules
-
-<CardGroup cols={2}>
-  <Card title="Civo" icon="cloud" color="#3b82f6">
-    `github.com/hyve-modules/civo`
-
-    K3s and Talos clusters on Civo Cloud. Reads from `~/.civo.json` or `CIVO_TOKEN`.
-  </Card>
-
-  <Card title="AWS EKS" icon="aws" color="#f97316">
-    `github.com/hyve-modules/eks`
-
-    Amazon Elastic Kubernetes Service. Uses the standard AWS credential chain.
-  </Card>
-
-  <Card title="GCP GKE" icon="google" color="#22c55e">
-    `github.com/hyve-modules/gke`
-
-    Google Kubernetes Engine. Uses Application Default Credentials.
-  </Card>
-
-  <Card title="Azure AKS" icon="microsoft" color="#8b5cf6">
-    `github.com/hyve-modules/aks`
-
-    Azure Kubernetes Service. Uses the Azure CLI session or service principal env vars.
-  </Card>
-</CardGroup>
-
 ## Writing a custom module
 
-Use `hyve module init` to scaffold a new module:
-
-```bash
-hyve module init my-provider
-cd my-provider
-```
-
-Edit `module.yaml` to declare your params and requirements. Then implement the operations:
-
-1. **`create.yaml`** — call your cloud CLI to create the cluster; emit `HYVE_CLUSTER_ID=...` and `HYVE_CLUSTER_STATUS=provisioning` (or `active` if creation is synchronous)
-2. **`status.yaml`** — query the cloud CLI for cluster status; emit `HYVE_CLUSTER_STATUS=active|provisioning|deleting|error|unknown`
-3. **`delete.yaml`** — call your cloud CLI to delete the cluster
-4. **`auth.yaml`** — merge the cluster kubeconfig into `~/.kube/config`
-
-Reference your local module in a template:
-
-```bash
-hyve template create my-template \
-  --driver ./my-provider \
-  --driver-version local \
-  --region us-east-1
-```
+See **[Writing a Module](/docs/guides/module-authoring)** for a step-by-step guide — scaffolding with `hyve module init`, writing each operation, testing from a local path, and publishing.
 
 ## Auth-only modules
 
@@ -362,7 +321,7 @@ Scaffold this shape directly with `hyve module init <name> --auth-only`, which w
 
 **What changes for an `authOnly` module:**
 
-- The reconciler treats a missing (or empty) `HYVE_CLUSTER_STATUS` as `ACTIVE` instead of skipping the cluster with "Unhandled status" — so `hyve reconcile` runs the auth operation and applies `spec.resources` every cycle without needing a `status.yaml` that manually reports `active`.
+- The reconciler treats a missing (or empty) `HYVE_CLUSTER_STATUS` as `ACTIVE` instead of reporting an unrecognized status — so `hyve reconcile` runs the auth operation and applies `spec.resources` every cycle without needing a `status.yaml` that reports `ACTIVE`.
 - `spec.delete: true` still works: it runs any `onDelete` workflows, calls the (absent) delete operation as a no-op, and removes the cluster's YAML from the repository — deregistering it from Hyve without touching the real cluster.
 - `hyve module validate` requires `auth.yaml`/`auth.sh` to be present specifically for `authOnly` modules, rather than accepting any single operation file.
 
@@ -388,6 +347,6 @@ If a module also declares `spec.requirements.tools` (e.g. `k3d`), Hyve checks ea
   </Card>
 
   <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#22c55e">
-    Get started with a first-party module
+    Get started with hyve
   </Card>
 </CardGroup>

@@ -1,0 +1,295 @@
+---
+title: "Writing a Module"
+description: "Build, test, and publish a hyve module — the driver that provisions, checks, authenticates to, scales, and deletes clusters"
+---
+
+import Note from '../../../../components/mdx/Note.astro';
+import Tip from '../../../../components/mdx/Tip.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Steps from '../../../../components/mdx/Steps.astro';
+import Step from '../../../../components/mdx/Step.astro';
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+
+A **module** is a git repository (or directory) of operation files that hyve runs to manage one kind of cluster: create it, report its status, get a kubeconfig for it, scale it, and delete it. Hyve itself contains no cloud SDKs — everything provider-specific lives in a module, written in whatever tooling the provider already has (a CLI, Terraform, an HTTP API with `curl`, SSH).
+
+This guide builds one from scratch. For the concepts behind it, see [Modules](/docs/concepts/modules).
+
+## 1. Scaffold
+
+```bash
+hyve module init my-provider            # module.yaml plus stub operations
+hyve module init my-provider --auth-only  # module.yaml + auth.sh only, for clusters hyve never provisions
+```
+
+A complete module looks like this:
+
+```
+my-provider/
+  module.yaml     # manifest: name, version, type, params, requirements
+  status.yaml     # required — reports whether the cluster exists
+  create.yaml     # provision
+  delete.yaml     # deprovision
+  auth.yaml       # write a kubeconfig
+  scale.yaml      # optional — apply param changes to a live cluster
+  describe.yaml   # optional — report a live cluster's params (for `hyve cluster adopt`)
+  README.md
+```
+
+Each operation can be `<op>.yaml` (a `Workflow`, or `ClusterAuth` for auth), `<op>.sh`, or a bare `<op>` file — hyve uses the first one it finds, in that order.
+
+## 2. Write the manifest
+
+```yaml
+# module.yaml
+apiVersion: v1
+kind: Module
+metadata:
+  name: my-provider
+  version: 1.0.0
+  description: Kubernetes clusters on My Provider
+  type: driver              # or authOnly — see "Auth-only modules" below
+spec:
+  params:
+    - name: node_size
+      description: Node instance size
+      required: true
+    - name: node_count
+      description: Number of worker nodes
+      default: "3"
+  requirements:
+    env:
+      - name: MYPROVIDER_TOKEN
+        description: API token for My Provider
+    tools:
+      - name: myprovider
+        description: My Provider's CLI
+      - name: kubectl
+        description: Required for auth
+```
+
+| Field | What hyve does with it |
+|---|---|
+| `metadata.type` | `driver` (default) or `authOnly`. |
+| `spec.params` | **Documentation only** — shown by `hyve module info`. `default`, `required`, and `choices` are *not* applied or enforced; your scripts must handle missing values themselves (see below). |
+| `spec.requirements.tools` | Checked on `PATH` before every operation in **local mode**, failing fast with the list of missing tools. In cluster mode operations run in a container, so the tools must be in its image instead. |
+| `spec.requirements.env` | Checked before every operation in **cluster mode** — a missing variable fails with a clear error instead of an opaque CLI failure. Not enforced in local mode, where credentials often come from somewhere else (a CLI's own config file). |
+
+## 3. Know what your scripts receive
+
+Every operation runs with the caller's environment plus:
+
+| Variable | Value |
+|---|---|
+| `HYVE_CLUSTER_NAME` | The cluster's `metadata.name` |
+| `HYVE_CLUSTER_REGION` | The cluster's region |
+| `HYVE_PARAM_<KEY>` | Each `spec.params` entry, key uppercased — `node_size` → `HYVE_PARAM_NODE_SIZE` |
+| Every `driverOutputs` key | Values `create` printed (see step 4), exactly as printed |
+
+<Warning>
+  Param keys are only uppercased — hyphens and dots are *not* converted, so a key like `node-size` produces an unusable variable name. Use `snake_case` param names. And since manifest defaults aren't applied, write fallbacks into your scripts: `count="${HYVE_PARAM_NODE_COUNT:-3}"`.
+</Warning>
+
+Scripts run through `/bin/sh` with the **working directory set to the consuming repository's root**, not your module's directory. Don't `source ./lib/common.sh` from another file in the module — it won't be found once the module is installed from git. Inline shared helpers instead.
+
+## 4. Follow the output contract
+
+Hyve reads **stdout** line by line and keeps every line of the form `HYVE_<NAME>=<value>`. Everything else on stdout is ignored; send logs to **stderr** so they show in the reconcile output without being parsed.
+
+- Values printed by **`create`** are stored as the cluster's `driverOutputs` (locally in `cluster-state/<name>.state.yaml`, in cluster mode on the ClusterDefinition's status) and passed back into **every later operation**. This is the only way to carry state forward — for example, `create` prints `HYVE_CLUSTER_ID=...` and `delete` reads `$HYVE_CLUSTER_ID`. Other operations' outputs are read for that run only (`status`'s `HYVE_CLUSTER_STATUS`) and not stored, so print everything later operations need from `create`.
+- A non-zero exit fails the operation.
+
+### Status values
+
+`status` must print `HYVE_CLUSTER_STATUS=<value>`, uppercase, one of:
+
+| Value | What the reconciler does |
+|---|---|
+| `NOT_FOUND` | Runs `create` (or, if the cluster is marked `delete: true`, treats it as already gone and removes its definition) |
+| `ACTIVE` | Runs `auth`, then `scale` if params changed, then applies `spec.resources` (or runs `delete` if marked for deletion) |
+| `FAILED` | Retries `create` (or runs `delete` if marked for deletion) |
+| `CREATING` / `UPDATING` / `DELETING` | Waits — skipped this cycle |
+
+Anything else, including printing nothing, is reported as an error.
+
+<Warning>
+  Only print `NOT_FOUND` when you're **sure** the cluster doesn't exist. If `status` can't reach the provider (network down, expired credentials), **exit non-zero** instead. A false `NOT_FOUND` on a cluster marked for deletion makes hyve drop its definition without ever running `delete` — leaving the real cluster running and untracked.
+</Warning>
+
+## 5. Write the operations
+
+YAML operations use the `Workflow` shape. All steps of all jobs are concatenated, in order, into **one** shell script run with `set -e`, so a variable or function defined in one step is visible in the next. Use the list form of `jobs` — the map form's order isn't guaranteed.
+
+```yaml
+# status.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: status
+spec:
+  jobs:
+    - name: check
+      steps:
+        - name: query
+          script: |
+            if ! out=$(myprovider cluster show "$HYVE_CLUSTER_NAME" --region "$HYVE_CLUSTER_REGION" -o json 2>&1); then
+              case "$out" in
+                *"not found"*) echo "HYVE_CLUSTER_STATUS=NOT_FOUND"; exit 0 ;;
+                *) echo "status check failed: $out" >&2; exit 1 ;;   # unsure → fail, never guess NOT_FOUND
+              esac
+            fi
+            case "$(echo "$out" | jq -r .state)" in
+              running)            echo "HYVE_CLUSTER_STATUS=ACTIVE" ;;
+              provisioning)       echo "HYVE_CLUSTER_STATUS=CREATING" ;;
+              deleting)           echo "HYVE_CLUSTER_STATUS=DELETING" ;;
+              error)              echo "HYVE_CLUSTER_STATUS=FAILED" ;;
+              *) echo "unexpected state" >&2; exit 1 ;;
+            esac
+```
+
+```yaml
+# create.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: create
+spec:
+  jobs:
+    - name: create
+      steps:
+        - name: provision
+          script: |
+            id=$(myprovider cluster create "$HYVE_CLUSTER_NAME" \
+              --region "$HYVE_CLUSTER_REGION" \
+              --size "$HYVE_PARAM_NODE_SIZE" \
+              --nodes "${HYVE_PARAM_NODE_COUNT:-3}" \
+              --wait -o json | jq -r .id)
+            echo "HYVE_CLUSTER_ID=$id"
+            echo "HYVE_CLUSTER_STATUS=ACTIVE"
+```
+
+```yaml
+# delete.yaml
+apiVersion: v1
+kind: Workflow
+metadata:
+  name: delete
+spec:
+  jobs:
+    - name: delete
+      steps:
+        - name: deprovision
+          script: |
+            myprovider cluster delete "${HYVE_CLUSTER_ID:-$HYVE_CLUSTER_NAME}" --yes --wait
+```
+
+`scale` runs when an `ACTIVE` cluster's params change; apply the new `HYVE_PARAM_*` values to the live cluster. Leave it out if changing params in place isn't supported.
+
+## 6. Write auth
+
+`auth.yaml` has `kind: ClusterAuth` and one or more named methods; the first is the default, and `hyve cluster auth <name> --method <name>` picks another.
+
+```yaml
+# auth.yaml
+apiVersion: v1
+kind: ClusterAuth
+metadata:
+  name: my-provider-auth
+spec:
+  methods:
+    - name: cli
+      description: Fetch a kubeconfig with the provider CLI
+      deps: [myprovider]
+      auth:
+        script: |
+          myprovider cluster kubeconfig "${HYVE_CLUSTER_ID:-$HYVE_CLUSTER_NAME}" > "$KUBECONFIG"
+      exports: KUBECONFIG
+```
+
+With `exports: KUBECONFIG`, hyve sets `$KUBECONFIG` to a file of its own for this cluster before the script runs — **write the kubeconfig to that path**. Hyve then uses it to apply `spec.resources`, and `hyve cluster auth` merges it into `~/.kube/config`. The same script works in cluster mode, where hyve relays the file back from the container for you.
+
+<Tip>
+  Name the kubeconfig's cluster, context, and user after `$HYVE_CLUSTER_NAME`. Many tools write generic names like `default`, which collide once several clusters are merged into one `~/.kube/config`.
+</Tip>
+
+## 7. Test it locally
+
+Reference the module by local path while you develop — no publishing needed:
+
+```yaml
+# clusters/test.yaml in any hyve directory
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
+metadata:
+  name: test
+spec:
+  region: us-east-1
+  driver:
+    source: ../my-provider     # ./, ../, or an absolute path
+  params:
+    node_size: small
+```
+
+```bash
+hyve reconcile --dry-run     # runs status, shows what would happen
+hyve reconcile               # create
+hyve cluster auth test && kubectl get nodes
+hyve cluster delete test && hyve reconcile
+```
+
+For an existing cluster, implement `describe` (print its live params as `HYVE_PARAM_<KEY>=value`, plus any IDs as other `HYVE_*` lines) and bring it under management without recreating it:
+
+```bash
+hyve cluster adopt existing-cluster --template my-template
+```
+
+## 8. Publish it
+
+Push the module to a git repository and tag releases with semver (`v1.0.0`). Consumers reference it as `host/org/repo`, or `host/org/repo//path/to/module` when one repository holds several modules:
+
+```bash
+hyve module add github.com/your-org/hyve-my-provider            # latest semver tag
+hyve module add github.com/your-org/hyve-my-provider@v1.2.0     # exact tag
+hyve module add github.com/your-org/hyve-my-provider@main       # any branch, tag, or commit
+```
+
+`hyve module add` pins the resolved version and a SHA256 of its contents in the consumer's `hyve.lock`; `hyve module update` re-resolves it. With no semver tags, `latest` resolves to the default branch's `HEAD`.
+
+**Private repositories** work too. Hyve fetches with a real `git clone`, so any host works with whatever git credentials the machine already has (SSH key, credential helper). For github.com, a `GITHUB_TOKEN` in the environment is also used. In cluster mode, set `GITHUB_TOKEN` as a secret on hyve-api (`hyve context secrets set GITHUB_TOKEN`).
+
+## Running in cluster mode
+
+When hyve runs as a controller, each operation runs in a short-lived Kubernetes Job instead of on a local machine. The container image is the cluster's (or its template's) `spec.runner.image`, falling back to `HyveConfig.spec.defaultModuleImage`. That image must contain every tool in your `requirements.tools`. Credentials come from hyve-api's secrets (`hyve context secrets set`), and `requirements.env` is enforced against them.
+
+## Auth-only modules
+
+For a cluster hyve should track and hand out kubeconfigs for, but never create or delete (a local k3d cluster, something provisioned elsewhere), set `metadata.type: authOnly` and implement only `auth` (plus `status` if you want hyve to notice it disappearing). With no status output the cluster is treated as `ACTIVE`, so `spec.resources` still apply. `hyve module init <name> --auth-only` scaffolds this shape.
+
+## Checklist
+
+- [ ] `status` exits non-zero when it can't tell — it only prints `NOT_FOUND` when sure
+- [ ] Every status value is one of `ACTIVE`, `NOT_FOUND`, `FAILED`, `CREATING`, `UPDATING`, `DELETING`
+- [ ] Only `HYVE_*=value` lines go to stdout; logs go to stderr
+- [ ] Params are `snake_case`, and scripts supply their own defaults
+- [ ] IDs `delete`/`scale` need are printed by `create` as `HYVE_*` outputs
+- [ ] No cross-file `source` — scripts run from the consuming repo's root
+- [ ] `auth` writes the kubeconfig to `$KUBECONFIG`, named after `$HYVE_CLUSTER_NAME`
+- [ ] Tools are listed in `requirements.tools`, and present in your runner image for cluster mode
+- [ ] Tested end to end from a local path; released with a semver tag
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
+    The module concepts and reference
+  </Card>
+  <Card title="hyve module" icon="terminal" href="/docs/cli/module" color="#3b82f6">
+    add, install, update, validate, init
+  </Card>
+  <Card title="Cluster Access" icon="key" href="/docs/concepts/cluster-access" color="#f97316">
+    How auth fits with other access methods
+  </Card>
+  <Card title="Templates" icon="stamp" href="/docs/concepts/templates" color="#06b6d4">
+    Pointing templates at your module
+  </Card>
+</CardGroup>

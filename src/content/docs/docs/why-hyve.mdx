@@ -44,13 +44,13 @@ spec:
 
 Adding a cloud provider in Terraform means finding or writing a provider plugin, pinning its version, running `terraform init`, and learning its resource schema. Provider APIs change and plugins lag behind. A GKE cluster in Terraform looks nothing like an EKS cluster; every attribute is provider-specific.
 
-Hyve has first-party modules for Civo, AWS EKS, GCP GKE, and Azure AKS — and the module system means any other provider is supported by writing a module. The same cluster definition structure, the same CLI commands, and the same workflow hooks work across all providers.
+Any provider is supported by writing a module — a small git repository of scripts around the provider's own CLI or API (see [Writing a Module](/docs/guides/module-authoring)). The same cluster definition structure, the same CLI commands, and the same workflow hooks work across all providers.
 
 ```yaml
 # Civo — driver points to the Civo module
 spec:
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   params:
     node_size: g4s.kube.medium
@@ -59,7 +59,7 @@ spec:
 # EKS — same structure, different module
 spec:
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v2.1.3
   params:
     instance_type: t3.medium

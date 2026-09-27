@@ -81,11 +81,11 @@ Either way, `hyve context create` registers it *and* makes it active immediately
 Modules implement cluster operations for a cloud provider — Hyve itself has no idea which one, it just calls whatever module a template references. Install one and lock it in `hyve.lock`:
 
 ```bash
-hyve module add github.com/hyve-modules/civo@v1.0.0
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
 ```
 
 <Note>
-  This guide uses the Civo module throughout because it's the fastest way to see a real cluster come up. Swap the source for any other module (EKS, GKE, AKS, or a community/internal one) and every command below works identically — see [First-party modules](/docs/cli/module#first-party-modules) for the list, or [Modules](/docs/concepts/modules) for how to point at your own.
+  This guide uses a Civo module as the example — `github.com/your-org/hyve-civo-module` is a placeholder for whichever module you use. Swap in any other module and every command below works identically; see [Writing a Module](/docs/guides/module-authoring) to build your own.
 </Note>
 
 ## Step 4 — Create a template
@@ -94,7 +94,7 @@ Templates define the shape of a cluster — driver, region, and module-specific 
 
 ```bash
 hyve template create my-civo-template \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.medium \

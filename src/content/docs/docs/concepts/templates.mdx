@@ -46,7 +46,7 @@ metadata:
   description: Production cluster template with monitoring
 spec:
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   region: NYC1
   params:
@@ -74,7 +74,7 @@ spec:
 ### Spec
 
 <ParamField path="spec.driver.source" type="string" required>
-  Module source string (e.g. `github.com/hyve-modules/civo`)
+  Module source string (e.g. `github.com/your-org/hyve-civo-module`)
 </ParamField>
 
 <ParamField path="spec.driver.version" type="string" required>
@@ -130,7 +130,7 @@ spec:
 
 ```bash
 hyve template create prod-template \
-  --driver github.com/hyve-modules/civo --driver-version v1.0.0 \
+  --driver github.com/your-org/hyve-civo-module --driver-version v1.0.0 \
   --region NYC1 \
   --set node_size=g4s.kube.large --set node_count=3
 ```
@@ -147,7 +147,7 @@ hyve template create prod-template \
     description: Production cluster with 3 large nodes
   spec:
     driver:
-      source: github.com/hyve-modules/civo
+      source: github.com/your-org/hyve-civo-module
       version: v1.0.0
     region: NYC1
     params:

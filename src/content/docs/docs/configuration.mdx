@@ -108,9 +108,9 @@ See [`hyve.yaml`](#hyveyaml) above for every field.
 ```yaml
 version: 1
 modules:
-  github.com/hyve-modules/civo@v1.0.0:
-    source: github.com/hyve-modules/civo@v1.0.0
-    resolved: https://github.com/hyve-modules/civo/archive/v1.0.0.tar.gz
+  github.com/your-org/hyve-civo-module@v1.0.0:
+    source: github.com/your-org/hyve-civo-module@v1.0.0
+    resolved: https://github.com/your-org/hyve-civo-module/archive/v1.0.0.tar.gz
     sha256: "abc123..."
 workflows:
   github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0:
@@ -125,8 +125,8 @@ The `workflows` key only appears once a template or cluster references a [remote
 You should never edit `hyve.lock` directly. Use the module and workflow commands to manage it:
 
 ```bash
-hyve module add github.com/hyve-modules/civo@v1.0.0    # add and lock a module
-hyve module update github.com/hyve-modules/civo         # update a module to latest
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0    # add and lock a module
+hyve module update github.com/your-org/hyve-civo-module         # update a module to latest
 hyve module install                                      # install all locked modules
 hyve module list                                         # show locked modules
 
@@ -149,7 +149,7 @@ When a module expects a credential (like a Civo API token), you can pass it dire
 
 ```bash
 hyve template create my-template \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set api_key=${CIVO_TOKEN}
@@ -262,7 +262,7 @@ Hyve resolves values in this order:
     export CIVO_TOKEN=your-token
     # The module reads CIVO_TOKEN automatically — no --set needed
     hyve template create my-template \
-      --driver github.com/hyve-modules/civo \
+      --driver github.com/your-org/hyve-civo-module \
       --driver-version v1.0.0 \
       --region PHX1
     ```

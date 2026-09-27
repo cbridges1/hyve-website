@@ -39,14 +39,14 @@ go install github.com/cbridges1/hyve@latest
 </div>
 
 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem', margin: '0 auto 3rem', maxWidth: '640px' }}>
-  {['Civo', 'AWS EKS', 'GCP GKE', 'Azure AKS', '+ community modules'].map((p) => (
+  {['Any cloud CLI', 'Terraform / Pulumi', 'SSH', 'HTTP APIs', 'Your own modules'].map((p) => (
     <span style={{ border: '1px solid var(--sl-color-hairline)', borderRadius: '999px', padding: '0.25rem 0.9rem', fontSize: '0.85rem', color: 'var(--sl-color-gray-2)' }}>{p}</span>
   ))}
 </div>
 
 ## Clusters as code
 
-Terraform-style declarative provisioning, with a local directory as the state backend — git-backed if you want version control and review, a plain directory if you don't. A cluster is one YAML file: create it and the cluster is created, edit it and the cluster is updated, remove it and the cluster is deleted, the next time `hyve reconcile` runs.
+Terraform-style declarative provisioning, with a local directory as the state backend — git-backed if you want version control and review, a plain directory if you don't. A cluster is one YAML file: create it and the cluster is created, edit it and the cluster is updated, mark it `delete: true` and the cluster is deleted — the next time `hyve reconcile` runs, or continuously in cluster mode.
 
 ```yaml
 # clusters/my-cluster.yaml — in your active context's directory
@@ -57,7 +57,7 @@ metadata:
 spec:
   region: us-east-1
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v1.0.0
   params:
     instance_type: t3.medium
@@ -84,7 +84,7 @@ From nothing to a running cluster in four commands.
     Modules are versioned, self-contained packages that implement cluster operations — create, delete, status, auth. Each operation is invoked as a shell entry point, but can call out to any language or tool internally — only the output contract matters. No cloud SDKs embedded in Hyve.
 
     ```bash
-    hyve module add github.com/hyve-modules/civo@v1.0.0
+    hyve module add github.com/your-org/hyve-civo-module@v1.0.0
     ```
   </Step>
 
@@ -93,7 +93,7 @@ From nothing to a running cluster in four commands.
 
     ```bash
     hyve template create my-civo-template \
-      --driver github.com/hyve-modules/civo \
+      --driver github.com/your-org/hyve-civo-module \
       --driver-version v1.0.0 \
       --region PHX1 \
       --set node_size=g4s.kube.medium

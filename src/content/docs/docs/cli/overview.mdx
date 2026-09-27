@@ -269,11 +269,11 @@ civo apikey save my-token YOUR_CIVO_TOKEN && civo apikey use my-token
 hyve context create production --path ~/repos/hyve-production
 
 # 3. Install a module
-hyve module add github.com/hyve-modules/civo@v1.0.0
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
 
 # 4. Create a template
 hyve template create my-template \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.medium
@@ -353,7 +353,7 @@ hyve cluster delete my-cluster
     ```bash
     hyve module install
     # or
-    hyve module add github.com/hyve-modules/civo@v1.0.0
+    hyve module add github.com/your-org/hyve-civo-module@v1.0.0
     ```
   </Accordion>
 </AccordionGroup>

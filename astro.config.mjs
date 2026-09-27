@@ -81,6 +81,7 @@ export default defineConfig({
             { label: 'Workflow Management', link: '/docs/guides/workflow-management' },
             { label: 'Resource Management', link: '/docs/guides/resource-management' },
             { label: 'Template Management', link: '/docs/guides/template-management' },
+            { label: 'Writing a Module', link: '/docs/guides/module-authoring' },
             { label: 'Kubeconfig Management', link: '/docs/guides/kubeconfig-management' },
             { label: 'Deploying Cluster Mode', link: '/docs/guides/deploying-cluster-mode' },
             { label: 'CI/CD', link: '/docs/guides/cicd' },

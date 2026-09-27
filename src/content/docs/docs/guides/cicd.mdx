@@ -118,7 +118,7 @@ metadata:
 spec:
   region: us-central1
   driver:
-    source: github.com/hyve-modules/gke
+    source: github.com/your-org/hyve-gke-module
     version: v1.2.0
   params:
     project_id: my-gcp-project
@@ -135,7 +135,7 @@ metadata:
 spec:
   region: PHX1
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   params:
     node_size: g4s.kube.small
@@ -154,7 +154,7 @@ metadata:
 spec:
   region: us-east-1
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v2.1.3
   params:
     vpc_id: vpc-0abc123456789
@@ -386,7 +386,7 @@ metadata:
 spec:
   delete: true          # <-- marks this cluster for deletion
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v2.1.3
   region: us-east-1
   params:
@@ -539,7 +539,7 @@ metadata:
 spec:
   pause: true       # reconciler skips this cluster on every run
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   region: NYC1
   params:
@@ -572,7 +572,7 @@ metadata:
   name: dev-sprint-47
 spec:
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   region: PHX1
   params:
@@ -608,7 +608,7 @@ metadata:
   name: feature-login-redesign
 spec:
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v2.1.3
   region: us-east-1
   params:

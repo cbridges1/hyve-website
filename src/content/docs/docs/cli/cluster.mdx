@@ -73,7 +73,7 @@ hyve cluster create staging-eks-01 --template prod-eks \
 ```
 🚀 Creating cluster 'prod-cluster-01' from template 'my-civo-template'...
 
-Driver: github.com/hyve-modules/civo@v1.0.0
+Driver: github.com/your-org/hyve-civo-module@v1.0.0
 Region: PHX1
 Params: node_size=g4s.kube.medium, node_count=3
 
@@ -107,17 +107,17 @@ hyve cluster list
 Clusters in repository 'production' (3):
 
   my-cluster
-    Driver:  github.com/hyve-modules/civo@v1.0.0
+    Driver:  github.com/your-org/hyve-civo-module@v1.0.0
     Region:  PHX1
     Status:  active
 
   staging-eks
-    Driver:  github.com/hyve-modules/eks@v2.1.3
+    Driver:  github.com/your-org/hyve-eks-module@v2.1.3
     Region:  us-east-1
     Status:  provisioning
 
   dev-gke
-    Driver:  github.com/hyve-modules/gke@v1.2.0
+    Driver:  github.com/your-org/hyve-gke-module@v1.2.0
     Region:  us-central1
     Status:  active
 ```
@@ -152,7 +152,7 @@ metadata:
 spec:
   region: PHX1
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   params:
     node_size: g4s.kube.medium
@@ -201,7 +201,7 @@ Marked cluster 'my-cluster' for deletion (spec.delete=true in clusters/my-cluste
 Running reconciliation...
 [onDelete] Running workflow: backup-data
 [onDelete] backup-data completed successfully
-Deleting cluster 'my-cluster' via github.com/hyve-modules/civo@v1.0.0...
+Deleting cluster 'my-cluster' via github.com/your-org/hyve-civo-module@v1.0.0...
 Cluster 'my-cluster' deleted.
 [afterDelete] Running workflow: cleanup-dns
 [afterDelete] cleanup-dns completed successfully
@@ -257,7 +257,7 @@ hyve cluster auth my-cluster --method local
 
 ```
 Running auth operation for 'my-cluster'...
-Module: github.com/hyve-modules/civo@v1.0.0
+Module: github.com/your-org/hyve-civo-module@v1.0.0
 Updated context 'my-cluster' in ~/.kube/config
 ```
 
@@ -401,7 +401,7 @@ metadata:
 spec:
   region: us-east-1
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v1.0.0
   params:
     vpc_id: vpc-0abc123456789
@@ -464,7 +464,7 @@ appliedResources: {}
 </ParamField>
 
 <ParamField path="spec.driver.source" type="string" required>
-  Module source string. Examples: `github.com/hyve-modules/civo`, `./my-local-module`
+  Module source string. Examples: `github.com/your-org/hyve-civo-module`, `./my-local-module`
 </ParamField>
 
 <ParamField path="spec.driver.version" type="string" required>

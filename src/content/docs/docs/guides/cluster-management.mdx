@@ -50,11 +50,11 @@ Modules implement cluster operations for a specific provider — Hyve has no bui
 # Ensure the provider's own CLI is authenticated first, e.g.:
 civo apikey save my-token YOUR_TOKEN && civo apikey use my-token
 
-hyve module add github.com/hyve-modules/civo@v1.0.0
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
 ```
 
 <Note>
-  Any module works the same way — swap the source for EKS, GKE, AKS, or your own. See [First-party modules](/docs/cli/module#first-party-modules) for the list.
+  Any module works the same way — the sources here are placeholders. See [Writing a Module](/docs/guides/module-authoring) to build your own.
 </Note>
 
 Verify the module is locked:
@@ -70,7 +70,7 @@ Templates define the cluster shape, driver, region, and default params. Create o
 ```bash
 # Development cluster
 hyve template create dev-civo \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.small \
@@ -78,7 +78,7 @@ hyve template create dev-civo \
 
 # Production cluster
 hyve template create prod-civo \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region NYC1 \
   --set node_size=g4s.kube.large \
@@ -171,7 +171,7 @@ Or update the template and re-execute for new clusters:
 ```bash
 # Update the template default
 hyve template create prod-civo-large \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region NYC1 \
   --set node_size=g4s.kube.large \
@@ -217,7 +217,7 @@ Or use a template with a `--schedule` to auto-compute the expiry:
 
 ```bash
 hyve template create dev-weekly \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.small \
@@ -309,7 +309,7 @@ See the [CI/CD guide](/docs/guides/cicd) for a full GitHub Actions example.
     ```bash
     hyve module install     # lock all template modules
     # or
-    hyve module add github.com/hyve-modules/civo@v1.0.0
+    hyve module add github.com/your-org/hyve-civo-module@v1.0.0
     ```
   </Accordion>
 
