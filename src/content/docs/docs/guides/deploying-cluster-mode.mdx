@@ -49,7 +49,7 @@ The chart isn't published to a Helm repository — install it from a hyve checko
       hyve cluster-config api create-user admin --role superadmin --namespace hyve-system
     ```
 
-    Pass `--password` for scripting; omit it to be prompted. Or skip this step entirely by setting `api.bootstrapAdmin.username` and `api.bootstrapAdmin.passwordSecret.name` (an existing Secret with a `password` key) at install time.
+    Pass `--password` for scripting; omit it to be prompted. Or skip this step entirely by setting `api.bootstrapAdmin.username` and `api.bootstrapAdmin.passwordSecret.name` (an existing Secret with a `password` key) at install time — or `api.bootstrapAdmin.usernameKey` instead of `username` to read the username from that same Secret.
   </Step>
 
   <Step title="Log in">
@@ -69,7 +69,7 @@ The chart isn't published to a Helm repository — install it from a hyve checko
 | `api.multiTenant.enabled` | Lets one install serve many organizations (a ClusterRole instead of a namespaced Role) |
 | `api.db.driver` | `sqlite` (default, one API replica, stored on a PVC) or `postgres` — required for more than one replica or for moving organizations onto reconciling clusters |
 | `api.requireReconcilingCluster` | Refuse to let any tenant organization live on the home cluster |
-| `api.bootstrapAdmin.username` / `.passwordSecret` | Create the first superadmin on startup, only while none exists — replaces the manual `create-user` step. Not an API endpoint; the password is read from a mounted Secret |
+| `api.bootstrapAdmin.username` (or `.usernameKey`) / `.passwordSecret` | Create the first superadmin on startup, only while none exists — replaces the manual `create-user` step. Not an API endpoint; the password (and, with `usernameKey`, the username) is read from a mounted Secret |
 | `api.smtp.host` / `.port` / `.username` / `.fromAddress` / `.passwordSecret` | Seed outbound email (password resets) on first start; settings saved later in the console always win |
 | `api.service.type` / `api.service.nodePort` | `ClusterIP` by default; `NodePort` only where node ports are reachable |
 | `api.accessRoles.clusterScoped` | See the warning below — leave at its default |
