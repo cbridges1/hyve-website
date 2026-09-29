@@ -123,7 +123,7 @@ hyve context secrets unset <key> [--context <name>]
 ```
 
 - **Local mode:** stored in `~/.hyve/hyve.db`, attached to a context (the active one unless `--context` says otherwise), and removed with it.
-- **Cluster mode:** stored on the hyve-api server, shared by everyone logged into it. `--context` has no effect. Listing key names works for any role; reading, setting, and unsetting values requires `admin`.
+- **Cluster mode:** stored on the hyve-api server, shared by everyone logged into it. `--context` has no effect. Listing key names works for any role; reading, setting, and unsetting values requires `admin`. The web console's **Secrets** page manages the same keys: **Add secret** takes multi-line values (kubeconfigs, SSH keys) typed, pasted, or loaded from a file, and **Import .env** pastes or uploads a `.env` file, previews which keys are new or replaced, and sets them all in one write.
 
 ---
 
