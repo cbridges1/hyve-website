@@ -1,0 +1,60 @@
+---
+title: "'hyve resource'"
+description: "'Manage Kubernetes manifests hyve owns, drift-checks, and re-applies'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+The `hyve resource` command group manages **resources** — Kubernetes manifests declared on a `ClusterDefinition` (`spec.resources`) that hyve owns, drift-checks, and re-applies on every reconcile cycle for an `ACTIVE` cluster. See [Resources](/docs/concepts/resources) for the full concept.
+
+## Commands
+
+### hyve resource list
+
+```bash
+hyve resource list
+```
+
+### hyve resource show
+
+```bash
+hyve resource show <name>
+```
+
+### hyve resource create
+
+```bash
+hyve resource create <name> [--file <yaml>]
+```
+
+<ParamField path="name" type="string" required>
+  Name for the resource.
+</ParamField>
+
+<ParamField path="--file" type="string">
+  Create from an existing CR-shaped YAML file instead of an interactive/flag-driven definition.
+</ParamField>
+
+### hyve resource delete
+
+```bash
+hyve resource delete <name>
+```
+
+<Info>
+  Removing a resource's own definition doesn't tear down what it already applied to a cluster — see [Resources](/docs/concepts/resources) for how `delete: true`-marked entries are actually cleaned up on the next reconcile.
+</Info>
+
+### hyve resource install
+
+Install every module a referenced resource needs, mirroring `hyve module install`'s scan-and-lock behavior for resources instead of templates.
+
+```bash
+hyve resource install
+```
+
+## Related
+
+- [Resources](/docs/concepts/resources) — the concept, drift detection, and dry-run preview format
+- [`hyve cluster`](/docs/cli/cluster) — `hyve cluster resources <name>` shows applied resources for one cluster

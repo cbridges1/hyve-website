@@ -22,7 +22,7 @@ Hyve's CI/CD mode separates the **desired state** (what you want) from the **act
   </Card>
 
   <Card title="CI/CD Mode" icon="arrows-rotate" color="#3b82f6">
-    `hyve reconcile` validates and pushes desired state to Git, then exits. A pipeline calls `hyve reconcile --path .` to do the actual provisioning. Credentials never leave the pipeline.
+    `hyve reconcile` validates desired state and exits without provisioning — you push it, and a pipeline calls `hyve reconcile --path .` to do the actual provisioning. Credentials never leave the pipeline.
   </Card>
 </CardGroup>
 
@@ -33,20 +33,20 @@ Hyve's CI/CD mode separates the **desired state** (what you want) from the **act
     A team member adds or modifies a cluster definition and runs `hyve reconcile` locally.
   </Step>
 
-  <Step title="Hyve validates and pushes state">
-    In `cicd` mode, Hyve validates the YAML, commits the desired state to the Git repository, and exits without touching any cloud APIs.
+  <Step title="Hyve validates and exits — you commit and push">
+    In `cicd` mode, Hyve validates the YAML and exits without touching any cloud APIs. Hyve never commits or pushes on its own — see [Version Control](/docs/concepts/gitops) — so committing and pushing the desired state is your own explicit step: `git commit -am "..." && git push`.
   </Step>
 
   <Step title="Pipeline triggers">
-    The push to the state repository triggers a CI/CD workflow (e.g. GitHub Actions).
+    The push triggers a CI/CD workflow (e.g. GitHub Actions).
   </Step>
 
   <Step title="Pipeline reconciles">
-    The pipeline checks out the state repository and runs `hyve reconcile --path .`. Because `--path` is provided, Hyve always runs full local reconciliation regardless of the `hyve.yaml` mode setting.
+    The pipeline checks out the repository and runs `hyve reconcile --path .`. Because `--path` is provided, Hyve always runs full local reconciliation regardless of the `hyve.yaml` mode setting.
   </Step>
 
-  <Step title="Changes committed back">
-    Hyve writes reconciliation results (cluster status, kubeconfigs, etc.) back to the repository and pushes them.
+  <Step title="Commit results back — your own step">
+    Hyve writes reconciliation results (cluster status, driver outputs) back to local files. Committing and pushing them is a pipeline step you add explicitly (`git add -A clusters cluster-state && git commit -m "hyve: reconcile" && git push`), not something hyve does for you.
   </Step>
 </Steps>
 
@@ -111,14 +111,14 @@ hyve-state/                    # Your Hyve state repository
 
 ```yaml
 # clusters/production.yaml — long-lived GKE cluster
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: production
-  region: us-central1
 spec:
+  region: us-central1
   driver:
-    source: github.com/hyve-modules/gke
+    source: github.com/your-org/hyve-gke-module
     version: v1.2.0
   params:
     project_id: my-gcp-project
@@ -128,14 +128,14 @@ spec:
 
 ```yaml
 # clusters/dev-sprint-47.yaml — ephemeral cluster with automatic expiry
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: dev-sprint-47
-  region: PHX1
 spec:
+  region: PHX1
   driver:
-    source: github.com/hyve-modules/civo
+    source: github.com/your-org/hyve-civo-module
     version: v1.0.0
   params:
     node_size: g4s.kube.small
@@ -147,14 +147,14 @@ spec:
 
 ```yaml
 # clusters/staging.yaml — temporarily paused during migration
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
-  region: us-east-1
 spec:
+  region: us-east-1
   driver:
-    source: github.com/hyve-modules/eks
+    source: github.com/your-org/hyve-eks-module
     version: v2.1.3
   params:
     vpc_id: vpc-0abc123456789
@@ -225,7 +225,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Hyve
-        run: go install github.com/cbridges1/hyve@latest
+        run: |
+          curl -sL https://github.com/cbridges1/hyve/releases/latest/download/hyve_linux_amd64.tar.gz | tar xz hyve
+          sudo mv hyve /usr/local/bin/
 
       - name: Install modules
         run: hyve module install
@@ -251,6 +253,15 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: hyve reconcile --path .
+
+      - name: Commit and push state
+        # hyve never commits or pushes — this records whatever reconcile
+        # changed: cluster-state/ sidecars, and the files of clusters it
+        # just deleted. if: always() keeps partial progress.
+        if: always()
+        run: |
+          git add -A clusters cluster-state
+          git diff --cached --quiet || { git commit -m "hyve: reconcile" && git push; }
 ```
 
 Credentials are passed as standard environment variables. Modules read them directly — the same env vars used by the cloud CLIs. Add whichever secrets your modules require as GitHub Actions secrets.
@@ -284,7 +295,7 @@ Adjust the cron expression to match your preferred cadence. Common schedules:
 | `0 8,20 * * *` | Twice daily at 8 AM and 8 PM UTC |
 
 <Info>
-  The git identity and `contents: write` permission are only exercised when a cluster is deleted (via `spec.delete: true` or an expired `spec.expiresAt`). They have no effect on create, update, or paused-cluster runs.
+  Hyve never commits or pushes. The git identity, `contents: write` permission, and the final commit step are what persist a reconcile's results: new or updated `cluster-state/` sidecars (driver outputs, applied resources) on create/update, and a deleted cluster's removed files on delete.
 </Info>
 
 ### Full Teardown
@@ -322,15 +333,15 @@ jobs:
 
       - name: Install Hyve
         run: |
-          curl -sSL https://github.com/cbridges1/hyve/releases/latest/download/hyve-linux-amd64 \
-            -o /usr/local/bin/hyve
-          chmod +x /usr/local/bin/hyve
+          curl -sL https://github.com/cbridges1/hyve/releases/latest/download/hyve_linux_amd64.tar.gz | tar xz hyve
+          sudo mv hyve /usr/local/bin/
 
       - name: Mark every cluster for deletion
         # spec.delete: true, not a deleted file — the reconciler needs the
         # YAML to still be there to know which onDelete workflows to run and
         # against which driver/params, exactly as in the mark-for-deletion
-        # pattern below. It self-removes the file once teardown completes.
+        # pattern below. It removes the file locally once teardown
+        # completes; the commit step at the end pushes that removal.
         run: |
           for f in clusters/*.yaml clusters/*.yml; do
             [ -f "$f" ] || continue
@@ -347,6 +358,15 @@ jobs:
           MY_PROJECT_GCP_CREDENTIALS_JSON: ${{ secrets.MY_PROJECT_GCP_CREDENTIALS_JSON }}
           MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
         run: hyve reconcile --path .
+
+      - name: Commit and push state
+        # hyve never commits or pushes — this records whatever reconcile
+        # changed: cluster-state/ sidecars, and the files of clusters it
+        # just deleted. if: always() keeps partial progress.
+        if: always()
+        run: |
+          git add -A clusters cluster-state
+          git diff --cached --quiet || { git commit -m "hyve: reconcile" && git push; }
 ```
 
 ## Deleting Clusters with onDelete Workflows
@@ -359,16 +379,19 @@ Set `spec.delete: true` in the cluster YAML **without removing the file**:
 
 ```yaml
 # clusters/staging.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
 spec:
   delete: true          # <-- marks this cluster for deletion
-  provider: aws
-  awsAccount: prod-us
+  driver:
+    source: github.com/your-org/hyve-eks-module
+    version: v2.1.3
   region: us-east-1
-  clusterType: eks
+  params:
+    instance_type: t3.medium
+    node_count: "3"
   workflows:
     onDelete:
       - cleanup-namespaces
@@ -405,7 +428,7 @@ When the reconciler processes this file it will:
 
 ### Required GitHub Actions Configuration
 
-Because the reconciler removes the cluster file and pushes back to the repository after deletion, the GitHub Actions workflow needs write access to the repository and a valid git committer identity.
+The reconciler removes a deleted cluster's file (and its `cluster-state/` sidecar) locally; your pipeline's commit step pushes that back. So the workflow needs write access to the repository and a git committer identity.
 
 #### 1. Contents write permission
 
@@ -419,7 +442,7 @@ jobs:
 
 #### 2. Git committer identity
 
-GitHub Actions runners do not configure a git identity by default. Add this step before running Hyve:
+GitHub Actions runners do not configure a git identity by default. Add this step before the commit step:
 
 ```yaml
 - name: Configure git identity
@@ -430,7 +453,7 @@ GitHub Actions runners do not configure a git identity by default. Add this step
 
 #### 3. Branch protection rules
 
-If your default branch requires pull request reviews or passing checks before merging, the reconciler's direct push will be rejected.
+If your default branch requires pull request reviews or passing checks before merging, the pipeline's direct push will be rejected.
 
 Choose one of:
 
@@ -453,8 +476,8 @@ on:
     branches: [main]
     paths:
       - 'clusters/**'
-      - 'provider-configs/**'
-      - 'hyve.yaml'
+      - 'templates/**'
+      - 'workflows/**'
 
   schedule:
     - cron: '0 20 * * *'   # Every day at 8:00 PM UTC
@@ -480,19 +503,27 @@ jobs:
 
       - name: Install Hyve
         run: |
-          curl -sSL https://github.com/cbridges1/hyve/releases/latest/download/hyve-linux-amd64 \
-            -o /usr/local/bin/hyve
-          chmod +x /usr/local/bin/hyve
+          curl -sL https://github.com/cbridges1/hyve/releases/latest/download/hyve_linux_amd64.tar.gz | tar xz hyve
+          sudo mv hyve /usr/local/bin/
 
       - name: Reconcile clusters
         env:
           PROD_US_AWS_ACCESS_KEY_ID: ${{ secrets.PROD_US_AWS_ACCESS_KEY_ID }}
           PROD_US_AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_US_AWS_SECRET_ACCESS_KEY }}
         run: hyve reconcile --path .
+
+      - name: Commit and push state
+        # hyve never commits or pushes — this records whatever reconcile
+        # changed: cluster-state/ sidecars, and the files of clusters it
+        # just deleted. if: always() keeps partial progress.
+        if: always()
+        run: |
+          git add -A clusters cluster-state
+          git diff --cached --quiet || { git commit -m "hyve: reconcile" && git push; }
 ```
 
 <Info>
-  The `Configure git identity` step and `contents: write` permission are only exercised when a cluster marked `spec.delete: true` is processed. They have no effect on normal create or update reconciliations.
+  The commit step runs on every reconcile — create and update runs change `cluster-state/`, and delete runs remove files.
 </Info>
 
 ## Pausing Reconciliation
@@ -501,15 +532,18 @@ Set `spec.pause: true` to keep a cluster's definition in the repository while te
 
 ```yaml
 # clusters/staging.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: staging
 spec:
   pause: true       # reconciler skips this cluster on every run
-  provider: civo
+  driver:
+    source: github.com/your-org/hyve-civo-module
+    version: v1.0.0
   region: NYC1
-  nodes: [g4s.kube.medium]
+  params:
+    node_size: g4s.kube.medium
 ```
 
 **Common use cases:**
@@ -532,14 +566,17 @@ Set `spec.expiresAt` to an RFC 3339 timestamp to have the reconciler automatical
 
 ```yaml
 # clusters/dev-sprint-47.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: dev-sprint-47
 spec:
-  provider: civo
+  driver:
+    source: github.com/your-org/hyve-civo-module
+    version: v1.0.0
   region: PHX1
-  nodes: [g4s.kube.small]
+  params:
+    node_size: g4s.kube.small
   expiresAt: "2026-05-01T00:00:00Z"   # deleted automatically after this time
   workflows:
     onDelete:
@@ -565,15 +602,18 @@ A common pattern for feature-branch or sprint clusters:
 
 ```yaml
 # clusters/feature-login-redesign.yaml
-apiVersion: v1
-kind: Cluster
+apiVersion: hyve.io/v1alpha1
+kind: ClusterDefinition
 metadata:
   name: feature-login-redesign
 spec:
-  provider: aws
-  awsAccount: dev
+  driver:
+    source: github.com/your-org/hyve-eks-module
+    version: v2.1.3
   region: us-east-1
-  clusterType: eks
+  params:
+    instance_type: t3.medium
+    node_count: "2"
   expiresAt: "2026-04-25T18:00:00Z"   # end of sprint
   workflows:
     onCreate:
@@ -592,28 +632,23 @@ When the sprint ends, the cluster tears itself down automatically — no manual 
 Here is the complete flow from developer change to provisioned cluster:
 
 ```bash
-# 1. Developer: add a new cluster definition locally
-hyve cluster add staging \
-  --provider gcp \
-  --project-name my-project \
-  --region us-central1 \
-  --nodes e2-standard-4,e2-standard-4
+# 1. Developer: create a new cluster definition locally, from a template
+hyve cluster create staging --template gcp-standard \
+  --region us-central1 --set node_count=2
 
-# 2. Developer: run reconcile (in cicd mode — pushes state, does NOT provision)
+# 2. Developer: run reconcile (in cicd mode — validates, does NOT provision)
 hyve reconcile
 # Output:
 # Reconcile mode: cicd
 # Skipping local reconciliation — cluster provisioning will be handled by the CI/CD pipeline.
-# Pushing desired state to repository...
-# ✅ Desired state pushed to repository. The CI/CD pipeline will reconcile.
+# 💡 Push the desired state yourself so the CI/CD pipeline picks it up: git add -A && git commit -m ... && git push
 
-# 3. GitHub Actions triggers on push to main
-# 4. Pipeline runs: hyve reconcile --path .
-# Output:
-# Using local repository path: /home/runner/work/hyve-state/hyve-state
-# Cluster 'staging' created in GCP (us-central1)
-# ✅ Changes committed and pushed to remote repository successfully
-# Cluster reconciliation completed
+# 3. Developer: push it
+git add clusters/staging.yaml && git commit -m "Add staging" && git push
+
+# 4. GitHub Actions triggers on push to main and runs: hyve reconcile --path .
+#    Cluster 'staging' is created in GCP (us-central1)
+# 5. The pipeline's commit step pushes cluster-state/staging.state.yaml back
 ```
 
 ## Credential Configuration
@@ -674,19 +709,15 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
 
 <AccordionGroup>
   <Accordion title="Pipeline fails: Civo API token not found">
-    Check that `provider-configs/civo.yaml` has a `token` field pointing to an env var reference, and that the corresponding secret is available in the workflow:
-
-    ```yaml
-    # provider-configs/civo.yaml
-    organizations:
-      - name: my-org
-        org_id: cbridges1-id
-        token: ${MY_ORG_CIVO_TOKEN}
-    ```
+    Hyve has no built-in provider-credentials mechanism — each module reads whatever
+    environment variables its own driver expects (for the Civo module, typically
+    `CIVO_TOKEN`). Make sure the CI job exports that variable from a secret before
+    running `hyve`:
 
     ```yaml
     # workflow env:
-    MY_ORG_CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
+    env:
+      CIVO_TOKEN: ${{ secrets.MY_ORG_CIVO_TOKEN }}
     ```
   </Accordion>
 
@@ -712,7 +743,7 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
   </Accordion>
 
   <Accordion title="Pipeline fails: permission denied pushing cluster file removal">
-    The reconciler needs write access to commit the cluster file deletion after `spec.delete: true` is processed.
+    The pipeline's commit step needs write access to push the cluster file removal after `spec.delete: true` is processed.
 
     Ensure the workflow has `contents: write` permission and a git identity is configured:
 
@@ -740,7 +771,7 @@ Set these in your repository's **Settings → Secrets and variables → Actions*
     1. The scheduled reconcile workflow is running — check the Actions tab in GitHub.
     2. The `expiresAt` value is a valid RFC 3339 timestamp: `"2026-05-01T00:00:00Z"`. An invalid format logs a warning and skips the expiry check.
     3. The cluster does not also have `pause: true` set — a paused cluster is skipped entirely before the expiry check is reached.
-    4. The workflow has `contents: write` permission and a git identity configured, since the reconciler needs to commit the YAML file removal after deletion.
+    4. The workflow has `contents: write`, a git identity, and a commit step, so the YAML file removal after deletion is pushed back.
   </Accordion>
 
   <Accordion title="Paused cluster is being modified by the reconciler">

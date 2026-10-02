@@ -1,0 +1,146 @@
+---
+title: "'hyve context'"
+description: "'Choose where the CLI's state lives — a local directory, a hyve-api server, or both — and log in'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve context` registers and switches between **contexts** — this machine's named pointers to a local directory of cluster YAML, a hyve-api server, or both — and holds the cluster-mode login commands. See [Contexts](/docs/concepts/contexts) for the concept.
+
+<Info>
+  Formerly `hyve env`. It was renamed so it can't be confused with [`hyve environment`](/docs/cli/environment), which selects one of your organization's scopes *on* a hyve-api server. A context is local to your machine; an environment is shared by everyone in your organization.
+</Info>
+
+## Commands
+
+### hyve context create
+
+Register a new context and make it active immediately.
+
+```bash
+hyve context create [name] [--path <dir>] [--api-url <url>] [--ca-cert <path>]
+```
+
+<ParamField path="name" type="string">
+  Name for the context. Defaults to `--path`'s directory basename (deduplicated with `-2`, `-3`, ... on collision). Required when registering `--api-url` alone, since there's no directory to derive a name from.
+</ParamField>
+
+<ParamField path="--path" type="string">
+  Local directory to register. Defaults to the current working directory, unless `--api-url` is given alone, in which case no local directory is registered at all.
+</ParamField>
+
+<ParamField path="--api-url" type="string">
+  A hyve-api URL to remember for `hyve context login` to target later. Stores no credential and authenticates nothing by itself.
+</ParamField>
+
+<ParamField path="--ca-cert" type="string">
+  PEM-encoded CA certificate to trust, in addition to the system trust store, when talking to `--api-url` — for a server whose TLS certificate isn't publicly trusted.
+</ParamField>
+
+**Registration only** — this never clones, pulls, commits, or pushes anything. If you want the directory kept in sync with a git remote, that's your own `git` CLI.
+
+```bash
+# A local directory
+hyve context create production --path ~/repos/hyve-prod
+
+# A hyve-api server (no local directory)
+hyve context create prod-api --api-url https://hyve.example.com
+
+# Both
+hyve context create staging --path ~/repos/hyve-staging --api-url https://hyve-staging.example.com
+```
+
+### hyve context list / current / use / remove / path
+
+```bash
+hyve context list          # every registered context, marking the active one
+hyve context current       # the active context (and its selected environment, if any)
+hyve context use <name>    # switch the active context
+hyve context remove <name> # deregister — the directory on disk is left untouched
+hyve context path [name]   # print a context's local path (defaults to the active one)
+```
+
+`hyve context path` prints nothing else to stdout, so it composes with shell substitution: `cd "$(hyve context path)"`.
+
+---
+
+### hyve context login
+
+Authenticate against a hyve-api server (cluster mode).
+
+```bash
+hyve context login [--api-url <url>] [--org <name>] [--username <user>] [--password <password>] [--ca-cert <path>]
+```
+
+<ParamField path="--api-url" type="string">
+  The server to log into. Defaults to the active context's `--api-url`. If no context is registered for this URL yet, one is registered automatically (named from the host) — so a bare `hyve context login --api-url ...` is enough on its own.
+</ParamField>
+
+<ParamField path="--org" type="string">
+  The [organization](/docs/concepts/multi-tenancy) to log into on a multi-tenant install. Omit for the control-plane/`superadmin` tier.
+</ParamField>
+
+<ParamField path="--username / --password" type="string">
+  Local account credentials. Omit to be prompted (the password without echo); pass them as flags only for scripting.
+</ParamField>
+
+<ParamField path="--ca-cert" type="string">
+  As on `create`. Stored on the matching context once login succeeds, so later commands trust it without repeating the flag.
+</ParamField>
+
+```bash
+hyve context login --api-url https://hyve.example.com --org acme
+# Username: alice
+# Password: ********
+# ✅ Logged in as alice against https://hyve.example.com (session expires ...)
+```
+
+### hyve context whoami / logout
+
+```bash
+hyve context whoami   # who you're logged in as, your organization, selected environment, and reconciling cluster
+hyve context logout   # revoke the session server-side and clear it locally
+```
+
+<Note>
+  **The active context decides whether a command runs in cluster mode.** A context with an `--api-url` sends cluster commands to that server (you must be logged into it); a context without one works on local files, even if you're still logged in somewhere else. `hyve context use` alone is enough to switch back and forth.
+</Note>
+
+---
+
+### hyve context secrets
+
+`KEY=VALUE` secrets loaded into the process environment before every command — the credentials your modules and workflows read (cloud tokens and so on).
+
+```bash
+hyve context secrets list [name]
+hyve context secrets get <key> [--context <name>]
+hyve context secrets set <key> [value] [--context <name>]   # omit value to be prompted without echo
+hyve context secrets unset <key> [--context <name>]
+```
+
+- **Local mode:** stored in `~/.hyve/hyve.db`, attached to a context (the active one unless `--context` says otherwise), and removed with it.
+- **Cluster mode:** stored on the hyve-api server, shared by everyone logged into it. `--context` has no effect. Listing key names works for any role; reading, setting, and unsetting values requires `admin`. The web console's **Secrets** page manages the same keys: **Add secret** takes multi-line values (kubeconfigs, SSH keys) typed, pasted, or loaded from a file, and **Import .env** pastes or uploads a `.env` file, previews which keys are new or replaced, and sets them all in one write.
+
+---
+
+## Session model
+
+- **Access token** — short-lived (~30 minutes), sent on every API call.
+- **Session token** — long-lived (~30 days), used only to mint a fresh access token when the cached one expires, so routine and unattended use (cron, CI) never re-prompts for a password.
+
+The session is a revocable row in hyve-api's datastore; `hyve context logout` revokes it immediately.
+
+<Warning>
+  Your role is resolved fresh on every request, not baked into the token — a role change takes effect on your next command, not your next login.
+</Warning>
+
+## Related
+
+- [Contexts](/docs/concepts/contexts) — contexts vs. environments
+- [`hyve environment`](/docs/cli/environment) — select a server-side environment
+- [Cluster Mode](/docs/concepts/cluster-mode) — what logging in gets you
+- [Version Control](/docs/concepts/gitops) — how git fits in, on your own terms

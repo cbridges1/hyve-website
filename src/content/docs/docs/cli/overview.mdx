@@ -5,12 +5,11 @@ description: "Complete reference for the Hyve command-line interface"
 
 import Card from '../../../../components/mdx/Card.astro';
 import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../../components/mdx/Tabs.astro';
-import Tab from '../../../../components/mdx/Tab.astro';
 import Accordion from '../../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
+import Info from '../../../../components/mdx/Info.astro';
 
-The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templates using GitOps principles.
+The Hyve CLI manages the full lifecycle of Kubernetes clusters — in local mode, against a directory of YAML files (git-backed or not), or in cluster mode, as a client of a deployed cluster-mode API. Both modes share every command below; which one a given command talks to depends on the active [context](/docs/concepts/contexts): one pointing at a hyve-api server (and logged in) uses cluster mode, one pointing at a directory uses local mode.
 
 <CardGroup cols={3}>
   <Card title="cluster" icon="server" href="/docs/cli/cluster" color="#3b82f6">
@@ -25,19 +24,32 @@ The Hyve CLI manages Kubernetes clusters, Git repositories, workflows, and templ
   <Card title="workflow" icon="diagram-project" href="/docs/cli/workflow" color="#22c55e">
     Automated pipelines
   </Card>
-  <Card title="git" icon="git" href="/docs/cli/git" color="#f97316">
-    Repository operations
+  <Card title="resource" icon="cubes" href="/docs/cli/resource" color="#14b8a6">
+    Kubernetes manifests hyve owns
   </Card>
-  <Card title="serve" icon="server" href="/docs/cli/serve" color="#ec4899">
-    REST + WebSocket API server
+  <Card title="context" icon="folder-tree" href="/docs/cli/context" color="#f97316">
+    Local directories, hyve-api servers, login
   </Card>
-  <Card title="config" icon="gear" href="/docs/cli/config" color="#64748b">
-    Read/update hyve.yaml
+  <Card title="environment" icon="layer-group" href="/docs/cli/environment" color="#f43f5e">
+    Server-side environments
   </Card>
-  <Card title="tui" icon="terminal" href="/docs/cli/tui" color="#eab308">
-    Guided TUI
+  <Card title="organization" icon="building" href="/docs/cli/organization" color="#64748b">
+    Multi-tenant organizations
+  </Card>
+  <Card title="reconciling-cluster" icon="network-wired" href="/docs/cli/reconciling-cluster" color="#eab308">
+    Where an organization's resources live
+  </Card>
+  <Card title="migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Move definitions between modes/clusters
+  </Card>
+  <Card title="cluster-config" icon="server" href="/docs/cli/cluster-config" color="#a855f7">
+    Run the controller/API themselves
   </Card>
 </CardGroup>
+
+<Info>
+  `hyve env` is now [`hyve context`](/docs/cli/context). `hyve serve`, `hyve tui`, `hyve git`, `hyve set-state`/`hyve state`, and `hyve config` have all been removed. See [hyve serve](/docs/cli/serve), [hyve tui](/docs/cli/tui), [hyve git](/docs/cli/git), [hyve set-state](/docs/cli/state), and [hyve config](/docs/cli/config) for what replaced each.
+</Info>
 
 ## Command Structure
 
@@ -46,22 +58,19 @@ hyve <command> <subcommand> [arguments] [flags]
 
 hyve --help
 hyve cluster --help
-hyve cluster add --help
+hyve cluster create --help
 ```
 
 ## Global Flags
 
-These flags are accepted by every command:
-
 | Flag | Description |
 |------|-------------|
 | `--home <dir>` | Override the Hyve data directory (default: `~/.hyve`). Also configurable via the `HYVE_HOME` environment variable. |
+| `--env <name>` | hyve-api environment to target for this one command, overriding `hyve environment use` (cluster mode only). |
 
 ```bash
-# Use a custom data directory for this invocation
 hyve --home /tmp/hyve-test reconcile
-
-# Or set it persistently via environment variable
+# or
 export HYVE_HOME=/tmp/hyve-test
 hyve reconcile
 ```
@@ -70,15 +79,72 @@ hyve reconcile
 
 ## Commands
 
+### reconcile
+
+```bash
+hyve reconcile                  # active context's directory
+hyve reconcile --path .         # explicit path — typical in CI
+hyve reconcile --dry-run
+```
+
+A no-op with an explanatory message in cluster mode — the controller reconciles continuously on its own. Mode and strict-delete are controlled by `hyve.yaml`; see [Configuration](/docs/configuration) and the [CI/CD guide](/docs/guides/cicd).
+
+### context
+
+Where the CLI's state lives — a local directory, a hyve-api server, or both — plus login and secrets.
+
+```bash
+hyve context create <name> [--path <dir>] [--api-url <url>]
+hyve context list | current | use <name> | remove <name> | path [name]
+hyve context login [--api-url <url>] [--org <name>]
+hyve context logout | whoami
+hyve context secrets list | get | set | unset
+```
+
+[Full reference →](/docs/cli/context)
+
+### environment
+
+Your organization's server-side environments (cluster mode only).
+
+```bash
+hyve environment list | create <name> | delete <name>
+hyve environment use <name> | unset | current
+hyve cluster list --env staging      # one-off override on any command
+```
+
+[Full reference →](/docs/cli/environment)
+
+### apply
+
+```bash
+hyve apply -f <file>
+```
+
+Creates a single resource from a CR-shaped YAML file, auto-detecting its kind (`ClusterDefinition`/`Template`/`Workflow`). Cluster mode only.
+
+### migrate
+
+```bash
+hyve migrate [path] [--write]                       # bulk-import into the logged-in cluster
+hyve migrate to-cluster --to <kubeconfig> [--write]  # bootstrap a fresh cluster, no login needed
+hyve migrate cluster --from <kc> --to <kc> --write --i-have-stopped-the-source-controller
+```
+
+Three different commands for three different jobs — see the [full reference](/docs/cli/migrate) for which one to use when.
+
 ### cluster
 
 ```bash
 hyve cluster list
 hyve cluster show <name>
+hyve cluster create <name> --template <template> [--region <region>] [--set KEY=VALUE]
 hyve cluster delete <name>
 hyve cluster auth <name>
 hyve cluster auth sync
 hyve cluster deauth <name>
+hyve cluster adopt <name> --template <template>
+hyve cluster resources <name>
 ```
 
 [Full reference →](/docs/cli/cluster)
@@ -98,50 +164,10 @@ hyve module init <name>
 
 [Full reference →](/docs/cli/module)
 
-### reconcile
-
-```bash
-# Local mode — provisions clusters from this machine
-hyve reconcile
-
-# CI/CD pipeline mode — uses a checked-out repo path directly
-hyve reconcile --path .
-hyve reconcile --path /path/to/repo
-```
-
-Reconciliation mode and strict delete are controlled by `hyve.yaml` in your state repository. See the [CI/CD guide](/docs/guides/cicd).
-
-### git
-
-```bash
-hyve git add <name> --repo-url <url> [--path <dir>]
-hyve git list
-hyve git use <name>
-hyve git current
-hyve git path [--repo <name>]
-hyve git set-path <new-path> [--repo <name>]
-hyve git reset-path [--repo <name>]
-hyve git credentials --username <user> --password <token>
-hyve git remove <name>
-```
-
-[Full reference →](/docs/cli/git)
-
-### workflow
-
-```bash
-hyve workflow run <name> [--cluster <cluster>]
-hyve workflow list
-hyve workflow validate <name>
-```
-
-[Full reference →](/docs/cli/workflow)
-
 ### template
 
 ```bash
 hyve template create <name> --driver <source> --driver-version <ver> --region <region> [--set KEY=VALUE]
-hyve cluster create <cluster-name> --template <template> [--region <region>] [--set KEY=VALUE]
 hyve template list
 hyve template show <name>
 hyve template delete <name>
@@ -150,36 +176,69 @@ hyve template validate <name>
 
 [Full reference →](/docs/cli/template)
 
-### serve
+### workflow
 
 ```bash
-hyve serve [--port <port>] [--path <repo>] [--host <addr>] [--require-auth] [--open]
+hyve workflow run <name> --cluster <cluster> [--set KEY=VALUE]
+hyve workflow list
+hyve workflow show <name>
+hyve workflow create <name> [--file <yaml>]
+hyve workflow validate <name>
+hyve workflow delete <name>
+hyve workflow install
+hyve workflow update <source>
 ```
 
-Runs hyve as a REST + WebSocket API server — the same operations available through the CLI, available over HTTP for a browser frontend or any other client. `--open` opens a configured frontend pointed at it once it's ready — and if a server's already running, opens the browser against that one instead of starting a second.
+[Full reference →](/docs/cli/workflow)
 
-[Full reference →](/docs/cli/serve)
-
-### config
+### resource
 
 ```bash
-hyve config get
-hyve config set <key> <value>
+hyve resource list
+hyve resource show <name>
+hyve resource create <name> [--file <yaml>]
+hyve resource delete <name>
+hyve resource install
 ```
 
-Reads and updates `hyve.yaml` — the same object `hyve serve`'s `GET`/`PATCH /config` and Hyve Studio's Configuration section expose. `set` writes the field, then commits and pushes.
+[Full reference →](/docs/cli/resource)
 
-[Full reference →](/docs/cli/config)
+### organization
 
-### tui
+Superadmin management of organizations — the multi-tenant unit on a hyve-api install (cluster mode only).
 
 ```bash
-hyve tui
+hyve organization create <name> | list | delete <name>
+hyve organization migrate <name> (--reconciling-cluster <pool-name> | --home)
 ```
 
-Launches a full-screen guided TUI. Navigates all command groups — cluster, template, git, workflow — with menus, select lists populated from live data, and back navigation at every level. No flags required.
+[Full reference →](/docs/cli/organization)
 
-[Full reference →](/docs/cli/tui)
+### reconciling-cluster
+
+The clusters an organization's resources reconcile on — store several, switch by name (cluster mode only).
+
+```bash
+hyve reconciling-cluster add <name> --kubeconfig-file <path>
+hyve reconciling-cluster list | current
+hyve reconciling-cluster use <name> | use --home
+hyve reconciling-cluster remove <name>
+hyve reconciling-cluster pool add | list          # superadmin
+```
+
+[Full reference →](/docs/cli/reconciling-cluster)
+
+### cluster-config
+
+Server-side only — runs inside the deployed controller/API pods, not an everyday end-user command:
+
+```bash
+hyve cluster-config controller run --namespace hyve-system
+hyve cluster-config api run --namespace hyve-system
+hyve cluster-config api create-user <username> --role admin
+```
+
+[Full reference →](/docs/cli/cluster-config)
 
 ---
 
@@ -191,34 +250,30 @@ Launches a full-screen guided TUI. Navigates all command groups — cluster, tem
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (read by the EKS module via the AWS SDK chain) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (read by the GKE module via ADC) |
 | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` | Azure service principal (read by the AKS module) |
-| `HYVE_GIT_TOKEN` | Git authentication token for private repositories |
 | `HYVE_HOME` | Hyve data directory (default: `~/.hyve`). Equivalent to `--home` flag. |
-| `HYVE_PARAM_<KEY>` | Injected into module operations from `cluster.spec.params` |
-| `HYVE_PORT` | Port `hyve serve` listens on. Equivalent to `--port` flag. |
-| `HYVE_AUTH_VALIDATE_URL` | Forward-auth validator endpoint for `hyve serve` (see [Server Mode](/docs/guides/server-mode#authentication)) |
-| `HYVE_AUTH_VALIDATE_TIMEOUT` | Timeout before the forward-auth validator is treated as unreachable (default `3s`) |
+| `HYVE_PARAM_<KEY>` | Injected into module operations from `spec.params` |
 
-See the [CI/CD guide](/docs/guides/cicd) for how to configure credentials in pipelines.
+See the [CI/CD guide](/docs/guides/cicd) for configuring credentials in pipelines.
 
 ---
 
 ## Common Workflows
 
-### Initial setup
+### Initial setup (local mode)
 
 ```bash
-# 1. Authenticate with cloud provider CLI (example: Civo)
+# 1. Authenticate with your cloud provider's own CLI (example: Civo)
 civo apikey save my-token YOUR_CIVO_TOKEN && civo apikey use my-token
 
-# 2. Add state repository
-hyve git add production --repo-url https://github.com/company/hyve-state.git
+# 2. Point hyve at a directory (git-backed or not — see Contexts)
+hyve context create production --path ~/repos/hyve-production
 
 # 3. Install a module
-hyve module add github.com/hyve-modules/civo@v1.0.0
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
 
 # 4. Create a template
 hyve template create my-template \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set node_size=g4s.kube.medium
@@ -234,50 +289,22 @@ kubectl get nodes
 ### CI/CD pipeline
 
 ```yaml
-# hyve.yaml in state repository root
+# hyve.yaml at the repository root
 reconcile:
   mode: cicd
-  strictDelete: true   # warns about any cloud cluster missing a clusters/*.yaml — see /docs/guides/cicd
+  strictResourceDelete: true
 ```
 
 ```bash
-# Engineer pushes desired state (no cloud credentials needed locally)
-hyve reconcile
-
-# Pipeline step — provisions the actual cloud resources
-hyve reconcile --path .
+git pull && hyve reconcile --path . && git add -A clusters cluster-state && git commit -m "hyve: reconcile" && git push
 ```
 
 ### Delete a cluster
 
 ```bash
-# Sets spec.delete: true, commits, runs reconciliation (runs lifecycle hooks)
+# Sets spec.delete: true, then reconcile runs onDelete/afterDelete hooks and removes it
 hyve cluster delete my-cluster
 ```
-
----
-
-## Shell Completion
-
-<Tabs>
-  <Tab title="Bash">
-    ```bash
-    # Add to ~/.bashrc
-    eval "$(hyve completion bash)"
-    ```
-  </Tab>
-  <Tab title="Zsh">
-    ```bash
-    # Add to ~/.zshrc
-    eval "$(hyve completion zsh)"
-    ```
-  </Tab>
-  <Tab title="Fish">
-    ```bash
-    hyve completion fish | source
-    ```
-  </Tab>
-</Tabs>
 
 ---
 
@@ -292,18 +319,19 @@ hyve cluster delete my-cluster
     ```
   </Accordion>
 
-  <Accordion title="No active repository configured">
+  <Accordion title="No context configured">
     ```bash
-    hyve git add production --repo-url https://github.com/company/hyve-state.git
+    hyve context create production --path ~/repos/hyve-production
+    hyve context use production
     ```
   </Accordion>
 
-  <Accordion title="API authentication failed">
+  <Accordion title="API authentication failed (cloud provider)">
     ```bash
     # Civo — authenticate with the Civo CLI (writes ~/.civo.json)
     civo apikey save my-token YOUR_CIVO_TOKEN
     civo apikey use my-token
-    # or set env var: export CIVO_TOKEN=your_token
+    # or: export CIVO_TOKEN=your_token
     # AWS
     aws configure
     # GCP
@@ -313,13 +341,19 @@ hyve cluster delete my-cluster
     ```
   </Accordion>
 
+  <Accordion title="Cluster-mode login failed">
+    ```bash
+    hyve context login --api-url https://hyve-api.example.com
+    hyve context whoami   # confirm who you're authenticated as, and where
+    ```
+    See [Login](/docs/cli/context).
+  </Accordion>
+
   <Accordion title="Module not found">
     ```bash
-    # Install all modules referenced by templates
     hyve module install
-
-    # Or add the specific module
-    hyve module add github.com/hyve-modules/civo@v1.0.0
+    # or
+    hyve module add github.com/your-org/hyve-civo-module@v1.0.0
     ```
   </Accordion>
 </AccordionGroup>

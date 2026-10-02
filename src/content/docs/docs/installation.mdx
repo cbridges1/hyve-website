@@ -5,8 +5,6 @@ description: "Install and set up Hyve on your system"
 
 import Card from '../../../components/mdx/Card.astro';
 import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../components/mdx/Tabs.astro';
-import Tab from '../../../components/mdx/Tab.astro';
 import Steps from '../../../components/mdx/Steps.astro';
 import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
@@ -20,17 +18,13 @@ import Note from '../../../components/mdx/Note.astro';
     [Install Go](https://golang.org/doc/install)
   </Card>
 
-  <Card title="Git" icon="git" color="#8b5cf6">
-    **Required** — Hyve uses system git for all repository operations
+  <Card title="Git (optional)" icon="git" color="#8b5cf6">
+    Not required — hyve has no built-in git functionality at all. Install it only if you want your state directory version-controlled, using your own `git` commands.
   </Card>
 </CardGroup>
 
 <Note>
   **Cloud provider CLI:** Hyve does not bundle cloud SDKs. Install the CLI for each provider you plan to use (AWS CLI, gcloud, az, civo CLI) and authenticate before running Hyve. See [Quick Start](/docs/quickstart) for per-provider setup.
-</Note>
-
-<Note>
-  **Git Requirement:** Hyve uses your system's `git` binary for all repository operations. Git must be installed and available in your `PATH` before using any `hyve git` commands.
 </Note>
 
 ## Install
@@ -61,82 +55,23 @@ import Note from '../../../components/mdx/Note.astro';
   </Step>
 </Steps>
 
-## Git Requirement
+## Git (optional)
 
-Hyve delegates all git operations to the system `git` binary.
-
-```bash
-# Verify git is installed
-git --version
-```
-
-If git is not installed, download it from [git-scm.com](https://git-scm.com/downloads) or install via your package manager:
+Hyve has no built-in git functionality — no clone, pull, push, or commit. `hyve context create --path <dir>` points hyve at any local directory directly; whether that directory is a git working tree is entirely up to you. If you do want it version-controlled, that's your own `git` CLI, same as any other project:
 
 ```bash
-# macOS
-brew install git
-
-# Ubuntu / Debian
-sudo apt install git
-
-# Windows
-winget install Git.Git
+git --version   # verify it's installed, if you're using it
 ```
+
+See [Contexts](/docs/concepts/contexts) and [Version Control](/docs/concepts/gitops) for how this fits together.
 
 ## Cloud Provider Setup
 
-Hyve uses each provider's native authentication. No credentials are stored in Hyve — your cloud CLI or environment variables are the sole credential source.
+Hyve stores no cloud credentials of its own — each module reads whatever its provider's own CLI or environment variables already provide, the same way you'd authenticate for that provider outside of Hyve entirely. For example, the Civo module reads the active token from `~/.civo.json` (via `civo apikey save`/`civo apikey use`) or the `CIVO_TOKEN` environment variable.
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    # Authenticate with the Civo CLI (writes ~/.civo.json)
-    civo apikey save my-token YOUR_CIVO_TOKEN
-    civo apikey use my-token
-
-    # Or via environment variable
-    export CIVO_TOKEN=your_civo_api_token
-    ```
-
-    The Civo module reads the active token from `~/.civo.json` or `CIVO_TOKEN` automatically.
-  </Tab>
-
-  <Tab title="AWS">
-    ```bash
-    # AWS CLI (recommended for local dev)
-    aws configure
-
-    # Or via environment variables
-    export AWS_ACCESS_KEY_ID=your_access_key
-    export AWS_SECRET_ACCESS_KEY=your_secret_key
-    export AWS_REGION=us-east-1
-    ```
-
-    The EKS module uses the standard AWS credential chain.
-  </Tab>
-
-  <Tab title="GCP">
-    ```bash
-    # Application Default Credentials (recommended for local dev)
-    gcloud auth application-default login
-
-    # Or via service account
-    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
-    ```
-  </Tab>
-
-  <Tab title="Azure">
-    ```bash
-    # Azure CLI (recommended for local dev)
-    az login
-
-    # Or via service principal
-    export AZURE_TENANT_ID=your_tenant_id
-    export AZURE_CLIENT_ID=your_client_id
-    export AZURE_CLIENT_SECRET=your_client_secret
-    ```
-  </Tab>
-</Tabs>
+<Note>
+  This is per-module, not something Hyve standardizes — an EKS module typically follows the AWS SDK's default credential chain, a GKE module typically uses Application Default Credentials, and so on. Check the specific module's own README for what it expects.
+</Note>
 
 ## Directory Structure
 
@@ -144,16 +79,11 @@ After installation, Hyve creates:
 
 ```
 ~/.hyve/
-├── repositories.db     # Repository configurations
-├── temp/               # Temporary kubeconfig files
-└── repositories/       # Cloned repository storage
-    ├── production/
-    │   ├── clusters/
-    │   ├── workflows/
-    │   ├── templates/
-    │   └── hyve.lock
-    └── development/
+├── hyve.db     # Registry of contexts (hyve context create/list/use)
+└── temp/       # Temporary kubeconfig files
 ```
+
+Context directories themselves live wherever you put them — Hyve never copies or clones anything into `~/.hyve`; `hyve.db` just tracks *where* each registered context's directory is. See [Contexts](/docs/concepts/contexts).
 
 ### Overriding the data directory
 
@@ -165,7 +95,7 @@ hyve --home /tmp/hyve-staging reconcile
 
 # Set it persistently for a shell session
 export HYVE_HOME=~/hyve-staging
-hyve git add staging --repo-url https://github.com/company/staging-state.git
+hyve context create staging --path ~/repos/staging-state
 
 # Or point to an existing directory
 HYVE_HOME=/opt/hyve hyve cluster list
@@ -185,7 +115,7 @@ The `--home` flag takes precedence over `HYVE_HOME`.
   </Accordion>
 
   <Accordion title="Linux">
-    Ensure you have the necessary dependencies:
+    No system dependencies required for hyve itself. If you're using a git-backed context directory (optional — see [Git](#git-optional) above):
 
     ```bash
     # Debian/Ubuntu
@@ -211,11 +141,8 @@ Run these commands to verify everything is set up correctly:
 # Check Hyve installation
 hyve --help
 
-# Verify system git is available
-git --version
-
-# List configured git repositories (after adding one)
-hyve git list
+# List registered contexts (after registering one)
+hyve context list
 ```
 
 ## Troubleshooting

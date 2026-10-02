@@ -1,0 +1,118 @@
+---
+title: "Deploying Cluster Mode"
+description: "The Helm chart, values, and running multiple tenants on one cluster"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import Steps from '../../../../components/mdx/Steps.astro';
+import Step from '../../../../components/mdx/Step.astro';
+
+`deploy/helm/hyve` is a single Helm chart deploying both components of [Cluster Mode](/docs/concepts/cluster-mode) — the controller and the API — together.
+
+## Install
+
+The chart isn't published to a Helm repository — install it from a hyve checkout. The image is published to `ghcr.io/cbridges1/hyve` with every release.
+
+<Steps>
+  <Step title="Get the chart and apply the CRDs">
+    ```bash
+    git clone https://github.com/cbridges1/hyve.git && cd hyve
+    kubectl apply -f deploy/helm/hyve/crds/
+    ```
+  </Step>
+
+  <Step title="Install the chart">
+    ```bash
+    helm upgrade --install hyve deploy/helm/hyve \
+      --namespace hyve-system --create-namespace \
+      --set image.repository=ghcr.io/cbridges1/hyve \
+      --set image.tag=<version> \
+      --set api.publicBaseURL=https://hyve.example.com \
+      --set api.multiTenant.enabled=true
+    ```
+
+    hyve-api generates and stores its own session-signing key on first start — there's no Secret to create.
+  </Step>
+
+  <Step title="Expose hyve-api">
+    The chart creates a plain `ClusterIP` Service (`hyve-api`, port 80) and no Ingress. Expose it however your cluster already does — an Ingress, a LoadBalancer Service, a tunnel (e.g. Pangolin or Cloudflare), or `kubectl port-forward` for a quick look. Terminate TLS in front of it and set `api.publicBaseURL` to that HTTPS address. The same address serves the web console.
+  </Step>
+
+  <Step title="Create the first superadmin">
+    Accounts live in hyve-api's own datastore, so this runs inside the API pod:
+
+    ```bash
+    kubectl -n hyve-system exec deploy/hyve-api -- \
+      hyve cluster-config api create-user admin --role superadmin --namespace hyve-system
+    ```
+
+    Pass `--password` for scripting; omit it to be prompted. Or skip this step entirely by setting `api.bootstrapAdmin.username` and `api.bootstrapAdmin.passwordSecret.name` (an existing Secret with a `password` key) at install time — or `api.bootstrapAdmin.usernameKey` instead of `username` to read the username from that same Secret.
+  </Step>
+
+  <Step title="Log in">
+    ```bash
+    hyve context login --api-url https://hyve.example.com
+    ```
+  </Step>
+</Steps>
+
+## Key values
+
+| Value | Purpose |
+|---|---|
+| `image.repository` / `image.tag` | The hyve image — `ghcr.io/cbridges1/hyve` and a release tag |
+| `namespace` | The control-plane namespace both components run in (default `hyve-system`) |
+| `api.publicBaseURL` | The HTTPS address callers reach hyve-api on — required for host-cluster and hyve-agent kubeconfigs |
+| `api.multiTenant.enabled` | Lets one install serve many organizations (a ClusterRole instead of a namespaced Role) |
+| `api.db.driver` | `sqlite` (default, one API replica, stored on a PVC) or `postgres` — required for more than one replica or for moving organizations onto reconciling clusters |
+| `api.requireReconcilingCluster` | Refuse to let any tenant organization live on the home cluster |
+| `api.bootstrapAdmin.username` (or `.usernameKey`) / `.passwordSecret` | Create the first superadmin on startup, only while none exists — replaces the manual `create-user` step. Not an API endpoint; the password (and, with `usernameKey`, the username) is read from a mounted Secret |
+| `api.smtp.host` / `.port` / `.username` / `.fromAddress` / `.passwordSecret` | Seed outbound email (password resets) on first start; settings saved later in the console always win |
+| `api.service.type` / `api.service.nodePort` | `ClusterIP` by default; `NodePort` only where node ports are reachable |
+| `api.accessRoles.clusterScoped` | See the warning below — leave at its default |
+
+<Warning>
+  **Leave `api.accessRoles.clusterScoped` at its default (`false`) on any cluster with more than one tenant.** `true` grants the built-in `admin` role literal `cluster-admin` over the *entire shared cluster*, not just this install's namespace — only appropriate for a genuinely single-tenant cluster.
+</Warning>
+
+<Note>
+  To install hyve on a cluster hyve itself provisions — a **host cluster** — see [Cluster Patterns](/docs/guides/cluster-patterns), which covers doing it locally and from a pipeline.
+</Note>
+
+## Running multiple tenants on one cluster
+
+Multiple hyve installs (each its own controller + API pair) can safely share one cluster, isolated by namespace — every `hyve.io` CRD is namespaced, and (with `clusterScoped: false`, the default) each install's roles are scoped to its own namespace only:
+
+```bash
+kubectl create namespace tenant-a
+helm install hyve-tenant-a deploy/helm/hyve \
+  --namespace tenant-a \
+  --set namespace=tenant-a \
+  --set image.repository=ghcr.io/cbridges1/hyve --set image.tag=<version>
+```
+
+A second tenant is the identical pattern with a different namespace — no shared config beyond a common image. For most setups, one install serving several [organizations](/docs/concepts/multi-tenancy) (`api.multiTenant.enabled=true`) is simpler than one install per tenant.
+
+<Note>
+  **CRDs are cluster-global, shared by every tenant.** `helm install` only applies `deploy/helm/hyve/crds/` on a chart's *first* install in a cluster — `helm upgrade` never touches them (standard Helm behavior). Only the first tenant's install actually creates them; a later CRD schema change needs a manual `kubectl apply -f deploy/helm/hyve/crds/` before any tenant upgrades.
+</Note>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Cluster Mode" icon="server" href="/docs/concepts/cluster-mode" color="#3b82f6">
+    What you're actually deploying
+  </Card>
+  <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
+    Getting existing definitions onto this cluster
+  </Card>
+  <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
+    Roles, access bindings, and the escalation risk above
+  </Card>
+  <Card title="cluster-config CLI" icon="terminal" href="/docs/cli/cluster-config" color="#a855f7">
+    What's actually running inside these pods
+  </Card>
+</CardGroup>

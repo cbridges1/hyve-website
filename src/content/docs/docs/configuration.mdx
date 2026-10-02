@@ -10,7 +10,9 @@ import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
 import AccordionGroup from '../../../components/mdx/AccordionGroup.astro';
 import Info from '../../../components/mdx/Info.astro';
+import Note from '../../../components/mdx/Note.astro';
 import Warning from '../../../components/mdx/Warning.astro';
+import Tip from '../../../components/mdx/Tip.astro';
 
 ## Overview
 
@@ -48,35 +50,9 @@ reconcile:
 
 See the [CI/CD Workflow Guide](/docs/guides/cicd) for a complete walkthrough of CI/CD mode with GitHub Actions.
 
-### server (optional)
-
-Add a `server` block to configure `hyve serve` — hyve's REST + WebSocket API mode:
-
-```yaml
-server:
-  port: 8080                            # default; also settable via --port or HYVE_PORT
-  frontendUrl: "http://localhost:5173"  # opened by `hyve serve --open`
-
-  auth:
-    mode: none        # none (default) | forward
-    forward:
-      validateUrl: ""  # also settable via HYVE_AUTH_VALIDATE_URL
-      timeout: "3s"    # also settable via HYVE_AUTH_VALIDATE_TIMEOUT
-```
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `server.port` | `8080` | TCP port `hyve serve` listens on |
-| `server.frontendUrl` | — | URL `hyve serve --open` navigates to |
-| `server.auth.mode` | `none` | `none` — no auth. `forward` — every request's `Authorization` header is forwarded to `validateUrl` for validation |
-| `server.auth.forward.validateUrl` | — | External endpoint hyve delegates token validation to |
-| `server.auth.forward.timeout` | `3s` | Timeout before the validator is treated as unreachable (fails closed) |
-
-See the [Server Mode guide](/docs/guides/server-mode) for the full REST API reference and authentication model.
-
 ### env (optional)
 
-Add an `env` block to point hyve at a local, gitignored file of environment variables — loaded before every reconcile and workflow run, CLI or server-triggered:
+Add an `env` block to point hyve at a local, gitignored file of environment variables — loaded before every reconcile and workflow run:
 
 ```yaml
 env:
@@ -85,14 +61,19 @@ env:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `env.file` | — | Path, relative to the repo root, to a `.env`-style file loaded into the process environment before reconciling or running a workflow. Unset means nothing extra is loaded. |
+| `env.file` | `hyve.env` | Path, relative to the repo root (or absolute), to a `.env`-style file loaded into the process environment before every command. Loaded from both the current directory and the active context's directory, so it works wherever you run hyve. |
 
-Set it from the CLI or from Hyve Studio's Configuration section — either way, the filename is automatically appended to `.gitignore` the moment it's set, so it can't ship to your remote by omission:
+Set it by editing `hyve.yaml` directly — there's no CLI command for this anymore:
 
-```bash
-hyve config set env.file local.env
-hyve config get
+```yaml
+# hyve.yaml
+env:
+  file: local.env
 ```
+
+<Tip>
+  Add `local.env` (or whatever you name it) to `.gitignore` yourself — hyve doesn't do this for you.
+</Tip>
 
 ```bash
 # local.env — never committed
@@ -115,11 +96,11 @@ spec:
   Additive, not overriding: a variable already present in the real process environment (a CI secret, or something your shell already exported) always wins over `env.file` — the file only fills gaps. This is the same precedence hyve's own bootstrap `.env` loading already uses, and matches [workflow step `env`](/docs/workflows/variables)'s own inherited-environment-wins convention.
 </Info>
 
-<Warning>
-  A configured path can't point outside the repository — absolute paths and any path containing `..` are rejected. `env.file` is for local convenience scoped to this repo, not a pointer to an arbitrary filesystem location.
-</Warning>
+<Note>
+  A relative path resolves against the directory hyve.yaml lives in; an absolute path is used as-is. Keep the file out of git (add it to `.gitignore`) — it usually holds credentials.
+</Note>
 
-See [`hyve config`](/docs/cli/config) for the full CLI reference.
+See [`hyve.yaml`](#hyveyaml) above for every field.
 
 ## hyve.lock
 
@@ -128,9 +109,9 @@ See [`hyve config`](/docs/cli/config) for the full CLI reference.
 ```yaml
 version: 1
 modules:
-  github.com/hyve-modules/civo@v1.0.0:
-    source: github.com/hyve-modules/civo@v1.0.0
-    resolved: https://github.com/hyve-modules/civo/archive/v1.0.0.tar.gz
+  github.com/your-org/hyve-civo-module@v1.0.0:
+    source: github.com/your-org/hyve-civo-module@v1.0.0
+    resolved: https://github.com/your-org/hyve-civo-module/archive/v1.0.0.tar.gz
     sha256: "abc123..."
 workflows:
   github.com/myorg/shared-workflows//setup-monitoring.yaml@v1.2.0:
@@ -145,8 +126,8 @@ The `workflows` key only appears once a template or cluster references a [remote
 You should never edit `hyve.lock` directly. Use the module and workflow commands to manage it:
 
 ```bash
-hyve module add github.com/hyve-modules/civo@v1.0.0    # add and lock a module
-hyve module update github.com/hyve-modules/civo         # update a module to latest
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0    # add and lock a module
+hyve module update github.com/your-org/hyve-civo-module         # update a module to latest
 hyve module install                                      # install all locked modules
 hyve module list                                         # show locked modules
 
@@ -169,7 +150,7 @@ When a module expects a credential (like a Civo API token), you can pass it dire
 
 ```bash
 hyve template create my-template \
-  --driver github.com/hyve-modules/civo \
+  --driver github.com/your-org/hyve-civo-module \
   --driver-version v1.0.0 \
   --region PHX1 \
   --set api_key=${CIVO_TOKEN}
@@ -205,37 +186,41 @@ For CI/CD pipelines, store credentials as pipeline secrets (e.g., GitHub Actions
 
 ## Git Credentials
 
-For private Git repositories, configure authentication via environment variable or git's credential helper:
+Hyve never clones or authenticates against git itself — if your context directory is git-backed, cloning and authenticating is your own `git` step, using whatever you'd normally use (SSH key, a credential helper, a token in the URL):
 
 ```bash
-# Environment variable (preferred for CI/CD)
-export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
-
-# Or configure git's credential manager
-git config --global credential.helper osxkeychain  # macOS
-git config --global credential.helper manager      # Windows
-
-# SSH authentication
+# SSH
 eval $(ssh-agent)
 ssh-add ~/.ssh/id_rsa
-hyve git add production --repo-url git@github.com:company/hyve-prod.git
+git clone git@github.com:company/hyve-prod.git
+
+# HTTPS with a token
+git clone https://<token>@github.com/company/hyve-prod.git
+
+hyve context create production --path ./hyve-prod
 ```
 
-See the [Git Management guide](/docs/guides/git-management) for full authentication options.
+See [Contexts](/docs/concepts/contexts) and [Version Control](/docs/concepts/gitops) for the full picture.
 
 ## Directory Structure
 
+Your registered context directory lives wherever you put it — hyve never copies or clones it anywhere:
+
+```
+<your registered directory>/
+├── clusters/       # Cluster YAML definitions
+├── workflows/      # Workflow YAML definitions
+├── templates/      # Template YAML definitions
+├── hyve.yaml       # Reconciliation config (optional)
+└── hyve.lock       # Module + remote workflow lock file (auto-managed)
+```
+
+Hyve's own data — the context registry, cached secrets, cluster-mode sessions — lives separately, under `$HYVE_HOME` (default `~/.hyve`):
+
 ```
 ~/.hyve/
-├── repositories.db     # Repository configurations (SQLite)
-├── temp/               # Temporary kubeconfig files
-└── repositories/       # Cloned repository storage
-    └── <repo-name>/
-        ├── clusters/       # Cluster YAML definitions
-        ├── workflows/      # Workflow YAML definitions
-        ├── templates/      # Template YAML definitions
-        ├── hyve.yaml       # Reconciliation config (optional)
-        └── hyve.lock       # Module + remote workflow lock file (auto-managed)
+├── hyve.db          # SQLite — registered contexts, cached secrets, sessions
+└── kubeconfigs/     # Per-cluster kubeconfig cache written by `hyve cluster auth`
 ```
 
 ## Configuration Priority
@@ -278,7 +263,7 @@ Hyve resolves values in this order:
     export CIVO_TOKEN=your-token
     # The module reads CIVO_TOKEN automatically — no --set needed
     hyve template create my-template \
-      --driver github.com/hyve-modules/civo \
+      --driver github.com/your-org/hyve-civo-module \
       --driver-version v1.0.0 \
       --region PHX1
     ```
@@ -293,12 +278,12 @@ Hyve resolves values in this order:
     ```
   </Accordion>
 
-  <Accordion title="Use separate repositories per environment">
-    Keep production and development state in separate Git repositories with separate credentials:
+  <Accordion title="Use separate environments per stage">
+    Keep production and development state in separate directories/repositories:
 
     ```bash
-    hyve git add production --repo-url https://github.com/company/hyve-prod.git
-    hyve git add development --repo-url https://github.com/company/hyve-dev.git
+    hyve context create production --path ~/repos/hyve-prod
+    hyve context create development --path ~/repos/hyve-dev
     ```
   </Accordion>
 
@@ -312,10 +297,8 @@ Hyve resolves values in this order:
     !.env.example
     ```
 
-    If you set `env.file` in `hyve.yaml` (via `hyve config set env.file <path>` or Hyve
-    Studio — see [`env` (optional)](#env-optional)), this is handled for you automatically:
-    the filename is appended to `.gitignore` the moment it's set, before it's ever written to
-    disk.
+    If you set `env.file` in `hyve.yaml` (see [`env` (optional)](#env-optional)), add that
+    filename to `.gitignore` yourself too — hyve doesn't do this automatically.
   </Accordion>
 </AccordionGroup>
 
@@ -334,7 +317,7 @@ Hyve resolves values in this order:
     Automate reconciliation in pipelines
   </Card>
 
-  <Card title="Git Management" icon="git" href="/docs/guides/git-management" color="#f97316">
-    Configure Git repositories
+  <Card title="Contexts" icon="folder-tree" href="/docs/concepts/contexts" color="#f97316">
+    Registering directories and cluster targets
   </Card>
 </CardGroup>

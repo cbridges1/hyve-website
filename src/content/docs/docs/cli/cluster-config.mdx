@@ -1,0 +1,112 @@
+---
+title: "'hyve cluster-config'"
+description: "'Server-side commands that run inside the deployed controller/API pods'"
+---
+
+import Info from '../../../../components/mdx/Info.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+`hyve cluster-config` is the parent for hyve's **server-side** components — the reconcile-loop controller and the HTTP API + auth layer. These are what `deploy/helm/hyve` actually runs inside its pods; you won't run them by hand day-to-day. See [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode).
+
+## Commands
+
+### hyve cluster-config controller run
+
+Starts the controller-runtime reconcile loop against `ClusterDefinition`/`HyveConfig` CRDs — the cluster-mode replacement for `hyve reconcile` running on a schedule.
+
+```bash
+hyve cluster-config controller run --namespace <ns> --config-name <name>
+```
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  Namespace to watch for `ClusterDefinition`/`HyveConfig` objects.
+</ParamField>
+
+<ParamField path="--config-name" type="string" default="hyve-config">
+  Name of the singleton `HyveConfig` object within `--namespace`.
+</ParamField>
+
+### hyve cluster-config api run
+
+Starts the HTTP API + auth layer — local login, role-gated `ClusterDefinition`/`Template`/`Workflow`/`Resource` CRUD, [organization](/docs/concepts/multi-tenancy) management, `/proxy` for the primary-cluster kubeconfig path.
+
+```bash
+hyve cluster-config api run --namespace <ns> --bind-address <addr> --db <sqlite|postgres> --db-dsn <dsn>
+```
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  The control plane's own namespace — holds `ClusterDefinition`s and credentials Secrets, and doubles as the name of the control plane's own [organization](/docs/concepts/multi-tenancy).
+</ParamField>
+
+<ParamField path="--db" type="string" default="sqlite">
+  Backend for hyve-api's own organization/environment/access-binding datastore (`internal/orgdb`) — `sqlite` for a single-replica install, `postgres` once you're running more than one API replica or using per-organization [reconciling clusters](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live) at all (SQLite has no story for that kind of concurrent, cross-process access).
+</ParamField>
+
+<ParamField path="--db-dsn" type="string">
+  Data source name for `--db` — a file path for SQLite, a connection string for Postgres.
+</ParamField>
+
+<ParamField path="--home-cluster" type="string">
+  Which Kubernetes cluster this process itself has direct access to, if any — defaults to wherever it's running. Pass `none` to run hyve-api with **zero Kubernetes access of its own**, relying entirely on organizations' own [reconciling clusters](/docs/concepts/multi-tenancy#reconciling-clusters-where-a-tenants-resources-actually-live) — useful for a plain Docker/container-platform deployment with no Kubernetes API server to reach at all.
+</ParamField>
+
+<ParamField path="--require-reconciling-cluster" type="boolean" default="false">
+  Refuse to let any organization other than the control plane's own ever land on (or migrate back to) the home cluster — see [Multi-Tenancy](/docs/concepts/multi-tenancy#--require-reconciling-cluster).
+</ParamField>
+
+### hyve cluster-config api create-user
+
+Bcrypt-hashes a password and writes the access grant directly to hyve-api's own datastore (Postgres or SQLite, matching `--db`/`--db-dsn` to whatever that same install's hyve-api process uses) — a real database write, not something `kubectl apply -f -` can create.
+
+```bash
+hyve cluster-config api create-user <username> --role admin --namespace <ns> [--password <pw>]
+```
+
+<ParamField path="username" type="string" required>
+  Local username.
+</ParamField>
+
+<ParamField path="--role" type="string" required>
+  `admin`, `read-only`, `superadmin`, or `custom`. See [Access Control](/docs/concepts/access-control).
+</ParamField>
+
+<ParamField path="--namespace" type="string" default="hyve-system">
+  Namespace this binding is scoped to — the organization the user belongs to. Must match the target install's own control-plane namespace for `--role superadmin`.
+</ParamField>
+
+<ParamField path="--env" type="string">
+  Environment within `--namespace`'s own organization, if it has more than one registered. Omit to default to that organization's own environment when it has exactly one.
+</ParamField>
+
+<ParamField path="--password" type="string">
+  Omit to be prompted without echo — scripting/CI is the only real reason to pass it as a flag.
+</ParamField>
+
+<ParamField path="--db" type="string" default="sqlite">
+  Backend for the datastore this binding is written to — must match the target install's own `--db`.
+</ParamField>
+
+<ParamField path="--db-dsn" type="string">
+  Data source name for `--db` — must point at the same database the target install's own hyve-api uses.
+</ParamField>
+
+```bash
+hyve cluster-config api create-user alice --role admin --namespace acme --db-dsn /data/orgdb.sqlite
+```
+
+<Note>
+  Safe to re-run: an already-existing binding for the same identity+scope is replaced (delete then recreate) rather than erroring.
+</Note>
+
+<Info>
+  These both share the same binary/image as the regular CLI — `deploy/helm/hyve` just points each Deployment's container args at one of these two subcommands instead of an interactive command.
+</Info>
+
+## Related
+
+- [Cluster Mode](/docs/concepts/cluster-mode) — the concept these commands implement
+- [Deploying Cluster Mode](/docs/guides/deploying-cluster-mode) — the Helm chart that actually runs these
+- [Multi-Tenancy](/docs/concepts/multi-tenancy) — organizations, environments, and reconciling clusters
+- [Access Control](/docs/concepts/access-control) — roles and access bindings

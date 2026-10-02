@@ -1,0 +1,104 @@
+---
+title: "'hyve reconciling-cluster'"
+description: "'Store several clusters an organization's resources can live on, and switch between them by name'"
+---
+
+import Card from '../../../../components/mdx/Card.astro';
+import CardGroup from '../../../../components/mdx/CardGroup.astro';
+import Note from '../../../../components/mdx/Note.astro';
+import Warning from '../../../../components/mdx/Warning.astro';
+import ParamField from '../../../../components/mdx/ParamField.astro';
+
+A **reconciling cluster** is the Kubernetes cluster hyve-controller reconciles an [organization](/docs/concepts/multi-tenancy)'s `ClusterDefinition`s, templates, workflows, and resources on — separate from the cluster hyve-api's own pods run on. An organization can keep several stored and switch between them by name, without re-entering a kubeconfig each time. Cluster mode only.
+
+Two command sets:
+
+- **`add` / `list` / `use` / `remove` / `current`** — an organization admin managing their own organization's clusters. A superadmin can pass `--org <name>` to act on any organization.
+- **`pool ...`** — a superadmin managing the install-wide pool, whose clusters are assigned to an organization with [`hyve organization migrate`](/docs/cli/organization).
+
+## hyve reconciling-cluster add
+
+Store one of your organization's clusters. Adding never switches to it.
+
+```bash
+hyve reconciling-cluster add <name> --kubeconfig-file <path>
+```
+
+<ParamField path="<name>" type="string" required>
+  A DNS label (lowercase letters, digits, dashes). Unique within your organization — two organizations can each have a `prod`.
+</ParamField>
+
+<ParamField path="--kubeconfig-file" type="string" required>
+  Path to the cluster's kubeconfig, or `-` to read from stdin. Never echoed back by any endpoint once stored.
+</ParamField>
+
+Re-running `add` for an existing name rotates its kubeconfig (kubeconfigs expire and get regenerated), taking effect immediately if it's the active cluster.
+
+## hyve reconciling-cluster list / current
+
+```bash
+hyve reconciling-cluster list     # your stored clusters, marking the active one
+hyve reconciling-cluster current  # just the active one, or "(home cluster)"
+```
+
+`list` shows each cluster's server address, reachability, and Kubernetes version, checked on a recurring interval by hyve-api. A pool cluster a superadmin assigned to you directly also appears while it's active, labeled `pool`.
+
+## hyve reconciling-cluster use
+
+Switch your organization onto a stored cluster, or back onto the control plane's own home cluster.
+
+```bash
+hyve reconciling-cluster use <name>
+hyve reconciling-cluster use --home
+```
+
+<Warning>
+  Switching copies every resource onto the target cluster first, then moves the organization over. Requests against the organization return `423 Locked` until the copy finishes. A failed copy leaves the organization where it was. `--home` is refused on an install started with `--require-reconciling-cluster`.
+</Warning>
+
+## hyve reconciling-cluster remove
+
+```bash
+hyve reconciling-cluster remove <name>
+```
+
+Permanently deletes a stored cluster and its kubeconfig. The active cluster can't be removed — `use` another one first.
+
+---
+
+## Pool (superadmin)
+
+```bash
+hyve reconciling-cluster pool add <name> --kubeconfig-file <path>   # register, or rotate an existing one
+hyve reconciling-cluster pool list                                  # every cluster install-wide, labeled with its owner
+hyve organization migrate <org> --reconciling-cluster <name>        # assign a pool cluster to an organization
+```
+
+<Note>
+  `hyve reconciling-cluster create` is the old name for `pool add` and still works, with a deprecation warning.
+</Note>
+
+## Example
+
+```bash
+hyve reconciling-cluster add k3s --kubeconfig-file ~/k3s.yaml
+hyve reconciling-cluster add civo --kubeconfig-file ~/civo.yaml
+hyve reconciling-cluster use civo
+hyve reconciling-cluster list
+#   (home cluster)
+#   civo (organization) ← active
+#   k3s (organization)
+```
+
+The web console's **Reconciling cluster** page does the same: **New reconciling cluster** adds one (optionally switching to it), and each stored cluster has Switch to, Replace kubeconfig, and Remove actions.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="hyve organization" icon="terminal" href="/docs/cli/organization" color="#a855f7">
+    `migrate --reconciling-cluster` — assigning a pool cluster
+  </Card>
+  <Card title="Multi-Tenancy" icon="server" href="/docs/concepts/multi-tenancy" color="#3b82f6">
+    Organizations, environments, and reconciling clusters
+  </Card>
+</CardGroup>

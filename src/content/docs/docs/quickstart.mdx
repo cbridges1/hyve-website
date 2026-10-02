@@ -5,8 +5,6 @@ description: "Get up and running with Hyve in 5 minutes"
 
 import Card from '../../../components/mdx/Card.astro';
 import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Tabs from '../../../components/mdx/Tabs.astro';
-import Tab from '../../../components/mdx/Tab.astro';
 import Steps from '../../../components/mdx/Steps.astro';
 import Step from '../../../components/mdx/Step.astro';
 import Accordion from '../../../components/mdx/Accordion.astro';
@@ -17,10 +15,6 @@ import Tip from '../../../components/mdx/Tip.astro';
 ## Overview
 
 This guide walks you through creating your first Kubernetes cluster with Hyve using the module system. Hyve uses modules — versioned, self-contained packages — to provision clusters on any cloud provider.
-
-<Tip>
-  **Prefer a guided experience?** After installing, run `hyve tui`. It walks you through every step below using interactive menus — no flags required.
-</Tip>
 
 <Tip>
   **Prefer to explore a working example first?** [hyve-sample-repo](https://github.com/cbridges1/hyve-sample-repo) is a complete, runnable state repository — modules, templates, workflows, and a cluster already wired together, using a fully local fake module so it works offline with zero cloud credentials. Clone it and run `hyve reconcile --path .` to see the whole lifecycle run immediately.
@@ -38,10 +32,8 @@ This guide walks you through creating your first Kubernetes cluster with Hyve us
     - **Azure**: Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) and run `az login`
   </Accordion>
 
-  <Accordion icon="git" title="Git repository for state">
-    Hyve stores all cluster definitions in a Git repository. You'll need:
-    - A Git repository (GitHub, GitLab, etc.) to store cluster state
-    - The `git` binary installed and available in your `PATH`
+  <Accordion icon="folder" title="A directory for cluster state">
+    Hyve reads and writes cluster YAML in a plain local directory — no database, no built-in git. A git repository is optional, only if you want version history and review (see [Contexts](/docs/concepts/contexts)).
   </Accordion>
 
   <Accordion icon="code" title="Go 1.21+">
@@ -67,114 +59,49 @@ This guide walks you through creating your first Kubernetes cluster with Hyve us
   </Step>
 </Steps>
 
-## Step 2 — Add a Git repository
+## Step 2 — Point hyve at a directory
 
-Register a Git repository where Hyve will store your cluster YAML definitions:
-
-```bash
-hyve git add production --repo-url https://github.com/your-org/hyve-state.git
-```
-
-For private repositories, use SSH or set the `HYVE_GIT_TOKEN` environment variable:
+Hyve has no built-in git functionality — it just reads and writes plain files in whatever directory you register. If you want it version-controlled, clone it yourself first (using your own git credentials, however you normally authenticate — SSH key, token, whatever your provider needs):
 
 ```bash
-export HYVE_GIT_TOKEN=ghp_xxxxxxxxxxxx
-hyve git add production --repo-url https://github.com/your-org/hyve-state.git
+git clone https://github.com/your-org/hyve-state.git
+hyve context create production --path ./hyve-state
 ```
+
+Don't want git at all? Skip the clone — `hyve context create --path` works against any plain local directory:
+
+```bash
+mkdir my-hyve-config && hyve context create production --path ./my-hyve-config
+```
+
+Either way, `hyve context create` registers it *and* makes it active immediately — every command below operates against it. See [Contexts](/docs/concepts/contexts).
 
 ## Step 3 — Install a module
 
-Modules implement cluster operations for a specific cloud provider. Install a module and lock it in `hyve.lock`:
+Modules implement cluster operations for a cloud provider — Hyve itself has no idea which one, it just calls whatever module a template references. Install one and lock it in `hyve.lock`:
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    hyve module add github.com/hyve-modules/civo@v1.0.0
-    ```
-  </Tab>
+```bash
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
+```
 
-  <Tab title="AWS EKS">
-    ```bash
-    hyve module add github.com/hyve-modules/eks@v1.0.0
-    ```
-  </Tab>
-
-  <Tab title="GCP GKE">
-    ```bash
-    hyve module add github.com/hyve-modules/gke@v1.0.0
-    ```
-  </Tab>
-
-  <Tab title="Azure AKS">
-    ```bash
-    hyve module add github.com/hyve-modules/aks@v1.0.0
-    ```
-  </Tab>
-</Tabs>
+<Note>
+  This guide uses a Civo module as the example — `github.com/your-org/hyve-civo-module` is a placeholder for whichever module you use. Swap in any other module and every command below works identically; see [Writing a Module](/docs/guides/module-authoring) to build your own.
+</Note>
 
 ## Step 4 — Create a template
 
 Templates define the shape of a cluster — driver, region, and module-specific params. Use `--set KEY=VALUE` to supply params:
 
-<Tabs>
-  <Tab title="Civo">
-    ```bash
-    hyve template create my-civo-template \
-      --driver github.com/hyve-modules/civo \
-      --driver-version v1.0.0 \
-      --region PHX1 \
-      --set node_size=g4s.kube.medium \
-      --set node_count=3
-    ```
+```bash
+hyve template create my-civo-template \
+  --driver github.com/your-org/hyve-civo-module \
+  --driver-version v1.0.0 \
+  --region PHX1 \
+  --set node_size=g4s.kube.medium \
+  --set node_count=3
+```
 
-    Civo credentials are read automatically from the Civo CLI (`~/.civo.json`) or the `CIVO_TOKEN` environment variable.
-  </Tab>
-
-  <Tab title="AWS EKS">
-    ```bash
-    hyve template create my-eks-template \
-      --driver github.com/hyve-modules/eks \
-      --driver-version v1.0.0 \
-      --region us-east-1 \
-      --set vpc_id=vpc-0abc123456789 \
-      --set eks_role_arn=arn:aws:iam::123456789012:role/eks-role \
-      --set node_role_arn=arn:aws:iam::123456789012:role/node-role \
-      --set instance_type=t3.medium \
-      --set node_count=3
-    ```
-
-    AWS credentials are read from `~/.aws/credentials` or environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
-  </Tab>
-
-  <Tab title="GCP GKE">
-    ```bash
-    hyve template create my-gke-template \
-      --driver github.com/hyve-modules/gke \
-      --driver-version v1.0.0 \
-      --region us-central1 \
-      --set project_id=my-gcp-project \
-      --set machine_type=e2-standard-4 \
-      --set node_count=3
-    ```
-
-    GCP credentials are read from Application Default Credentials (`gcloud auth application-default login`).
-  </Tab>
-
-  <Tab title="Azure AKS">
-    ```bash
-    hyve template create my-aks-template \
-      --driver github.com/hyve-modules/aks \
-      --driver-version v1.0.0 \
-      --region eastus \
-      --set subscription_id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-      --set resource_group=my-rg \
-      --set vm_size=Standard_DS2_v2 \
-      --set node_count=3
-    ```
-
-    Azure credentials are read from the Azure CLI session (`az login`) or service principal environment variables.
-  </Tab>
-</Tabs>
+Civo credentials are read automatically from the Civo CLI (`~/.civo.json`) or the `CIVO_TOKEN` environment variable — every module reads whichever credentials its own provider CLI expects, in whatever way that provider normally works.
 
 ## Step 5 — Create a cluster
 
@@ -184,7 +111,7 @@ Create a cluster from the template — this generates the cluster definition YAM
 hyve cluster create my-cluster --template my-civo-template
 ```
 
-This writes `clusters/my-cluster.yaml` to your Git repository, commits it, and runs reconciliation to provision the cluster.
+This writes `clusters/my-cluster.yaml` to your context directory and runs reconciliation to provision the cluster. If that directory is git-backed, committing the new file is your own step (optional — see [Version Control](/docs/concepts/gitops)).
 
 ## Step 6 — Authenticate (get kubeconfig)
 
@@ -203,7 +130,7 @@ kubectl get nodes
 
 ## Step 7 — Reconcile
 
-Going forward, any change to a cluster definition (committed to Git) is applied by running:
+Going forward, any change to a cluster definition is applied by running:
 
 ```bash
 hyve reconcile
@@ -238,8 +165,8 @@ This reads all cluster YAMLs from Git, calls the appropriate module, and reconci
     A complete, runnable example repository to clone and explore
   </Card>
 
-  <Card title="Server Mode & Hyve Studio" icon="server" href="/docs/guides/server-mode" color="#3b82f6">
-    Run hyve as an API server and drive it from a browser UI
+  <Card title="Contexts" icon="folder" href="/docs/cli/context" color="#3b82f6">
+    Point hyve at a plain local directory, no git required
   </Card>
 </CardGroup>
 
@@ -272,19 +199,15 @@ This reads all cluster YAMLs from Git, calls the appropriate module, and reconci
     ```
   </Accordion>
 
-  <Accordion title="No repository configured">
-    You need to add a Git repository first:
+  <Accordion title="No context configured">
+    You need to register one first:
 
     ```bash
-    hyve git add my-repo --repo-url https://github.com/user/repo.git
+    hyve context create my-project --path ./my-hyve-config
     ```
   </Accordion>
 
-  <Accordion title="Git authentication fails">
-    For private repositories, use SSH or set the token environment variable:
-
-    ```bash
-    export HYVE_GIT_TOKEN=your_personal_access_token
-    ```
+  <Accordion title="Cloning a private repository fails">
+    That's your own `git clone` step, before `hyve context create` — authenticate with `git` however you normally do (SSH key, a credential helper, a token in the URL). Hyve itself never touches the clone or its credentials.
   </Accordion>
 </AccordionGroup>

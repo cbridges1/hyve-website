@@ -1,0 +1,25 @@
+---
+title: "'hyve set-state / hyve state'"
+description: "'Never shipped under this name — use `hyve context` instead'"
+---
+
+import Warning from '../../../../components/mdx/Warning.astro';
+
+<Warning>
+  `hyve set-state`/`hyve state` don't exist as commands. The functionality this page described — registering a local directory as hyve's active state directory, no git required — shipped as `hyve context create [--path]` / `hyve context use` / `hyve context current` instead. See the [`env` CLI reference](/docs/cli/context).
+</Warning>
+
+## What to use instead
+
+```bash
+hyve context create my-project --path ~/repos/my-project
+hyve context use my-project
+hyve context current
+```
+
+`hyve context` also covers what [`hyve git`](/docs/cli/git) used to (registering a directory), unified into one command group rather than two — see [Contexts](/docs/concepts/contexts).
+
+## Related
+
+- [CLI Reference — context](/docs/cli/context)
+- [Contexts](/docs/concepts/contexts)

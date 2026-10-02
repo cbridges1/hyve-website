@@ -91,7 +91,7 @@ The next reconcile runs `helm upgrade --install`. Changing `values`, `version`, 
 
 ## Declare a secret resource
 
-Unlike a manifest or Helm resource, a `secret:` resource's values don't come from anything committed to Git — they're resolved from whatever environment `hyve reconcile` (or `hyve serve`) is actually running in:
+Unlike a manifest or Helm resource, a `secret:` resource's values don't come from anything committed to Git — they're resolved from whatever environment `hyve reconcile` is actually running in:
 
 ```yaml
 spec:
@@ -199,7 +199,7 @@ For a `secret:` resource specifically, you don't need `delete: true` to drop jus
   </Accordion>
 
   <Accordion title="secret resource: missing required environment variable(s)">
-    One or more names in `keys:` aren't set in the environment `hyve reconcile`/`hyve serve` is actually running in. This is a hard error by design — a `secret:` resource never applies a Secret with fewer keys than declared. Set the variable in whatever's running Hyve (CI job `env:`, local export, server container env) and reconcile again.
+    One or more names in `keys:` aren't set in the environment `hyve reconcile` is actually running in. This is a hard error by design — a `secret:` resource never applies a Secret with fewer keys than declared. Set the variable in whatever's running Hyve (CI job `env:`, local export) and reconcile again.
   </Accordion>
 
   <Accordion title="helm: command not found">

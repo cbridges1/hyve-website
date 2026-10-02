@@ -17,13 +17,13 @@ Modules are the extensibility mechanism in Hyve. Each module is a versioned dire
   The operation files are shell entry points, not a requirement that the logic itself be written in shell — a `create.sh` can be a one-liner that calls out to Python, a compiled binary, Terraform, or anything else. See [Modules — What is a module?](/docs/concepts/modules#what-is-a-module) for the full explanation.
 </Info>
 
-Module sources take one of two forms:
+Module sources take one of these forms (the `your-org` sources throughout this page are placeholders):
 
 | Form | Example |
 |------|---------|
-| Git (GitHub) | `github.com/hyve-modules/civo` |
+| Git repository (any host) | `github.com/your-org/hyve-civo-module` |
 | Git with subdirectory | `github.com/org/repo//path/to/module` |
-| Local path | `./path/to/module` |
+| Local path (`./`, `../`, or absolute) | `../path/to/module` |
 
 Locked modules are stored in `hyve.lock` at the repository root.
 
@@ -60,7 +60,7 @@ hyve module add <source>[@<version>]
 
 <ParamField path="source" type="string" required>
   Module source. Can be a GitHub path, a GitHub path with subdirectory, or a local path. Examples:
-  - `github.com/hyve-modules/civo`
+  - `github.com/your-org/hyve-civo-module`
   - `github.com/org/repo//path/to/module`
   - `./custom-modules/civo`
 </ParamField>
@@ -73,10 +73,10 @@ hyve module add <source>[@<version>]
 
 ```bash
 # Resolve and lock the latest semver tag automatically
-hyve module add github.com/hyve-modules/civo
+hyve module add github.com/your-org/hyve-civo-module
 
 # Pin to an exact version
-hyve module add github.com/hyve-modules/civo@v1.0.0
+hyve module add github.com/your-org/hyve-civo-module@v1.0.0
 
 # Add a module from a subdirectory
 hyve module add github.com/my-org/infra//modules/k8s@v1.0.0
@@ -88,10 +88,10 @@ hyve module add ./custom-modules/civo
 **Output:**
 
 ```
-Resolving github.com/hyve-modules/civo@v1.0.0...
+Resolving github.com/your-org/hyve-civo-module@v1.0.0...
 Downloading module...
 Computing digest: sha256:abc123...
-Locked github.com/hyve-modules/civo@v1.0.0 in hyve.lock
+Locked github.com/your-org/hyve-civo-module@v1.0.0 in hyve.lock
 ```
 
 ---
@@ -105,13 +105,13 @@ hyve module update <source>
 ```
 
 <ParamField path="source" type="string" required>
-  Module source without version (e.g. `github.com/hyve-modules/civo`)
+  Module source without version (e.g. `github.com/your-org/hyve-civo-module`)
 </ParamField>
 
 **Example:**
 
 ```bash
-hyve module update github.com/hyve-modules/civo
+hyve module update github.com/your-org/hyve-civo-module
 # Resolves latest version, updates hyve.lock
 ```
 
@@ -130,11 +130,11 @@ hyve module list
 ```
 Locked modules (2):
 
-  github.com/hyve-modules/civo@v1.0.0
+  github.com/your-org/hyve-civo-module@v1.0.0
     Digest: sha256:abc123...
     Cached: yes
 
-  github.com/hyve-modules/eks@v2.1.3
+  github.com/your-org/hyve-eks-module@v2.1.3
     Digest: sha256:def456...
     Cached: yes
 ```
@@ -150,19 +150,19 @@ hyve module info <source>
 ```
 
 <ParamField path="source" type="string" required>
-  Module source (e.g. `github.com/hyve-modules/civo`). The version is resolved from `hyve.lock`.
+  Module source (e.g. `github.com/your-org/hyve-civo-module`). The version is resolved from `hyve.lock`.
 </ParamField>
 
 **Example:**
 
 ```bash
-hyve module info github.com/hyve-modules/civo
+hyve module info github.com/your-org/hyve-civo-module
 ```
 
 **Output:**
 
 ```
-Module: github.com/hyve-modules/civo@v1.0.0
+Module: github.com/your-org/hyve-civo-module@v1.0.0
 
 Description: Provision Civo Kubernetes clusters
 Author: Hyve Contributors
@@ -199,9 +199,9 @@ hyve module validate
 
 ```
 Validating modules for 3 template(s)...
-  my-civo-template     github.com/hyve-modules/civo@v1.0.0   OK
-  prod-eks-template    github.com/hyve-modules/eks@v2.1.3     OK
-  staging-gke          github.com/hyve-modules/gke@v1.2.0    OK
+  my-civo-template     github.com/your-org/hyve-civo-module@v1.0.0   OK
+  prod-eks-template    github.com/your-org/hyve-eks-module@v2.1.3     OK
+  staging-gke          github.com/your-org/hyve-gke-module@v1.2.0    OK
 
 All modules are valid.
 ```
@@ -210,8 +210,8 @@ All modules are valid.
 
 ```
 Validating modules for 2 template(s)...
-  my-civo-template     github.com/hyve-modules/civo@v1.0.0   OK
-  prod-eks-template    github.com/hyve-modules/eks@v2.1.3     NOT LOCKED
+  my-civo-template     github.com/your-org/hyve-civo-module@v1.0.0   OK
+  prod-eks-template    github.com/your-org/hyve-eks-module@v2.1.3     NOT LOCKED
 
 Error: 1 module(s) missing from hyve.lock
 Run 'hyve module install' to lock all template modules.
@@ -228,13 +228,13 @@ hyve module remove <source>
 ```
 
 <ParamField path="source" type="string" required>
-  Module source to remove (e.g. `github.com/hyve-modules/civo`)
+  Module source to remove (e.g. `github.com/your-org/hyve-civo-module`)
 </ParamField>
 
 **Example:**
 
 ```bash
-hyve module remove github.com/hyve-modules/civo
+hyve module remove github.com/your-org/hyve-civo-module
 ```
 
 <Warning>
@@ -361,7 +361,7 @@ Every module operation receives the following environment variables:
 | Variable | Description |
 |----------|-------------|
 | `HYVE_CLUSTER_NAME` | Cluster name from `metadata.name` |
-| `HYVE_CLUSTER_REGION` | Cluster region from `metadata.region` |
+| `HYVE_CLUSTER_REGION` | Cluster region from `spec.region` |
 | `HYVE_PARAM_<KEY>` | Each param from `cluster.spec.params`, with key uppercased |
 
 In addition, all keys from `cluster.spec.driverOutputs` are re-injected verbatim on every reconcile. This allows create operations to output values (like a VPC ID or cluster endpoint) that subsequent operations can reference.
@@ -393,30 +393,25 @@ The `status.yaml` operation must emit `HYVE_CLUSTER_STATUS=<value>` where value 
 ```yaml
 version: 1
 modules:
-  github.com/hyve-modules/civo@v1.0.0:
-    source: github.com/hyve-modules/civo@v1.0.0
-    resolved: https://github.com/hyve-modules/civo/archive/refs/tags/v1.0.0.tar.gz
+  github.com/your-org/hyve-civo-module@v1.0.0:
+    source: github.com/your-org/hyve-civo-module@v1.0.0
+    resolved: https://github.com/your-org/hyve-civo-module/archive/refs/tags/v1.0.0.tar.gz
     sha256: "abc123def456..."
-  github.com/hyve-modules/eks@v2.1.3:
-    source: github.com/hyve-modules/eks@v2.1.3
-    resolved: https://github.com/hyve-modules/eks/archive/refs/tags/v2.1.3.tar.gz
+  github.com/your-org/hyve-eks-module@v2.1.3:
+    source: github.com/your-org/hyve-eks-module@v2.1.3
+    resolved: https://github.com/your-org/hyve-eks-module/archive/refs/tags/v2.1.3.tar.gz
     sha256: "789xyz..."
 ```
 
 Commit `hyve.lock` to Git. It ensures every team member and every CI/CD run uses the exact same module version and verifies integrity via the SHA256 digest.
 
 <Info>
-  `hyve.lock` also carries a sibling `workflows` map for remote workflow references — see [`hyve workflow`](/docs/cli/workflow#hyve-lock-format).
+  `hyve.lock` also carries a sibling `workflows` map for remote workflow references — see [`hyve workflow`](/docs/cli/workflow#hyvelock-format).
 </Info>
 
-## First-party modules
+## Writing your own
 
-| Module | Source | Description |
-|--------|--------|-------------|
-| Civo | `github.com/hyve-modules/civo` | Civo K3s and Talos clusters |
-| AWS EKS | `github.com/hyve-modules/eks` | Amazon Elastic Kubernetes Service |
-| GCP GKE | `github.com/hyve-modules/gke` | Google Kubernetes Engine |
-| Azure AKS | `github.com/hyve-modules/aks` | Azure Kubernetes Service |
+A module is any git repository (or local directory) laid out as described in [Modules](/docs/concepts/modules). See **[Writing a Module](/docs/guides/module-authoring)** to build, test, and publish one, starting from `hyve module init`.
 
 ## Related
 
