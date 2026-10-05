@@ -13,7 +13,7 @@ A **reconciling cluster** is the Kubernetes cluster hyve-controller reconciles a
 
 Two command sets:
 
-- **`add` / `list` / `use` / `remove` / `current`** — an organization admin managing their own organization's clusters. A superadmin can pass `--org <name>` to act on any organization.
+- **`add` / `list` / `use` / `remove` / `current`** — an organization admin managing the clusters of the organization they're acting in ([`hyve organization use`](/docs/cli/organization), or `--org <name>` for one command; a superadmin can act in any organization).
 - **`pool ...`** — a superadmin managing the install-wide pool, whose clusters are assigned to an organization with [`hyve organization migrate`](/docs/cli/organization).
 
 ## hyve reconciling-cluster add

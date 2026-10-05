@@ -24,9 +24,7 @@ hyve environment unset           # clear the selection
 hyve environment current         # show the selection
 ```
 
-<ParamField path="--org" type="string">
-  On `list`/`create`/`delete`/`use`: act on another organization. Defaults to your own; only a superadmin can name a different one.
-</ParamField>
+These act on the organization you're acting in ([`hyve organization use`](/docs/cli/organization)), or another one for a single command with the global `--org <name>`.
 
 ## Selecting an environment
 
@@ -42,7 +40,7 @@ hyve cluster show web --env default   # one-off override for a single command
 The global `--env` flag overrides the selection for one command.
 
 <Note>
-  With nothing selected, the server picks the organization's only environment when it has exactly one, and asks you to choose when it has several. `hyve cluster list` with nothing selected shows every environment's clusters, each labeled.
+  With nothing selected, a cluster name resolves to that cluster in the organization's only environment — or, when it has several, its `default` one (a cluster whose full name matches exactly always wins). With several and no `default`, you have to choose. `hyve cluster list` with nothing selected shows every environment's clusters, each labeled.
 </Note>
 
 ## Related

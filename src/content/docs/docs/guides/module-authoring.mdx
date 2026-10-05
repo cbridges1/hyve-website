@@ -74,7 +74,7 @@ spec:
 | `spec.params` | **Documentation only** — shown by `hyve module info`. `default`, `required`, and `choices` are *not* applied or enforced; your scripts must handle missing values themselves (see below). |
 | `spec.requirements.tools` | Checked on `PATH` before every operation in **local mode**, failing fast with the list of missing tools. In cluster mode operations run in a container, so the tools must be in its image instead. |
 | `spec.requirements.env` | Checked before every operation in **cluster mode** — a missing variable fails with a clear error instead of an opaque CLI failure. Not enforced in local mode, where credentials often come from somewhere else (a CLI's own config file). |
-| `spec.requirements.mgmtCluster` | The name of another cluster hyve manages that this module drives — e.g. a Cluster API management cluster. Reconcile fails early if it doesn't exist, and every operation receives its kubeconfig as `HYVE_MGMT_KUBECONFIG` (see below). |
+| `spec.requirements.mgmtCluster` | A *default* management cluster — another cluster hyve manages that this module drives, e.g. a Cluster API management cluster. A template's or cluster's `spec.mgmtCluster` overrides it; leave it unset in a module shared across installs. See [Management clusters](/docs/concepts/modules#management-clusters). |
 
 ## 3. Know what your scripts receive
 
@@ -86,7 +86,7 @@ Every operation runs with the caller's environment plus:
 | `HYVE_CLUSTER_REGION` | The cluster's region |
 | `HYVE_PARAM_<KEY>` | Each `spec.params` entry, key uppercased — `node_size` → `HYVE_PARAM_NODE_SIZE` |
 | Every `driverOutputs` key | Values `create` printed (see step 4), exactly as printed |
-| `HYVE_MGMT_KUBECONFIG` | Only with `requirements.mgmtCluster`: path to a kubeconfig for that cluster. When it's hyve's own host (`access.method: primary`), cluster mode mints a fresh one; otherwise it's the one the management cluster's own `auth` last wrote, so it must have reconciled (or you must have run `hyve cluster auth <name>`) first. |
+| `HYVE_MGMT_KUBECONFIG` | Only when the cluster has a management cluster (its `spec.mgmtCluster`, or the module's `requirements.mgmtCluster` default): path to a kubeconfig for it. When it's hyve's own host (`access.method: primary`), cluster mode mints a fresh one; otherwise it's the one the management cluster's own `auth` last wrote, so it must have reconciled (or you must have run `hyve cluster auth <name>`) first. |
 
 <Warning>
   Param keys are only uppercased — hyphens and dots are *not* converted, so a key like `node-size` produces an unusable variable name. Use `snake_case` param names. And since manifest defaults aren't applied, write fallbacks into your scripts: `count="${HYVE_PARAM_NODE_COUNT:-3}"`.

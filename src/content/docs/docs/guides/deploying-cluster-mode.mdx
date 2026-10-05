@@ -38,7 +38,7 @@ The chart isn't published to a Helm repository — install it from a hyve checko
   </Step>
 
   <Step title="Expose hyve-api">
-    The chart creates a plain `ClusterIP` Service (`hyve-api`, port 80) and no Ingress. Expose it however your cluster already does — an Ingress, a LoadBalancer Service, a tunnel (e.g. Pangolin or Cloudflare), or `kubectl port-forward` for a quick look. Terminate TLS in front of it and set `api.publicBaseURL` to that HTTPS address. The same address serves the web console.
+    The chart creates a plain `ClusterIP` Service (`hyve-api`, port 80) and no Ingress. Expose it however your cluster already does — an Ingress, a LoadBalancer Service, a tunnel (e.g. Pangolin or Cloudflare), or `kubectl port-forward` for a quick look. Terminate TLS in front of it and set `api.publicBaseURL` to that HTTPS address. The same address serves the web console — and [hyve-agent](/docs/concepts/cluster-access#hyve-agent), which tunnels back over a WebSocket at `/agent/tunnel`, so whatever fronts hyve-api must allow WebSocket upgrades; no other port needs exposing.
   </Step>
 
   <Step title="Create the first superadmin">
@@ -66,7 +66,8 @@ The chart isn't published to a Helm repository — install it from a hyve checko
 | `image.repository` / `image.tag` | The hyve image — `ghcr.io/cbridges1/hyve` and a release tag |
 | `namespace` | The control-plane namespace both components run in (default `hyve-system`) |
 | `api.publicBaseURL` | The HTTPS address callers reach hyve-api on — required for host-cluster and hyve-agent kubeconfigs |
-| `api.multiTenant.enabled` | Lets one install serve many organizations (a ClusterRole instead of a namespaced Role) |
+| `api.multiTenant.enabled` | Lets one install serve many organizations (a ClusterRole instead of a namespaced Role). With `api.db.driver: postgres`, hyve-controller also reconciles every organization on the home cluster (it reads them from the same database, and restarts itself to pick up new ones) |
+| `controller.agent.controlPlaneURL` | hyve-api's public HTTPS address (usually `api.publicBaseURL`) — where a newly installed hyve-agent bootstraps and tunnels to. Unset disables hyve-agent installs |
 | `api.db.driver` | `sqlite` (default, one API replica, stored on a PVC) or `postgres` — required for more than one replica or for moving organizations onto reconciling clusters |
 | `api.requireReconcilingCluster` | Refuse to let any tenant organization live on the home cluster |
 | `api.bootstrapAdmin.username` (or `.usernameKey`) / `.passwordSecret` | Create the first superadmin on startup, only while none exists — replaces the manual `create-user` step. Not an API endpoint; the password (and, with `usernameKey`, the username) is read from a mounted Secret |

@@ -50,9 +50,25 @@ hyve template create <template-name> [flags]
   Human-readable description for the template
 </ParamField>
 
-<Warning>
-  `hyve template create` only sets `driver`, `region`, and `params` (via `--set`) — there's no per-hook flag for `workflows`, `schedule`, or `lockParams`. Set those by editing the generated YAML directly, or write the template file yourself from the start (see the YAML format below).
-</Warning>
+<ParamField path="--mgmt-cluster" type="string">
+  The cluster the driver module uses as its [management cluster](/docs/concepts/modules#management-clusters) (e.g. a Cluster API management cluster) — sets `spec.mgmtCluster`, overriding any default the module declares.
+</ParamField>
+
+<ParamField path="--before-create / --on-create / --on-delete / --after-delete" type="string">
+  [Lifecycle workflows](/docs/concepts/workflows), comma-separated names, for each hook.
+</ParamField>
+
+<ParamField path="--schedule" type="string">
+  Cron expression for cluster expiry (e.g. `'0 20 * * 5'`) — each cluster created from the template gets `spec.expiresAt` set to its next occurrence.
+</ParamField>
+
+<ParamField path="--lock-params" type="boolean">
+  Prevent overriding the template's params when creating a cluster from it.
+</ParamField>
+
+<ParamField path="--file" type="string">
+  Create from an existing Template YAML file instead of flags (cluster mode only).
+</ParamField>
 
 **Examples:**
 

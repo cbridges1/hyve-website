@@ -72,19 +72,15 @@ hyve context path [name]   # print a context's local path (defaults to the activ
 Authenticate against a hyve-api server (cluster mode).
 
 ```bash
-hyve context login [--api-url <url>] [--org <name>] [--username <user>] [--password <password>] [--ca-cert <path>]
+hyve context login [--api-url <url>] [--username <user>] [--password <password>] [--ca-cert <path>]
 ```
 
 <ParamField path="--api-url" type="string">
   The server to log into. Defaults to the active context's `--api-url`. If no context is registered for this URL yet, one is registered automatically (named from the host) — so a bare `hyve context login --api-url ...` is enough on its own.
 </ParamField>
 
-<ParamField path="--org" type="string">
-  The [organization](/docs/concepts/multi-tenancy) to log into on a multi-tenant install. Omit for the control-plane/`superadmin` tier.
-</ParamField>
-
 <ParamField path="--username / --password" type="string">
-  Local account credentials. Omit to be prompted (the password without echo); pass them as flags only for scripting.
+  Your username (or email) and password. Omit to be prompted (the password without echo); pass them as flags only for scripting.
 </ParamField>
 
 <ParamField path="--ca-cert" type="string">
@@ -92,16 +88,18 @@ hyve context login [--api-url <url>] [--org <name>] [--username <user>] [--passw
 </ParamField>
 
 ```bash
-hyve context login --api-url https://hyve.example.com --org acme
+hyve context login --api-url https://hyve.example.com
 # Username: alice
 # Password: ********
 # ✅ Logged in as alice against https://hyve.example.com (session expires ...)
 ```
 
+You never name an organization to log in: one login reaches every organization you're a member of. Pick the one commands act in with [`hyve organization use`](/docs/cli/organization) (or `--org` on any command — given to `login`, it's remembered like `use`). See [Multi-Tenancy](/docs/concepts/multi-tenancy#one-account-many-organizations).
+
 ### hyve context whoami / logout
 
 ```bash
-hyve context whoami   # who you're logged in as, your organization, selected environment, and reconciling cluster
+hyve context whoami   # who you're logged in as, the organization you're acting in (and the others you can access), selected environment, and reconciling cluster
 hyve context logout   # revoke the session server-side and clear it locally
 ```
 

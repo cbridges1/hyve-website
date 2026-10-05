@@ -85,6 +85,10 @@ spec:
   Passed to the module as part of cluster context. Can be overridden at cluster-creation time with `--region`.
 </ParamField>
 
+<ParamField path="spec.mgmtCluster" type="string">
+  The cluster the driver module uses as its [management cluster](/docs/concepts/modules#management-clusters), copied onto every cluster created from the template.
+</ParamField>
+
 <ParamField path="spec.params" type="object">
   Arbitrary key/value pairs, entirely module-specific — there's no hyve-defined schema of provider fields. Check the module's own `module.yaml`/README for what it expects. Injected as `HYVE_PARAM_<KEY>` env vars for every module operation; values can be overridden at cluster-creation time with `--set`.
 </ParamField>
@@ -136,7 +140,7 @@ hyve template create prod-template \
 ```
 
 <Note>
-  `hyve template create` only sets `driver`/`region`/`params` (via `--set`). Lifecycle workflows and `schedule` aren't CLI flags — add them by editing the generated YAML afterward, or write the file directly:
+  `hyve template create` sets everything above through flags (`--set`, `--schedule`, `--on-create`, `--mgmt-cluster`, … — see [`hyve template`](/docs/cli/template)). Resources have no flag; for those, edit the generated YAML afterward, or write the file directly:
 
   ```bash
   cat > templates/prod-template.yaml <<EOF

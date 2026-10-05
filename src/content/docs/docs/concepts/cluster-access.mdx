@@ -1,6 +1,6 @@
 ---
 title: "Cluster Access"
-description: "How `hyve cluster auth` gets a kubeconfig for a cluster — client-side module auth, server-side module auth, tunnel, hyve-agent, or the host cluster"
+description: "How `hyve cluster auth` gets a kubeconfig for a cluster — client-side module auth, server-side module auth, hyve-agent, or the host cluster"
 ---
 
 import Note from '../../../../components/mdx/Note.astro';
@@ -14,8 +14,7 @@ import CardGroup from '../../../../components/mdx/CardGroup.astro';
 |---|---|---|
 | *(unset — the default)* | The driver module's `auth.yaml`, run **on your machine** with your own credentials | Local and cluster |
 | `method: module-auth` | The driver module's `auth.yaml`, run **inside the hyve-api pod** | Cluster |
-| `method: tunnel` | A pre-minted kubeconfig stored in a Secret | Cluster |
-| `agent: {enabled: true, proxy: true}` | hyve-api, relaying traffic over hyve-agent's outbound tunnel | Cluster |
+| `agent: {enabled: true, proxy: true}` | hyve-api, relaying traffic over hyve-agent's outbound connection | Cluster |
 | `method: primary`, no driver | hyve-api mints a token for the host cluster itself (superadmin only) | Cluster |
 
 ## Default: client-side module auth
@@ -41,18 +40,6 @@ The module's `auth.yaml` runs inside the hyve-api pod on every request, using th
   Only use this with a module written to run server-side and enforce its own authorization from those variables — otherwise every caller gets whatever the pod's credentials can mint.
 </Warning>
 
-## `tunnel`: a pre-minted kubeconfig
-
-```yaml
-spec:
-  access:
-    method: tunnel
-    tunnel:
-      provider: rancher   # or teleport
-```
-
-For clusters with no reachable endpoint of their own (on-prem, home networks behind NAT). hyve-api serves the kubeconfig stored in the `<cluster>-access-kubeconfig` Secret (key `kubeconfig`) in `hyve-system`. How that Secret gets populated — an identity service like Rancher or Teleport, a workflow, or by hand — is up to you.
-
 ## hyve-agent
 
 ```yaml
@@ -63,7 +50,18 @@ spec:
       proxy: true     # also route kubectl traffic through it
 ```
 
-hyve installs **hyve-agent** on the cluster, which dials *out* to hyve-api over an SSH tunnel — the cluster never needs an inbound, reachable endpoint. With `proxy: true`, `hyve cluster auth` returns a kubeconfig whose server points at hyve-api's own `/api/agent-proxy/<name>` path, carrying your hyve session; hyve-api relays each request through the agent with Kubernetes impersonation derived from your hyve role. `agent` is independent of `method` — a cluster can use both.
+hyve installs **hyve-agent** on the cluster once it's active. The agent dials *out* to hyve-api — an SSH session carried over a WebSocket at `wss://<hyve-api's public host>/agent/tunnel`, the same HTTPS address the console and CLI use — so the cluster never needs an inbound, reachable endpoint, and hyve-api needs no extra port: anything that proxies HTTPS to it (an Ingress, a load balancer, a tunnel like Pangolin) carries the agent too. Each agent's identity is issued for its cluster's organization.
+
+With `proxy: true`, `hyve cluster auth` returns a kubeconfig whose server is hyve-api's `/api/agent-proxy/org/<organization>/<cluster>` path, carrying your hyve session; hyve-api relays each request through the agent with Kubernetes impersonation derived from your role in that organization. `agent` is independent of `method` — a cluster can use both.
+
+A cluster's agent state is reported separately from the cluster's own status, so "the cluster isn't ready" and "the agent hasn't connected" never look alike — in the console's badges, `hyve cluster list`/`show`, and the `Agent` column of `kubectl get clusterdefinitions`:
+
+| Agent state | Meaning |
+|---|---|
+| `waiting` | The cluster itself isn't active yet — the agent is installed once it is |
+| `installing` | Being installed, or installed but not connected yet |
+| `connected` | Connected |
+| `disconnected` | Was connected, isn't now |
 
 <Note>
   The agent-proxy kubeconfig authenticates with your hyve session token, so hyve-api must be reachable over HTTPS — client-go drops bearer tokens sent to a plain `http://` server. Set the chart's `api.publicBaseURL` to the HTTPS address callers reach it on.
@@ -71,7 +69,7 @@ hyve installs **hyve-agent** on the cluster, which dials *out* to hyve-api over 
 
 ## `primary`: the host cluster
 
-The cluster hyve itself runs on. With no `spec.driver`, `hyve cluster auth` gets a short-lived `cluster-admin` token minted by hyve-api — **superadmin only**. With a real driver, it authenticates like any other cluster. See [Multi-Tenancy — The host cluster](/docs/concepts/multi-tenancy#the-host-cluster).
+The cluster hyve itself runs on. With no `spec.driver`, `hyve cluster auth` gets a short-lived `cluster-admin` token minted by hyve-api, served through hyve-api's `/proxy` path — **superadmin only**. The kubeconfig trusts whatever certificate hyve-api's public address has (the chart's `api.publicCABundle` for a private CA; the system trust store otherwise). With a real driver, it authenticates like any other cluster. See [Multi-Tenancy — The host cluster](/docs/concepts/multi-tenancy#the-host-cluster).
 
 ## Related
 

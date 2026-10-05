@@ -85,6 +85,10 @@ spec:
   Cloud provider region (e.g. `PHX1`, `us-east-1`, `us-central1`, `eastus`). Injected as `HYVE_CLUSTER_REGION` into module operations.
 </ParamField>
 
+<ParamField path="spec.mgmtCluster" type="string">
+  The cluster the driver module uses as its [management cluster](/docs/concepts/modules#management-clusters) (e.g. for a Cluster API module), passed to every operation as `HYVE_MGMT_KUBECONFIG`. Usually inherited from the template.
+</ParamField>
+
 ### Driver fields
 
 <ParamField path="spec.driver.source" type="string" required>
@@ -255,6 +259,18 @@ spec:
 ```
 
 Or use a template with a `schedule` to compute the expiry automatically at cluster-creation time.
+
+In cluster mode, `hyve cluster list` and `show` print the expiry as local time plus how long until then (`Expires: 2026-10-04 12:00 CDT (in 18h50m)`), and the web console shows an **Expires in …** badge on the cluster list and detail page (the exact time on hover). An expiry that passes while hyve-controller is down is acted on as soon as it's back.
+
+### Status (cluster mode)
+
+A cluster's own state and the outcome of reconciling it are reported separately:
+
+- **Phase** (`status.phase`) — the cluster's state as the module last reported it: `NOT_FOUND`, `CREATING`, `ACTIVE`, `UPDATING`, `DELETING`, or `FAILED`.
+- **Ready** condition — `True` only when the phase is `ACTIVE` and the last reconcile succeeded. Otherwise `False`, with the phase (`Creating`, `Deleting`, …) or `ReconcileFailed` as its reason — a reconcile that merely ran (say, "still creating, skipping") never marks a cluster ready.
+- **Agent** — with [hyve-agent](/docs/concepts/cluster-access#hyve-agent) enabled, its own state (`waiting` for the cluster, `installing`, `connected`, `disconnected`).
+
+`kubectl get clusterdefinitions` shows them as the `PHASE`, `READY`, and `AGENT` columns; the console and `hyve cluster list`/`show` show them as separate badges and lines, so a cluster that isn't up yet never looks like one whose agent hasn't connected.
 
 ## Lifecycle workflow hooks
 

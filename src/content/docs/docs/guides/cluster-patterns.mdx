@@ -47,7 +47,8 @@ Delete by marking it and reconciling again: `hyve cluster delete dev && hyve rec
 When a host cluster already runs hyve, the CLI talks to its API and the controller does the provisioning.
 
 ```bash
-hyve context login --api-url https://hyve.example.com --org acme
+hyve context login --api-url https://hyve.example.com
+hyve organization use acme                    # which organization (if you're in several)
 hyve environment use staging                  # which environment new clusters land in
 hyve cluster create dev --file clusters/dev.yaml
 hyve cluster logs dev                         # watch the controller create it
