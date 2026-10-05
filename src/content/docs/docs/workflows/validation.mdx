@@ -554,10 +554,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
       - name: Install Hyve
         run: |
-          # Install Hyve
           go install github.com/cbridges1/hyve@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Validate workflows
         run: |

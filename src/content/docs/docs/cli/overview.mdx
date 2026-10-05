@@ -315,10 +315,10 @@ hyve cluster delete my-cluster
 
 <AccordionGroup>
   <Accordion title="hyve: command not found">
+    `go install` puts `hyve` in Go's bin directory — add it to your `PATH`:
+
     ```bash
-    sudo mv hyve /usr/local/bin/
-    # or
-    export PATH=$PATH:/path/to/hyve
+    export PATH=$PATH:$(go env GOPATH)/bin
     ```
   </Accordion>
 
