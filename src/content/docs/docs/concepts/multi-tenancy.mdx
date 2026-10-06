@@ -23,7 +23,7 @@ hyve organization create acme
 
 Superadmin-only, and deliberately narrow: it turns a name into a real tenant — its own namespace, its own `hyve-access-admin`/`hyve-access-readonly` `ServiceAccount`+`RoleBinding` scaffolding (the same RBAC a one-install-per-tenant deployment gets from the Helm chart at install time, created programmatically here instead), and its own datastore record — and nothing more. Every organization also gets one default **environment** automatically — a named scope within it (`staging`, `production`, ...) that clusters are created in; see [`hyve environment`](/docs/cli/environment).
 
-Creating the tenant's first user is a separate, already-existing call:
+Creating it grants no one access. Add its first member from the web console's **Users** page while viewing it (or `POST /api/accounts`) — a new user gets a password and is emailed about their account; an existing user from another organization is just added, keeping their own login. From inside the hyve-api pod there's also:
 
 ```bash
 hyve cluster-config api create-user alice --role admin --namespace acme
@@ -55,7 +55,7 @@ This marks the row for deletion and issues a standard Kubernetes namespace delet
 
 ## Reconciling clusters: where a tenant's resources actually live
 
-By default, an organization's `ClusterDefinition`/`Template`/`Workflow`/`Resource` objects (and its own `HyveConfig`) live in its namespace on the control plane's own home cluster, right alongside every other tenant's. A **reconciling cluster** lets one organization's resources live on a different, dedicated physical Kubernetes cluster instead — useful for isolating a noisy or sensitive tenant, or for a hosted offering that never wants tenant workloads anywhere near its own control-plane infrastructure.
+By default, an organization's `ClusterDefinition`/`Template`/`Workflow`/`Resource` objects (and its own `HyveConfig`) live in its namespace on the control plane's own home cluster, right alongside every other tenant's. hyve-controller reconciles every such organization alongside the control plane — the Helm chart turns this on for `api.multiTenant.enabled` with `api.db.driver: postgres` (the controller reads the organization list from the same database, and picks up new organizations by restarting itself within about 30 seconds). A **reconciling cluster** lets one organization's resources live on a different, dedicated physical Kubernetes cluster instead — useful for isolating a noisy or sensitive tenant, or for a hosted offering that never wants tenant workloads anywhere near its own control-plane infrastructure.
 
 An organization can keep **several** clusters stored and switch between them by name — no re-entering a kubeconfig each time. This is self-service, reachable by the organization's own `admin`:
 
@@ -89,17 +89,27 @@ hyve cluster-config api run --require-reconciling-cluster ...
 
 Every organization must then be given an explicit reconciling cluster at creation, and can never migrate back to `""` (home) later — a hard operator guarantee that tenant workloads never touch the infrastructure the control plane itself runs on.
 
-## Namespace is chosen at login, not fixed at install time
+## One account, many organizations
 
-Every access binding is scoped to a namespace (see [Access Control](/docs/concepts/access-control)), and which namespace a session resolves against is decided by the login request itself:
+A user is **one account** — a username, an email, and a password, all unique across the install — with a **membership** in each organization they belong to, each with its own role. Adding someone to a second organization adds a membership, not a second account or password.
+
+Logging in names no organization:
 
 ```bash
-hyve context login --api-url https://hyve-api.example.com --org acme
+hyve context login --api-url https://hyve-api.example.com
 ```
 
-`--org` is resolved **server-side**: it first looks for an organization currently named `acme` and, if found, logs into that organization's own (real, immutable) namespace — which may differ from `acme` if it's since been renamed. If no organization is registered under that exact name, the value is treated as a literal Kubernetes namespace directly, which is exactly how every organization that's never been renamed already behaves (name and namespace start out identical at creation). Either way, a login always resolves to the organization's real namespace, never a stale or renamed label.
+Which organization a command acts in is picked per request, and checked against your memberships every time:
 
-Omit `--org` entirely to log in at the control-plane tier instead — see `superadmin` below.
+```bash
+hyve organization list              # the organizations you can access, and your role in each
+hyve organization use acme          # remembered on the active context
+hyve cluster list --org widget      # or for a single command
+```
+
+In the web console, the same choice is the **Viewing** picker, which lists only your organizations (and hides itself when there's just one). With nothing picked, hyve-api uses your only organization — the first one, if you belong to several — or, for a `superadmin`, the control plane. Organization names are resolved server-side, so a renamed organization keeps working under its new name, and under its namespace.
+
+The control plane's own organization (`hyve-system`) appears once, as **Control plane**.
 
 ## The `superadmin` role
 
@@ -107,9 +117,9 @@ Above the namespace-scoped `admin`/`read-only` roles sits one intentionally clus
 
 - Create, rename, or delete a tenant organization.
 - Manage the install-wide reconciling-cluster pool and assign pool clusters to organizations (an organization's own clusters, above, need no `superadmin` at all).
-- Act on any organization with `--org` (environments, reconciling clusters).
+- Act in any organization, member or not (picked like any other — `hyve organization use`, `--org`, or the console's Viewing picker), always as `superadmin`.
 
-It's never the default role, and no tenant `admin` can grant it to themselves — see [Access Control](/docs/concepts/access-control) for the full role model.
+It's never the default role, and no tenant `admin` can grant it to themselves. A user's email and password are shared by all their organizations, so an organization's `admin` can change them only for someone who belongs to that organization alone — see [Access Control](/docs/concepts/access-control) for the full role model.
 
 ## The host cluster
 
@@ -128,6 +138,10 @@ It's never the default role, and no tenant `admin` can grant it to themselves �
 
 See [Cluster Patterns](/docs/guides/cluster-patterns) for creating a host cluster locally or from a pipeline.
 
+### The host as other organizations' management cluster
+
+A module with a management cluster (such as a Cluster API module — see [Modules](/docs/concepts/modules#management-clusters)) can name the host. Clusters in the control plane can always do that; clusters in other organizations on the home cluster can only once a superadmin allows it — **Organizations may use the host cluster** in the control plane's Settings (`HyveConfig.spec.organizationsMayUseHostCluster`). Off by default: the module then gets the host's `cluster-admin` kubeconfig, and organizations choose their own modules, so only allow it when every organization is trusted with that.
+
 ## Moving tenants and hosts: `hyve migrate`
 
 [`hyve migrate cluster`](/docs/cli/migrate#hyve-migrate-cluster) understands this model directly via `--namespace`, working alongside (not instead of) `hyve organization migrate` above:
@@ -141,8 +155,8 @@ See [Cluster Patterns](/docs/guides/cluster-patterns) for creating a host cluste
   <Card title="Access Control" icon="shield-check" href="/docs/concepts/access-control" color="#22c55e">
     Roles, access bindings, and how a session resolves to what you can do
   </Card>
-  <Card title="hyve context login" icon="key" href="/docs/cli/context" color="#f43f5e">
-    The `--org` flag in full
+  <Card title="hyve organization" icon="key" href="/docs/cli/organization" color="#f43f5e">
+    Listing and picking the organizations you act in
   </Card>
   <Card title="hyve migrate" icon="right-left" href="/docs/cli/migrate" color="#0ea5e9">
     Moving tenants and hosts between clusters

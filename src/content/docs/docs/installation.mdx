@@ -14,12 +14,12 @@ import Note from '../../../components/mdx/Note.astro';
 ## Prerequisites
 
 <CardGroup cols={2}>
-  <Card title="Go 1.21+" icon="code" color="#6366f1">
+  <Card title="Go 1.26+" icon="code" color="#6366f1">
     [Install Go](https://golang.org/doc/install)
   </Card>
 
-  <Card title="Git (optional)" icon="git" color="#8b5cf6">
-    Not required — hyve has no built-in git functionality at all. Install it only if you want your state directory version-controlled, using your own `git` commands.
+  <Card title="Git" icon="git" color="#8b5cf6">
+    Needed to fetch modules from git repositories (hyve runs `git clone`). Your state directory doesn't have to be a git repo — that's up to you.
   </Card>
 </CardGroup>
 
@@ -106,14 +106,6 @@ The `--home` flag takes precedence over `HYVE_HOME`.
 ## Platform-Specific Notes
 
 <AccordionGroup>
-  <Accordion title="macOS">
-    On macOS, you may need to allow the binary in Security & Privacy settings:
-
-    1. Run `hyve` once
-    2. Go to System Settings → Privacy & Security
-    3. Click "Allow Anyway" for the hyve binary
-  </Accordion>
-
   <Accordion title="Linux">
     No system dependencies required for hyve itself. If you're using a git-backed context directory (optional — see [Git](#git-optional) above):
 
@@ -157,14 +149,6 @@ hyve context list
 
     # If not, add Go bin to PATH
     export PATH=$PATH:$(go env GOPATH)/bin
-    ```
-  </Accordion>
-
-  <Accordion title="Permission denied">
-    Make the binary executable:
-
-    ```bash
-    chmod +x $(which hyve)
     ```
   </Accordion>
 

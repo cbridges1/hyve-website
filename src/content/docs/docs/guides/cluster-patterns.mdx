@@ -47,7 +47,8 @@ Delete by marking it and reconciling again: `hyve cluster delete dev && hyve rec
 When a host cluster already runs hyve, the CLI talks to its API and the controller does the provisioning.
 
 ```bash
-hyve context login --api-url https://hyve.example.com --org acme
+hyve context login --api-url https://hyve.example.com
+hyve organization use acme                    # which organization (if you're in several)
 hyve environment use staging                  # which environment new clusters land in
 hyve cluster create dev --file clusters/dev.yaml
 hyve cluster logs dev                         # watch the controller create it
@@ -86,10 +87,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
       - name: Install hyve
         run: |
-          curl -sL https://github.com/cbridges1/hyve/releases/latest/download/hyve_linux_amd64.tar.gz | tar xz hyve
-          sudo mv hyve /usr/local/bin/
+          go install github.com/cbridges1/hyve@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Register a context for this checkout
         run: hyve context create ci --path .

@@ -20,16 +20,27 @@ Cluster mode ([overview](/docs/concepts/cluster-mode)) needs its own identity an
 | `superadmin` | The one intentionally cluster-scoped role — see below |
 
 <Note>
-  `superadmin` is deliberately narrow: it can create, rename, or delete a tenant [organization](/docs/concepts/multi-tenancy) and access the *host* cluster hyve itself runs on. It's never the default role, and no tenant `admin` can grant it to themselves.
+  `superadmin` is deliberately narrow: it can create, rename, or delete a tenant [organization](/docs/concepts/multi-tenancy), act in any organization, and access the *host* cluster hyve itself runs on. It's never the default role, and no tenant `admin` can grant it to themselves.
 </Note>
 
-## Creating a user
+## Users and memberships
+
+A **user** is one account per person — a username, an email, and a password, all unique across the install. Their access is a set of **memberships** (bindings): one per organization (and optionally environment) they belong to, each with its own role. One login reaches all of them; see [Multi-Tenancy](/docs/concepts/multi-tenancy#one-account-many-organizations).
+
+Add users from the web console's **Users** page, while viewing the organization:
+
+- **New user** — a username, email, password, and role. They're emailed that their account exists (send the password separately); the console tells you if that email couldn't be sent.
+- **Existing user** — just a username and role: someone who already has a login (in another organization) is added here and keeps their own password and email.
+
+Removing a user from an organization removes that membership; their account is deleted once they belong to no organization at all. A user's email and password are shared by every organization they're in, so an organization's `admin` can only change them for someone who belongs to that organization alone — otherwise only the user or a superadmin can.
+
+From inside the hyve-api pod:
 
 ```bash
 hyve cluster-config api create-user alice --role admin --namespace acme
 ```
 
-This is a real database write, not something `kubectl apply -f -` can create: it bcrypt-hashes the given (or interactively-prompted) password and writes the access grant — including the password hash itself, no separate credentials `Secret` — directly to hyve-api's own datastore, scoped to `--namespace`'s own organization and (optionally) one of its environments via `--env`. Safe to re-run: an already-existing binding for the same identity+scope is replaced rather than erroring.
+This is a real database write, not something `kubectl apply -f -` can create: it adds `alice`'s membership in `--namespace`'s organization (and optionally one of its environments via `--env`), and creates the user with the given (or interactively-prompted) password — or, for an existing user, sets that as their password. Safe to re-run.
 
 <Note>
   The `local` (username/password, implemented today) vs. `oidc` (reserved for a future external identity provider) distinction lives on the binding itself, so no schema change will be needed when OIDC is added.
@@ -40,7 +51,7 @@ This is a real database write, not something `kubectl apply -f -` can create: it
 Every authenticated request re-resolves the caller's role from their own binding row, nothing is cached in the session token itself. Change a binding's role, and the effect is immediate on that user's *next* request, not their next login.
 
 <Warning>
-  **Namespace matters.** A binding is scoped to one namespace, and which namespace a session resolves against is chosen at login time (`hyve context login --org <name>`), not fixed by which install you happen to be talking to — one tenant never sees or resolves another tenant's identities, whether they're on separate installs or sharing one. See [Multi-Tenancy](/docs/concepts/multi-tenancy) for the full model, including how `--org` itself resolves to a namespace.
+  **The organization is picked per request.** A membership is scoped to one namespace, and each request names the organization it acts in (`hyve organization use`, `--org`, or the console's Viewing picker) — checked against the caller's memberships every time, so a user only ever reaches organizations they belong to (a `superadmin`, any). See [Multi-Tenancy](/docs/concepts/multi-tenancy#one-account-many-organizations).
 </Warning>
 
 ## What a role actually gets you

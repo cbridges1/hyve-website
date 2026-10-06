@@ -144,6 +144,26 @@ In addition to `HYVE_PARAM_*` variables, every module operation also receives:
 
 Scripts run with the working directory set to the **consuming repository's root**, not the module's own directory — so don't `source` another file from your module by relative path.
 
+## Management clusters
+
+Some modules don't talk to a cloud directly but to another Kubernetes cluster that does the work — a Cluster API module creates `Cluster` objects on a CAPI **management cluster**. Name it on the template or cluster, and every operation gets a kubeconfig for it as `HYVE_MGMT_KUBECONFIG`:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: Template
+metadata:
+  name: gke
+spec:
+  mgmtCluster: capi-mgmt     # a cluster hyve already manages
+  driver:
+    source: github.com/acme/hyve-capi-module
+    version: v0.2.0
+```
+
+`hyve template create --mgmt-cluster capi-mgmt` sets the same field; clusters created from the template inherit it, and a cluster can set its own. A module can also declare a default (`spec.requirements.mgmtCluster` in `module.yaml`), which `spec.mgmtCluster` overrides — but a module meant to be shared across installs should leave it unset, since it names one install's cluster. With neither set, the module gets no `HYVE_MGMT_KUBECONFIG` and is expected to manage its own (say, a kind cluster it creates).
+
+The name resolves like any cluster reference: in cluster mode a short name means that cluster in the same environment (`capi-mgmt` → `default-capi-mgmt`). Reconcile checks that it exists before running any operation. When the management cluster is hyve's own host (`access.method: primary`), cluster mode mints a fresh `cluster-admin` kubeconfig for each operation; otherwise it's the kubeconfig the management cluster's own `auth` last wrote, so that cluster must have reconciled (or you must have run `hyve cluster auth <name>`) first. A cluster in another organization can name the host only if a superadmin allows it — see [Multi-Tenancy](/docs/concepts/multi-tenancy#the-host-as-other-organizations-management-cluster).
+
 ## Outputs protocol
 
 Operations emit outputs by printing `HYVE_KEY=value` lines to stdout (anything else on stdout is ignored — log to stderr). Outputs from `create` are stored in the cluster's `driverOutputs`; other operations' outputs are only read for that run.

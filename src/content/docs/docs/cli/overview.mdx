@@ -66,6 +66,7 @@ hyve cluster create --help
 | Flag | Description |
 |------|-------------|
 | `--home <dir>` | Override the Hyve data directory (default: `~/.hyve`). Also configurable via the `HYVE_HOME` environment variable. |
+| `--org <name>` | Organization to act in for this one command, overriding `hyve organization use` (cluster mode only). |
 | `--env <name>` | hyve-api environment to target for this one command, overriding `hyve environment use` (cluster mode only). |
 
 ```bash
@@ -96,7 +97,7 @@ Where the CLI's state lives — a local directory, a hyve-api server, or both �
 ```bash
 hyve context create <name> [--path <dir>] [--api-url <url>]
 hyve context list | current | use <name> | remove <name> | path [name]
-hyve context login [--api-url <url>] [--org <name>]
+hyve context login [--api-url <url>]
 hyve context logout | whoami
 hyve context secrets list | get | set | unset
 ```
@@ -205,10 +206,12 @@ hyve resource install
 
 ### organization
 
-Superadmin management of organizations — the multi-tenant unit on a hyve-api install (cluster mode only).
+Organizations — the multi-tenant unit on a hyve-api install (cluster mode only): pick the one commands act in, and (superadmin) manage them.
 
 ```bash
-hyve organization create <name> | list | delete <name>
+hyve organization list | use <name> | unset | current
+hyve cluster list --org widget       # one-off override on any command
+hyve organization create <name> | delete <name>
 hyve organization migrate <name> (--reconciling-cluster <pool-name> | --home)
 ```
 
@@ -312,10 +315,10 @@ hyve cluster delete my-cluster
 
 <AccordionGroup>
   <Accordion title="hyve: command not found">
+    `go install` puts `hyve` in Go's bin directory — add it to your `PATH`:
+
     ```bash
-    sudo mv hyve /usr/local/bin/
-    # or
-    export PATH=$PATH:/path/to/hyve
+    export PATH=$PATH:$(go env GOPATH)/bin
     ```
   </Accordion>
 

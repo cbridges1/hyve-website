@@ -1,6 +1,6 @@
 ---
 title: "'hyve organization'"
-description: "'Create, rename, delete, and manage organizations — hyve-api's own multi-tenant isolation unit'"
+description: "'Pick the organization commands act in, and create, rename, delete, and manage organizations — hyve-api's own multi-tenant isolation unit'"
 ---
 
 import Card from '../../../../components/mdx/Card.astro';
@@ -10,10 +10,43 @@ import Note from '../../../../components/mdx/Note.astro';
 import Warning from '../../../../components/mdx/Warning.astro';
 import ParamField from '../../../../components/mdx/ParamField.astro';
 
-`hyve organization` manages [organizations](/docs/concepts/multi-tenancy) — hyve-api's own multi-tenant isolation unit, one Kubernetes namespace plus a set of environments/RBAC bindings/reconciling-cluster assignment, backed by a real row in hyve-api's own datastore rather than a Kubernetes object. Cluster-mode only — organizations have no local-directory equivalent — every command here requires an active session (`hyve context login`) against a superadmin account.
+`hyve organization` manages [organizations](/docs/concepts/multi-tenancy) — hyve-api's own multi-tenant isolation unit, one Kubernetes namespace plus a set of environments/RBAC bindings/reconciling-cluster assignment, backed by a real row in hyve-api's own datastore rather than a Kubernetes object. Cluster-mode only — organizations have no local-directory equivalent — and every command needs an active session (`hyve context login`). `list`, `use`, `unset`, and `current` work for anyone; the rest are superadmin-only.
+
+One login reaches every organization you're a member of (see [Multi-Tenancy](/docs/concepts/multi-tenancy#one-account-many-organizations)), so these commands pick which one the rest of the CLI acts in.
+
+## hyve organization list
+
+```bash
+hyve organization list
+```
+
+The organizations you can access — every one, for a superadmin — with your role in each, marking the one you're acting in. The control plane's own organization is listed once, as `control plane (hyve-system)`.
+
+## hyve organization use
+
+```bash
+hyve organization use <name>
+```
+
+Act in `<name>` from now on: recorded on the active context, so every cluster-mode command (`hyve cluster`, `template`, `environment`, …) acts there until you run `use` again or `unset`. Refuses an organization you can't access. Clears the context's selected environment, which belonged to the previous organization. `control-plane` names the control plane's own organization.
+
+For a single command, pass `--org <name>` instead — a global flag, accepted by every command:
+
+```bash
+hyve cluster list --org widget
+```
+
+## hyve organization unset / current
+
+```bash
+hyve organization unset     # let the server pick: your only (or first) organization, or the control plane for a superadmin
+hyve organization current   # the organization commands act in, and your role there
+```
+
+---
 
 <Note>
-  Creating an organization only provisions the namespace/environment — it grants no one access. Use `hyve cluster-config api create-user` (see [Access Control](/docs/concepts/access-control)) to create its first account.
+  Creating an organization only provisions the namespace/environment — it grants no one access. Add its first member from the web console's **Users** page while viewing it (an existing user keeps their own login), or with `hyve cluster-config api create-user` from the hyve-api pod (see [Access Control](/docs/concepts/access-control)).
 </Note>
 
 ## hyve organization create
@@ -41,16 +74,6 @@ hyve organization create <name> [--admin-identity <identity> --admin-role <role>
 ```bash
 hyve organization create acme --reconciling-cluster cell-a
 ```
-
----
-
-## hyve organization list
-
-```bash
-hyve organization list
-```
-
-Lists every organization on the install, its namespace, plan, current reconciling cluster (if any), and whether it's mid-migration.
 
 ---
 
@@ -96,7 +119,7 @@ hyve organization migrate acme --reconciling-cluster cell-b
 
 ## Environments
 
-An organization's environments are managed with [`hyve environment`](/docs/cli/environment) (`list`/`create`/`delete`/`use`, with `--org <name>` for a superadmin acting on another organization). The older `hyve organization environments` and `hyve organization create-environment` still work but are deprecated.
+An organization's environments are managed with [`hyve environment`](/docs/cli/environment) (`list`/`create`/`delete`/`use`, in the organization you're acting in). The older `hyve organization environments` and `hyve organization create-environment` still work but are deprecated.
 
 ## Related
 

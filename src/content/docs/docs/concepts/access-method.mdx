@@ -6,5 +6,5 @@ description: "Removed — cluster access is now set per cluster with spec.access
 import Warning from '../../../../components/mdx/Warning.astro';
 
 <Warning>
-  The `AccessMethod` object (and `spec.access.accessMethodRef`) has been removed. How a cluster's kubeconfig is minted is now set directly on each `ClusterDefinition` with `spec.access` — client-side module auth (the default), `module-auth`, `tunnel`, hyve-agent, or `primary` for the host cluster. See [Cluster Access](/docs/concepts/cluster-access).
+  The `AccessMethod` object (and `spec.access.accessMethodRef`) has been removed. How a cluster's kubeconfig is minted is now set directly on each `ClusterDefinition` with `spec.access` — client-side module auth (the default), `module-auth`, hyve-agent, or `primary` for the host cluster. (The `tunnel` method, a pre-minted kubeconfig in a Secret, has been removed too — hyve-agent covers clusters with no reachable endpoint.) See [Cluster Access](/docs/concepts/cluster-access).
 </Warning>
