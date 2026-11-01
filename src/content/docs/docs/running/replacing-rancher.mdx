@@ -1,0 +1,113 @@
+---
+title: Replacing Rancher
+description: Move a management cluster from Rancher with Turtles to hyve, keeping Fleet and Cluster API running
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+hyve does for Cluster API clusters what Rancher's cluster management does, on the same Fleet
+and the same agent. On a cluster where Rancher runs with Rancher Turtles (Rancher's Cluster
+API integration), `hyve install --replace-rancher` takes over: Rancher goes, while Fleet,
+Cluster API, their objects and everything they deployed keep running.
+
+```bash
+hyve install --replace-rancher --host-url https://hyve.example.com
+```
+
+## Why plain `hyve install` refuses
+
+On a Rancher cluster, Turtles manages Cluster API: its `CAPIProvider` objects own the running
+providers. The Cluster API Operator that hyve uses can't add CAAPF to a core it doesn't own,
+so an install next to Rancher would wait forever. `hyve install` finds Rancher (its
+`clusters.management.cattle.io` or Turtles' `capiproviders.turtles-capi.cattle.io` CRD) and
+stops with an error instead, unless you pass `--replace-rancher`.
+
+## What it removes and what it keeps
+
+| Removed | Kept |
+|---|---|
+| Rancher's, Turtles' and herd's Deployments, stopped first | Fleet: its release, CRDs, GitRepos, bundles and agents |
+| Rancher's Helm charts (Turtles, the webhook, and the others in `cattle-system`, `cattle-turtles-system`, `cattle-ui-plugin-system`, `cattle-provisioning-capi-system`), uninstalled without their hooks | Cluster API: its CRDs, every object (Clusters, Machines, ClusterClasses) and the running providers |
+| Turtles' `CAPIProvider`s and `ClusterctlConfig`s, deleted without what they own | the namespaces the providers run in, including `cattle-capi-system` |
+| Rancher's and herd's webhooks and API extensions | Fleet's and k3s's own `cattle.io` CRDs (`fleet.cattle.io`, `helm.cattle.io`, `k3s.cattle.io`) |
+| the CRDs of Rancher's other API groups (`management`, `provisioning`, `turtles-capi`, `rke`, `catalog`, `ui` and more), with their objects | Fleet's agent roles (anything labelled `fleet.cattle.io/...`), and k3s's own roles |
+| Rancher's namespaces: its global-data, impersonation and UI-plugin namespaces, and the ones it makes for its local cluster, projects and users | apps Fleet deployed, and everything else on the cluster |
+| Rancher's cluster roles and bindings, matched by name | Rancher's data (a PVC or host path), left for you to delete |
+
+Then it installs hyve as usual: cert-manager, the Cluster API Operator, CAAPF and hyve.
+Instead of installing new providers, it **adopts the ones that are running**: the operator is
+given a provider object for the core, kubeadm and Docker providers in the namespaces they run
+in, and upgrades each in place to hyve's Cluster API version. The Deployments stay the same.
+A provider hyve doesn't know (GCP, AWS, ...) keeps running, and the install names it: create a
+Cluster API Operator `InfrastructureProvider` for it in the same namespace, or
+`hyve provider add`, so the operator manages it from then on.
+
+## Before you start
+
+<Steps>
+
+1. **Back up the cluster's datastore.** An etcd snapshot, or for single-node K3s on SQLite,
+   a copy of `server/db/state.db` (with `sqlite3 state.db ".backup ..."` while it runs) and
+   the `server/tls` directory. Nothing below can be undone by hyve.
+
+2. **Check what manages what.** Anything that deploys Rancher itself (a GitOps repo, a Helm
+   release managed elsewhere) should stop doing so first, or it will put Rancher back. If
+   Fleet deploys Rancher's own exposure (an Ingress, a DNS record), remove that from its repo.
+
+3. **If a Fleet bundle lists a namespace hyve will use, keep it there.** Removing a Namespace
+   object from a bundle makes Fleet delete the namespace with everything in it. Keep the
+   provider namespaces and `hyve-system` in their bundles while you change the rest.
+
+4. **If you run the old hyve (v1) on this cluster,** remove it first. Its `ClusterDefinition`s
+   carry the finalizer `hyve.io/cluster-cleanup`, which runs a cluster's delete operation when
+   the object is deleted, and that can delete the cluster the definition describes, including
+   the management cluster itself. So: scale its controller and API to zero, wait for their pods
+   to go, drop that finalizer from every `ClusterDefinition`, then remove the old hyve and
+   delete its CRDs (`kubectl get crd -o name | grep '\.hyve\.io$'`). The old `resources.hyve.io`
+   clashes with the new hyve's.
+
+</Steps>
+
+## Run it
+
+```bash
+hyve install --replace-rancher --host-url https://hyve.example.com
+```
+
+Then sign in as admin as for any [standalone install](/docs/running/standalone#sign-in-as-admin),
+add users and grant access.
+
+Afterwards, change anything that still names Turtles' kinds. A Fleet bundle that deployed a
+`CAPIProvider` has to deploy the Cluster API Operator's provider kinds instead. Helm can't
+upgrade a release whose last version names a kind that no longer exists, so Fleet reports
+the bundle as failed: delete that release's history and Fleet installs the new version,
+adopting what's already there:
+
+```bash
+kubectl -n <release-namespace> delete secret -l owner=helm,name=<release-name>
+```
+
+## Check
+
+```bash
+kubectl get coreproviders,bootstrapproviders,controlplaneproviders,infrastructureproviders,addonproviders -A
+kubectl get pods -A | grep -v -e Running -e Completed
+kubectl get apiservices | grep -v True
+hyve repo list
+```
+
+Every provider should be listed and ready, every pod running, every API service available,
+and every GitRepo's bundles ready.
+
+## What's been tested
+
+This was rehearsed end to end on a copy of a Rancher 2.14.3 cluster with Turtles 0.26.3,
+Fleet 0.15.4 and Cluster API v1.12.7 (the core, kubeadm and Docker providers), with a Fleet
+GitRepo deploying apps: Fleet's bundles stayed ready, the apps were never touched, and the
+four provider Deployments were the same ones afterwards, now managed by the operator.
+
+<Aside type="caution" title="Not tested">
+Moving child clusters whose agents are Rancher's: clusters Rancher provisioned or imported,
+or Cluster API clusters Rancher's agents were installed on. Their `cattle-cluster-agent` is
+registered with Rancher, not hyve. Clusters with no Rancher agent are unaffected.
+</Aside>

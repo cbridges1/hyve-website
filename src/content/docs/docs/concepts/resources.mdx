@@ -1,237 +1,182 @@
 ---
-title: "'Cluster Resources'"
-description: "'Declarative in-cluster resources, drift-detected and re-applied on every reconcile'"
+title: Resources
+description: What hyve puts on a cluster is its template's resources plus its own extras. Each is a Fleet HelmOp, Bundle or GitRepo spec, and Fleet delivers it.
 ---
 
-import Card from '../../../../components/mdx/Card.astro';
-import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import ParamField from '../../../../components/mdx/ParamField.astro';
-import Warning from '../../../../components/mdx/Warning.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-## Overview
+What hyve puts on a cluster is its **template's resources** plus that cluster's own
+**extras**. hyve has no resource format of its own. Each resource embeds one of Fleet's specs,
+without targets:
 
-Modules provision the cluster itself — the control plane, node pools, the infrastructure layer. `spec.resources` covers the layer on top: Kubernetes manifests, Helm releases, and Secrets rendered from Hyve's own environment, that Hyve should own, drift-check, and re-apply, using the same reconcile cadence it already uses for everything else.
-
-A module is still required even if you only care about this layer — there's no driverless cluster type. See [Auth-only modules](/docs/concepts/modules#auth-only-modules) for how to write a minimal module when the cluster itself is provisioned elsewhere.
-
-On the cycle that creates a cluster, the full order is `beforeCreate` → create → `onCreate` → `spec.resources` → `afterCreate` (see [Lifecycle workflow hooks](/docs/concepts/clusters#lifecycle-workflow-hooks)) — `afterCreate` is the hook to use for anything that needs a resource-created object (a namespace, a Deployment) to already exist.
-
-This is the same problem Terraform solves with its `kubernetes`/`helm` providers — declare a resource once, and have it continuously compared against both your desired config and the live cluster on every `plan`/`apply`. It is **not** a replacement for a continuous GitOps controller like Argo CD or Flux — see [ArgoCD Integration](/docs/guides/argocd) for that pattern, which remains the right choice when you want health checks, sync waves, and a UI. `spec.resources` is for the narrower case: a handful of foundational resources (an ingress controller, cert-manager, a couple of CRDs) that a team wants Hyve itself to own, alongside the cluster that hosts them.
-
-## Three kinds of resource
-
-A `spec.resources` entry is a raw manifest, a Helm release, or a Secret rendered from Hyve's own environment — exactly one of `source`, `helm`, or `secret` must be set.
-
-```yaml
-spec:
-  resources:
-    - name: nginx-ingress
-      source: ./resource-files/nginx-ingress.yaml
-      namespace: ingress-nginx
-
-    - name: cert-manager-crds
-      source: github.com/myorg/manifests//cert-manager/crds.yaml@v1.14.0
-
-    - name: portainer-public-resource
-      # The same manifest file can be reused across templates/clusters —
-      # each reference supplies its own values here, so the file itself
-      # never hardcodes anything cluster-specific.
-      source: ./resource-files/portainer-public-resource.yaml
-      values:
-        FULL_DOMAIN: portainer.example.com
-
-    - name: cert-manager
-      helm:
-        chart: cert-manager
-        repo: https://charts.jetstack.io
-        version: v1.14.0
-        namespace: cert-manager
-        values:
-          installCRDs: "true"
-          # ${VAR} expands against Hyve's own process environment at
-          # reconcile time — useful for a value that's real but not secret
-          # (an org ID, an API endpoint) and shouldn't be committed
-          # literally into a template reused across many cluster instances.
-          acme.email: ${LETSENCRYPT_EMAIL}
-
-    - name: github-secrets
-      secret:
-        namespace: default
-        keys: [PANGOLIN_ENDPOINT, NEWT_ID, NEWT_SECRET]
-```
-
-`source` reuses the exact same source-string convention as `spec.driver.source` and remote workflow references: a local path (`./`, `../`, or absolute), or `github.com/<org>/<repo>[//<path>][@<version>]`. It names a single file, or — ending in `/` — a [directory](#directory-sources). Omit the version for the newest semver tag (or the default branch's latest commit if the repo has no tags); pin `@<branch>`, `@<tag>`, or `@<commit>` otherwise. A single remote file is pinned by content hash in `hyve.lock` once `hyve resource install` has run (the controller does this itself); a directory is resolved fresh on every reconcile.
-
-### Directory sources
-
-A source ending in `/` applies **every `*.yaml` file directly in that directory**, in name order, each as its own tracked resource named `<name>/<file-stem>`:
-
-```yaml
-spec:
-  resources:
-    - name: platform
-      source: github.com/myorg/manifests//platform/@main
-```
-
-```
-platform/
-  00-namespace.yaml   → tracked as platform/00-namespace, applied first
-  10-crds.yaml        → platform/10-crds
-  20-operator.yaml    → platform/20-operator
-  chart/values.yaml   → ignored (subdirectories aren't included)
-  notes.md            → ignored (only *.yaml)
-```
-
-- **Order is file-name order**, so use numeric prefixes when one file depends on another (a namespace before what goes in it, CRDs before custom resources).
-- **Each file drifts, applies, and prunes separately.** Remove a file and, with `reconcile.strictResourceDelete: true`, just that file's objects are pruned; otherwise it's reported as orphaned.
-- **`delete: true` on the entry removes every file it applied** — without needing the directory to still exist.
-- **A directory that can't be fetched fails the reconcile but never prunes.** Its already-applied files are left in place until it resolves again.
-- The rule is explicit: `.../platform/` is a directory, `.../platform` is not (the same rule as workflow references). A local path that is a directory but has no trailing slash is rejected with an error saying so.
-
-
-### Field reference
-
-<ParamField path="name" type="string" required>
-  Identifies this resource within `spec.resources`/`spec.appliedResources`. Must be unique within a cluster. For a Helm resource this also doubles as the Helm release name; for a Secret resource, the resulting Secret object's name.
-</ParamField>
-
-<ParamField path="source" type="string">
-  A local path or remote ref to one manifest file, or — ending in `/` — to a directory of them (see [Directory sources](#directory-sources)). Mutually exclusive with `helm`/`secret`.
-</ParamField>
-
-<ParamField path="namespace" type="string">
-  Applied via `kubectl apply/diff -n <namespace>` as a default. An object's own `metadata.namespace` still wins per normal kubectl behavior. Only meaningful with `source` — a Helm resource uses `helm.namespace` instead, and a Secret resource uses `secret.namespace` instead.
-</ParamField>
-
-<ParamField path="values" type="object">
-  `${VAR_NAME}` substitutions (braced form only) applied to this resource's manifest file — the raw text, comments included. Only meaningful with `source`. Lets one manifest file be reused across multiple resource entries — even within the same template — while each reference supplies its own values, instead of hardcoding something reference-specific (a hostname, an org ID) directly into a shared file.
-
-  Three-tier lookup per reference, most specific wins:
-  1. This resource's own `values:` — verbatim keys, no case transform, exactly like `helm.values`.
-  2. The owning cluster's `spec.params`, as `HYVE_PARAM_<KEY>` (see [the `HYVE_PARAM_*` naming convention](/docs/concepts/modules#module-params)) — a template-wide default when every resource sharing a file wants the same value.
-  3. Hyve's own process environment (`.env` locally, CI secrets) — same fallback `helm.values` already gets.
-
-  A referenced variable that resolves in none of the three is a hard reconcile error naming it, not a silent empty-string substitution — same fail-loud behavior as `helm.values` and [Secret resources](#secret-resources).
-
-  <Warning>
-    This scans the resource's *entire* raw manifest text, not just specific fields — including anything inside a container's own `command`/`script`. Leaving `values:` unset skips this scan completely, so a manifest with its own unrelated `${...}` text (a shell script that legitimately sets and reads its own variable, say) is left untouched — but a manifest that *does* declare `values:` has its whole file scanned, so an incidental `${...}` elsewhere in that same file will be treated as a reference needing to resolve too. Confirmed the hard way: a `source:` resource with no `values:` at all broke when this feature first shipped without the empty-`values:` skip, because a container's own `${PRIVATE_KEY}` shell reference got caught by the same regex.
-  </Warning>
-</ParamField>
-
-<ParamField path="delete" type="boolean" default="false">
-  Marks this resource for removal. See [Removing a resource](#removing-a-resource) below.
-</ParamField>
-
-<ParamField path="helm" type="object">
-  Declares this resource as a Helm chart release instead of a raw manifest. Mutually exclusive with `source`/`secret`. Sub-fields: `chart` (required — a chart repo name, or a local path with no `repo:` set, for a chart living in your own repository), `repo`, `version`, `namespace`, `values` (a flat string map, passed as `--set key=value`).
-
-  A value may reference Hyve's own process environment with `${VAR_NAME}` (braced form only — a bare `$VAR` or a literal `$` elsewhere in a value is left untouched), resolved fresh on every reconcile. Useful for a value that legitimately differs per environment but isn't itself secret — an API endpoint, an org ID — so it can live in `.env`/CI secrets instead of being committed literally into a template reused across many cluster instances. A referenced variable that isn't set is a hard reconcile error naming it, not a silent empty-string substitution — the same fail-loud behavior [Secret resources](#secret-resources) use for a missing key.
-</ParamField>
-
-<ParamField path="secret" type="object">
-  Declares this resource as a Kubernetes `Secret` rendered from Hyve's own process environment at reconcile time. Mutually exclusive with `source`/`helm`. Sub-fields: `namespace`, `type` (defaults to `Opaque`), `keys` (a list — see [Secret resources](#secret-resources) below).
-</ParamField>
-
-## Secret resources
-
-A `secret:` resource resolves each entry in `keys` from the environment Hyve's own reconcile process is running in — not from anything committed to Git — and renders/applies a `v1/Secret` through the exact same drift-detect/apply path every other resource uses. Each `keys` entry is either:
-
-- a bare string — the environment variable name, which doubles as the resulting Secret key (identity mapping):
-  ```yaml
-  keys: [PANGOLIN_ENDPOINT, NEWT_ID, NEWT_SECRET]
-  ```
-- a `{env, key}` mapping — resolve from one environment variable, store under a different Secret key, e.g. to satisfy a chart's fixed expected key name:
-  ```yaml
-  keys:
-    - {env: PORTAINER_PASSWORD, key: password}
-  ```
-
-<Warning>
-  A `keys` entry whose environment variable isn't set is a **hard reconcile error** — the resource fails loudly rather than silently applying a Secret with fewer keys than declared. Get the value into whatever's running `hyve reconcile` (a CI job's `env:` block, a local `.env`) before it's listed here.
-</Warning>
-
-Where that environment comes from is up to how you're running Hyve — a GitHub Actions job's `env:` block forwarding repo secrets, or a systemd unit's `EnvironmentFile`. Hyve itself never talks to a secrets backend (Vault, cloud Secrets Manager, etc.) on your behalf — if you already run one of those, keep using it and declare its output (a `SecretStore`/`ExternalSecret`, a Vault Agent Injector annotation, whatever your tool needs) as an ordinary `source:` resource instead. `secret:` is the batteries-included default for a handful of application secrets when you don't have that infrastructure yet, not a replacement for it.
-
-## Drift detection
-
-On every reconcile cycle, for an ACTIVE cluster, resource reconciliation runs **unconditionally** — unlike `spec.workflows.preReconcile`, which only fires when param drift is detected (see [Workflows](/docs/concepts/workflows#lifecycle-workflows)). For each declared resource, in list order:
-
-1. **Config drift** — the resource's current content hash (of the resolved manifest bytes, or of the Helm chart/version/values configuration) is compared against what was hashed at last apply.
-2. **Live drift** — `kubectl diff --server-side` (manifest resources) or `helm template` piped into the same diff (Helm resources) checks whether the *live* object has changed out-of-band — someone ran `kubectl edit`, for instance.
-
-Either kind of drift triggers a re-apply (`kubectl apply --server-side`, or `helm upgrade --install`). If neither has drifted, the resource is left alone. A failure — apply, delete, or resolve — stops the loop for that cluster with no rollback (whatever already applied this cycle stays applied) and fails the reconcile cycle so it's retried next time, rather than silently continuing past a broken resource.
-
-What Hyve applied is recorded in `spec.appliedResources`, keyed by resource name — reconciler-owned, never hand-edit, the same convention as `spec.driverOutputs`. Both live in a separate reconciler-owned file, `cluster-state/<name>.state.yaml` — a sibling directory of `clusters/`, not alongside the cluster's desired-state YAML itself — see [Reconciler state file](/docs/concepts/clusters#reconciler-state-file). Inspect the tracked state with [`hyve cluster resources <name>`](/docs/cli/cluster#hyve-cluster-resources).
-
-## Removing a resource
-
-Two mechanisms, mirroring how whole-cluster deletion already works — and identical across all three resource kinds, since a Secret resource is cleaned up through the same tracked-object path a manifest resource uses:
-
-| | Mechanism | Safe by default? |
+| Key | Fleet kind | For |
 |---|---|---|
-| **Explicit** | Set `delete: true` on the resource entry | Yes — always honored |
-| **Implicit** | Just remove the YAML block | No — only acted on if `strictResourceDelete: true` |
+| `helmOp` | `HelmOp` | A Helm chart from a repository or an `oci://` URL. |
+| `bundle` | `Bundle` | Manifests given inline. |
+| `gitRepo` | `GitRepo` | Manifests, charts or Kustomize from a git repository. |
+| `ref` | (the shared Resource's) | A shared `Resource` defined once, used by name. |
 
-**Explicit (`delete: true`)** is the recommended path. On the next reconcile, Hyve removes the tracked objects (`kubectl delete`, or `helm uninstall` for a Helm resource), drops the `spec.appliedResources` entry, and removes the resource entry itself from `spec.resources` — self-cleaning, the same way a cluster's YAML file is removed once `spec.delete: true` finishes processing. This works regardless of `strictResourceDelete`.
+hyve-controller turns each one into a Fleet object aimed at the right clusters, and Fleet does
+the rest: per-cluster values like `${ .ClusterName }`, rollout, status and drift.
 
-**Implicit** is what happens if a resource entry just disappears from `spec.resources` without ever being marked `delete: true` — the reconciler notices an orphan (tracked in `spec.appliedResources` but no longer declared) and, by default, only logs a warning. Set `reconcile.strictResourceDelete: true` in `hyve.yaml` to have orphans pruned automatically instead:
+## Three places a resource can be
+
+**On a template**, for every cluster made from it: an entry in the ClusterTemplate's
+`resources`.
 
 ```yaml
-# hyve.yaml
-reconcile:
-  strictDelete: false          # whole-cluster prune (existing)
-  strictResourceDelete: false  # in-cluster resource prune (default: off)
+# in a ClusterTemplate's spec
+resources:
+  - name: podinfo
+    namespace: podinfo                 # on the cluster, unless the Fleet spec sets one
+    helmOp:
+      helm:
+        repo: https://stefanprodan.github.io/podinfo
+        chart: podinfo
+        version: 6.7.1
+        values:
+          ui:
+            message: ${ .ClusterName }
 ```
 
-This mirrors `strictDelete`'s existing default — safety first, opt into automatic pruning once you trust the workflow.
+**Shared**, defined once and referred to by name: a `Resource` in the template namespace. It has
+no targets of its own; it's delivered only where a template or extra refers to it.
 
-### Dropping one key from a Secret resource
-
-You don't need `delete: true` to remove a single key — just remove it from `keys:` and reconcile as usual:
-
-```diff
-   secret:
-     namespace: default
-     keys:
-       - PANGOLIN_ENDPOINT
-       - NEWT_ID
--      - NEWT_SECRET
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: Resource
+metadata:
+  name: external-dns
+  namespace: capi-clusters
+spec:
+  namespace: external-dns
+  secrets: [cloudflare-dns]            # copied to each cluster it's delivered to
+  helmOp:
+    helm:
+      repo: https://kubernetes-sigs.github.io/external-dns/
+      chart: external-dns
+      version: 1.19.0
+      values:
+        provider: {name: cloudflare}
 ```
 
-The key change is detected the same way any other config change is (it's part of the resource's content hash), triggering a re-apply — and the dropped key is actually removed from the live `Secret`, not just left stale. Hyve renders Secret resources using `data` (base64), never `stringData`: `stringData` is a write-only convenience the API server merges into `data` but never prunes from, so a key removed there would silently linger in the live object forever. `data` is a real server-side-apply-tracked field, so omitting a key from it on the next apply actually deletes it.
-
-## Dry-run preview
-
-`hyve reconcile --dry-run` makes the whole cycle read-only: resolution and diffing still run for real (both are read-only), but every mutating call is skipped and logged instead.
-
-```
-[production] Resource nginx-ingress: drift detected (config changed) — applying
-```
-becomes, under `--dry-run`:
-```
-[production] DRY RUN: resource nginx-ingress drift detected (config changed) — would apply
-...
-[production] DRY RUN: 2 resource(s) with drift, 3 unchanged
+```yaml
+# a template entry using it
+resources:
+  - name: external-dns
+    ref: external-dns
+    values:                            # merged over the shared Resource's Helm values
+      domainFilters: [example.com]
 ```
 
-See [`hyve reconcile --dry-run`](/docs/cli/cluster#reconciliation) — it also covers cluster create/delete/scale and lifecycle workflows, not just resources, so it's safe to run against a repo with pending changes anywhere.
+**On one cluster**, as an extra: a `ClusterResource` in the cluster's environment, with
+`clusterName`. It doesn't change the cluster's template.
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: ClusterResource
+metadata:
+  name: demo-monitoring
+  namespace: dev
+spec:
+  clusterName: demo
+  namespace: monitoring
+  gitRepo:
+    repo: https://github.com/example/monitoring.git
+    branch: main
+    paths: [prod]
+```
+
+## Fields every resource has
+
+| Field | |
+|---|---|
+| `name` | The entry's name in a template; a `Resource`'s or `ClusterResource`'s is its `metadata.name`. A DNS label of at most 40 characters. It's also the Helm release name unless the HelmOp sets `releaseName`. |
+| `namespace` | The namespace on the cluster for its objects, unless the Fleet spec sets `defaultNamespace` (or a GitRepo's `targetNamespace`). |
+| `secrets` | Secrets in the owner's namespace that Fleet copies to each cluster (`downstreamResources`). See [Secrets](/docs/concepts/secrets). A `gitRepo` can't list them; put them in its `fleet.yaml` instead. |
+| `ref`, `refNamespace` | A shared Resource to use. A shared Resource can't itself be a `ref`. |
+| `values` | With `ref` only: merged over the shared Resource's Helm values (a HelmOp's). Otherwise put Helm values in `helmOp.helm.values`. |
+
+Exactly one of `helmOp`, `bundle`, `gitRepo` or `ref` is set. Leave out `targets`: hyve sets
+them.
+
+A `ref` without `refNamespace` is looked up in the template's namespace. For a
+`ClusterResource`, it's looked up beside the cluster's template first, then in the
+`ClusterResource`'s own namespace.
+
+## What hyve-controller creates
+
+One Fleet object per resource, owned by what it came from:
+
+| From | Fleet object | Where | Aimed at |
+|---|---|---|---|
+| A template's entry | `tpl-<template>-<name>` | The template namespace | Clusters labelled `hyve.io/template` and `hyve.io/template-namespace` with that template |
+| A `ClusterResource` | Its own name | The cluster's environment | That one cluster, by name |
+
+CAAPF names each Fleet Cluster after its CAPI Cluster and copies its labels, so these targets
+work, and its `BundleNamespaceMapping` carries the template's objects to clusters in other
+namespaces.
+
+Because each Fleet object is owned by its template or `ClusterResource`, removing the resource,
+deleting the template or deleting the cluster deletes the Fleet object, and Fleet removes what
+it deployed. Deleting a shared `Resource` doesn't remove anything: the templates and extras
+that refer to it report it missing.
+
+Each owner's status lists its Fleet objects with Fleet's state, the Secrets that are missing,
+and a `Ready` condition (`SecretsMissing` while any are).
+
+## Commands
+
+```bash
+# every cluster made from a template
+hyve template resource add civo-small --helm traefik --repo https://traefik.github.io/charts \
+    --version 37.1.0 -N traefik --set service.type=LoadBalancer
+hyve template resource add civo-small --ref external-dns --secret cloudflare-dns
+hyve template resource remove civo-small traefik
+
+# one cluster
+hyve cluster resource add demo --path ./manifests --name base
+hyve cluster resource remove demo base
+
+# shared definitions
+hyve resource create --name external-dns --helm external-dns \
+    --repo https://kubernetes-sigs.github.io/external-dns/ --version 1.19.0 \
+    -N external-dns -f external-dns-values.yaml --secret cloudflare-dns
+hyve resource list
+hyve resource show external-dns
+hyve resource delete external-dns
+
+# YAML
+hyve resource apply -f resources.yaml
+```
+
+`--path` sends local manifests (a file, or a directory of `.yaml`, `.yml` and `.json`) inline as
+a Bundle. In YAML given to `apply`, a `bundle` entry may give `path: DIR` instead of
+`resources`, relative to the file. `--correct-drift` has Fleet undo changes made to its objects
+on the cluster.
+
+## Why something is on a cluster
+
+```bash
+hyve resource status demo
+```
+
+```
+NAME              WHY                       KIND      SOURCE                                                STATE
+podinfo           template civo-small       HelmOp    https://stefanprodan.github.io/podinfo podinfo@6.7.1  Ready
+demo-monitoring   extra (demo-monitoring)   GitRepo   https://github.com/example/monitoring.git@main prod   Ready
+```
+
+`hyve resource status --template civo-small` shows a matrix instead: each of the template's
+resources on each of its clusters.
+
+<Aside>
+The state is Fleet's, rolled up from each cluster's BundleDeployment. It's the same whether the
+cluster's agent delivers it or hyve pushes it (see [Delivery](/docs/concepts/delivery)).
+</Aside>
 
 ## Related
 
-<CardGroup cols={2}>
-  <Card title="hyve cluster" icon="terminal" href="/docs/cli/cluster" color="#10b981">
-    `hyve cluster resources` command reference
-  </Card>
-
-  <Card title="Workflows" icon="diagram-project" href="/docs/concepts/workflows" color="#22c55e">
-    Imperative, hook-triggered automation
-  </Card>
-
-  <Card title="ArgoCD Integration" icon="rotate" color="#8b5cf6" href="/docs/guides/argocd">
-    Continuous application delivery, for when you outgrow spec.resources
-  </Card>
-
-  <Card title="Resource Management Guide" icon="list-check" href="/docs/guides/resource-management" color="#eab308">
-    Step-by-step walkthrough
-  </Card>
-</CardGroup>
+- [Delivering apps](/docs/guides/delivering-apps)
+- [Templates](/docs/concepts/templates), [Secrets](/docs/concepts/secrets)
+- [`hyve resource`](/docs/cli/resource), [`hyve template`](/docs/cli/template), [`hyve cluster`](/docs/cli/cluster)

@@ -1,10 +1,89 @@
 ---
-title: "Environments (local)"
-description: "Moved — local directories and API targets are now called contexts"
+title: Repositories
+description: hyve repo points Fleet at git repositories. Each is a plain Fleet GitRepo, for the management cluster itself or an environment's clusters.
 ---
 
-import Warning from '../../../../components/mdx/Warning.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-<Warning>
-  What this page used to call an "environment" — a named pointer to a local directory or hyve-api URL — is now a **context** (`hyve context`). "Environment" now means a scope within your organization on a hyve-api server. Both are explained in [Contexts & Environments](/docs/concepts/contexts).
-</Warning>
+`hyve repo` creates plain Fleet `GitRepo`s. hyve adds nothing to them: Fleet clones the repo,
+makes one bundle per directory with a `fleet.yaml` under the paths you give, and deploys each
+bundle.
+
+Use a repository for what you'd rather keep in git than create with commands:
+
+- **The management cluster's own setup**, in the `fleet-local` workspace (the default):
+  ClusterClasses, ClusterTemplates, shared Resources, providers and the operators they need.
+  A push to the branch is then a deploy.
+- **Apps for an environment's clusters**, in that environment's namespace (`--workspace prod`).
+
+For apps on the clusters made from a template, a template resource with a `gitRepo` spec is
+usually the better fit: it follows the template to every environment. See
+[Resources](/docs/concepts/resources).
+
+## Adding one
+
+```bash
+hyve repo add platform --repo https://github.com/example/platform.git --branch main --path fleet
+```
+
+```yaml
+# what that creates
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: platform
+  namespace: fleet-local
+  labels:
+    app.kubernetes.io/managed-by: hyve
+spec:
+  repo: https://github.com/example/platform.git
+  branch: main
+  paths: [fleet]
+```
+
+| Flag | |
+|---|---|
+| `--repo URL` | The git repository. Required. |
+| `--branch` | Default `main`. |
+| `--path` | A path in the repo (repeatable). Default: the whole repo. |
+| `--workspace` | The Fleet workspace. `fleet-local` (the default) is the management cluster; an environment namespace targets its clusters. |
+| `--correct-drift` | Have Fleet undo changes made to what it deployed. |
+| `--username`, `--token-env` / `--token-file` | Credentials for a private repo (below). |
+
+Running `hyve repo add` again with the same name updates the GitRepo.
+
+## Private repositories
+
+Give a username and a token, read from an environment variable or a file so the token stays out
+of your shell history:
+
+```bash
+GIT_TOKEN=... hyve repo add platform --repo https://github.com/example/platform.git \
+    --path fleet --username me --token-env GIT_TOKEN
+```
+
+hyve keeps them in a `kubernetes.io/basic-auth` Secret named `<name>-git-auth` in the
+workspace, and sets it as the GitRepo's `clientSecretName`. Any git host works: hyve and Fleet
+use plain git over HTTPS, not a host's API.
+
+## Seeing and removing them
+
+```bash
+hyve repo list                  # every workspace; --workspace for one
+hyve repo show platform
+hyve repo remove platform       # Fleet removes what it deployed
+```
+
+`hyve repo list` shows each GitRepo with its bundles' state.
+
+<Aside type="caution">
+Removing a repo, or a directory from it, removes what Fleet deployed from it, including any
+Namespace it listed and everything in that Namespace. Keep Namespaces that other things use in a
+bundle that stays.
+</Aside>
+
+## Related
+
+- [Delivering apps](/docs/guides/delivering-apps)
+- [`hyve repo`](/docs/cli/repo)
+

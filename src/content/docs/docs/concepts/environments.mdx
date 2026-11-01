@@ -1,0 +1,76 @@
+---
+title: Environments
+description: An environment is a namespace on the management cluster that holds clusters and their extras. It's also a Fleet workspace.
+---
+
+An **environment** is a namespace on the management cluster: `prod`, `staging`, `ci`. It holds
+that environment's CAPI Clusters, the Fleet Clusters CAAPF registers for them, each cluster's
+extras, and the Secrets those extras need.
+
+hyve has no organization or project object. A namespace is already what Kubernetes RBAC scopes
+access by, and what Fleet scopes delivery by: a Fleet **workspace** is a namespace holding
+clusters and the bundles aimed at them. So an environment is both.
+
+## Template namespaces and environments
+
+Templates don't live in environments. They live beside their ClusterClass in a **template
+namespace** (`capi-clusters` by default), and clusters in every environment use them from
+there.
+
+| Namespace | Holds | Who writes it |
+|---|---|---|
+| A template namespace (`capi-clusters`; more than one is fine) | ClusterClasses, the ClusterTemplates over them, shared Resources, the Fleet objects hyve-controller makes from templates, and the Secrets those copy to clusters | Platform admins |
+| An environment (`prod`, `ci`, `default`) | CAPI Clusters, their Fleet Clusters, each cluster's `ClusterResource`s, Secrets for those, `ClusterAccess` grants | That environment's members |
+
+A cluster in `prod` made from a template in `capi-clusters` gets the template's resources
+because CAAPF maps `prod` into `capi-clusters` for Fleet (see
+[Templates](/docs/concepts/templates#where-templates-live)). Inside an environment, labels and
+Fleet `ClusterGroup`s pick clusters.
+
+## Commands
+
+```bash
+hyve env create prod       # a namespace labelled hyve.io/environment
+hyve env list              # environments and how many clusters each holds
+hyve env show prod         # the namespace and the clusters in it
+hyve env use prod          # the default for the current server
+hyve env delete prod       # only when it's empty; --force deletes its clusters with it
+```
+
+`hyve env list` also shows namespaces that hold clusters but aren't labelled, since they're
+environments too.
+
+## The current environment
+
+Commands that work on clusters (`cluster`, `access`, `resource`, `secrets`) take `-e`/`--env`.
+Without it they use the environment saved for the current server by `hyve env use`, or
+`default`.
+
+`hyve env use` saves to the signed-in server, so each server you've signed in to remembers its
+own. With `--kubeconfig` there's no saved server, so pass `--env` on each command.
+
+```bash
+hyve env use prod --template-namespace platform-templates   # also save the template namespace
+```
+
+## Who can do what
+
+Access to an environment is a role on its namespace, granted with
+[`hyve access`](/docs/concepts/access):
+
+```bash
+hyve access grant bob --env-member -e ci
+```
+
+An **environment member** can create clusters in the environment and manage their extras, and
+read the templates, shared Resources and ClusterClasses in the template namespace. They can't
+read Secrets. They can't delete or change clusters they didn't create, unless they're also
+granted a role on them: a cluster's creator becomes its owner automatically.
+
+Roles on clusters themselves (owner, member, read-only) are `ClusterAccess` grants, for one
+cluster or every cluster in the environment. See [Users and access](/docs/concepts/access).
+
+## Related
+
+- [Templates](/docs/concepts/templates), [Users and access](/docs/concepts/access)
+- [`hyve env`](/docs/cli/env)

@@ -1,0 +1,104 @@
+---
+title: kubectl access
+description: Reach clusters and the management cluster with kubectl, helm and k9s through the hyve host, as yourself.
+---
+
+You never get a cluster's admin credentials from hyve. kubectl reaches every cluster through
+the hyve host's proxy, signed in as you, and each cluster's RBAC decides what you may do.
+
+## A cluster
+
+```bash
+hyve cluster auth demo            # add it to ~/.kube/config and switch to it
+kubectl get nodes
+```
+
+`hyve cluster auth NAME` adds a context for the cluster to your kubeconfig (`$KUBECONFIG`, or
+`~/.kube/config`) and makes it the current one. Run it again to refresh the entry. Use `-e ENV`
+for a cluster in another environment.
+
+To keep it in a file of its own instead:
+
+```bash
+hyve cluster kubeconfig demo > demo.yaml
+KUBECONFIG=demo.yaml kubectl get pods -A
+```
+
+Everything that uses a kubeconfig works: `kubectl exec`, `port-forward`, `logs -f`, watches,
+`helm`, `k9s`.
+
+## What's in the kubeconfig
+
+The server is `<host>/k8s/clusters/<id>`, where the ID is `<environment>.<name>`
+(`https://hyve.example.com/k8s/clusters/dev.demo`). The credential is an exec plugin that runs
+`hyve token`:
+
+```yaml
+users:
+  - name: hyve-example-com
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1
+        command: /usr/local/bin/hyve
+        args: [token, --server, hyve-example-com]
+        interactiveMode: IfAvailable
+```
+
+So the file holds no secret: copied elsewhere, it grants nothing. `hyve token` prints your
+current session as an `ExecCredential`. When the session has expired and there's a terminal,
+it signs you in again first. Your session lasts as long as the host's `host.sessionTTL`
+(16 hours by default).
+
+When the host's certificate comes from a private CA you gave `hyve login --ca-cert`, or local
+mode's, the kubeconfig carries that CA.
+
+## How the proxy reaches a cluster
+
+The host checks your session, then forwards the request to the cluster as you:
+
+- **Through the cluster's agent.** Each cluster runs Rancher's `cattle-cluster-agent`, which
+  dials the host and holds a tunnel open. Requests go down the tunnel to the API server, where
+  the agent's service account impersonates you: user `hyve:<username>`, groups
+  `hyve:<group>`. The cluster's own RBAC decides each request.
+- **Directly, when no agent is connected**: before the agent first connects, or for a cluster
+  that can't reach the host ([push delivery](/docs/concepts/delivery)). The host uses the
+  cluster's Cluster API kubeconfig, with the same impersonation.
+
+Either way, the request runs with your permissions, not the host's. What those are comes from
+`ClusterAccess` grants (owner, member, read-only) and RBAC on the cluster. See
+[Users and access](/docs/concepts/access).
+
+Each request the host proxies for a user is logged on its stdout as one JSON line (who, which
+cluster, verb, path and status), unless the chart's `host.auditLog` is off.
+
+## The management cluster
+
+The management cluster is `local`, as in Rancher. hyve's own commands reach it through
+`<host>/k8s/clusters/local`, as you. For kubectl:
+
+```bash
+hyve kubeconfig > mgmt.yaml               # the management cluster
+hyve kubeconfig dev.demo > demo.yaml      # or a cluster, by ID
+```
+
+What you can do there depends on your grants: environment members can create clusters and
+extras in their environment and read templates, but never read Secrets; admins have more.
+
+## Several hosts
+
+Each `hyve login` saves a server; `hyve context list` shows them and `hyve context use NAME`
+switches. Kubeconfigs name the server they were made for (`hyve token --server NAME`), so a
+kubeconfig keeps working when you switch. Local mode's server is `local`.
+
+```bash
+hyve context list
+hyve cluster auth demo --server local
+```
+
+## Admins and CI with a kubeconfig
+
+Commands that take `--kubeconfig` talk to the management cluster with that kubeconfig instead
+of a signed-in server, for cluster admins and pipelines that already have one. It's the
+management cluster's own credentials, not the proxy, so use it only where that's intended.
+`hyve cluster kubeconfig` still needs a signed-in server: it never hands out a cluster's admin
+credentials.

@@ -20,6 +20,16 @@ npm run build
 npm run preview
 ```
 
+## CLI reference
+
+`src/content/docs/docs/cli/` is generated from a hyve binary's own `--help`, one page per top-level command. Regenerate it after a release rather than editing it:
+
+```
+node scripts/gen-cli.mjs /path/to/hyve
+```
+
+The script runs the binary with a temporary `HOME`, so it never touches your `~/.hyve`.
+
 ## Structure
 
 - `src/content/docs/` — documentation pages (mdx), mirrors the original `/docs/...` URL structure

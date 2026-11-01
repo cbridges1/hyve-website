@@ -1,183 +1,70 @@
 ---
-title: "Installation"
-description: "Install and set up Hyve on your system"
+title: Installation
+description: Build the hyve CLI and its image from source
 ---
 
-import Card from '../../../components/mdx/Card.astro';
-import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Steps from '../../../components/mdx/Steps.astro';
-import Step from '../../../components/mdx/Step.astro';
-import Accordion from '../../../components/mdx/Accordion.astro';
-import AccordionGroup from '../../../components/mdx/AccordionGroup.astro';
-import Note from '../../../components/mdx/Note.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+hyve is one binary: the CLI, hyve-controller and the host endpoint. The web UI is embedded in
+it when it's built.
+
+<Aside type="caution" title="Build v2 from source">
+The hyve described on this site is the `v2` branch of
+[cbridges1/hyve](https://github.com/cbridges1/hyve), which has no release yet. Until it does,
+`go install github.com/cbridges1/hyve@latest` installs the old hyve (v1), and
+`go install github.com/cbridges1/hyve@v2` doesn't resolve. Build it from a checkout as below.
+</Aside>
 
 ## Prerequisites
 
-<CardGroup cols={2}>
-  <Card title="Go 1.26+" icon="code" color="#6366f1">
-    [Install Go](https://golang.org/doc/install)
-  </Card>
+| Tool | For |
+|---|---|
+| Go 1.26 or later | building the binary |
+| Node.js and npm | building the web UI the binary embeds (optional: without it, the binary has no UI) |
+| [Task](https://taskfile.dev) | the build tasks below (optional: each is one command you can run by hand) |
+| Docker | local mode, and building hyve's image |
+| kubectl | optional; hyve doesn't need it, but you'll want it for the clusters you make |
 
-  <Card title="Git" icon="git" color="#8b5cf6">
-    Needed to fetch modules from git repositories (hyve runs `git clone`). Your state directory doesn't have to be a git repo — that's up to you.
-  </Card>
-</CardGroup>
-
-<Note>
-  **Cloud provider CLI:** Hyve does not bundle cloud SDKs. Install the CLI for each provider you plan to use (AWS CLI, gcloud, az, civo CLI) and authenticate before running Hyve. See [Quick Start](/docs/quickstart) for per-provider setup.
-</Note>
-
-## Install
-
-<Steps>
-  <Step title="Install with Go">
-    ```bash
-    go install github.com/cbridges1/hyve@latest
-    ```
-
-    This installs the `hyve` binary to your `$GOPATH/bin` directory (usually `~/go/bin`).
-  </Step>
-
-  <Step title="Ensure Go bin is in PATH">
-    ```bash
-    export PATH=$PATH:$(go env GOPATH)/bin
-    ```
-
-    Add this line to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.) to make it permanent.
-  </Step>
-
-  <Step title="Verify installation">
-    ```bash
-    hyve --help
-    ```
-
-    You should see the Hyve help output listing all available commands.
-  </Step>
-</Steps>
-
-## Git (optional)
-
-Hyve has no built-in git functionality — no clone, pull, push, or commit. `hyve context create --path <dir>` points hyve at any local directory directly; whether that directory is a git working tree is entirely up to you. If you do want it version-controlled, that's your own `git` CLI, same as any other project:
+## Build the CLI
 
 ```bash
-git --version   # verify it's installed, if you're using it
+git clone -b v2 https://github.com/cbridges1/hyve.git
+cd hyve
+task ui      # builds the UI into internal/webui/dist (npm ci, npm run build in ui/)
+task build   # go build -o hyve .
 ```
 
-See [Contexts](/docs/concepts/contexts) and [Version Control](/docs/concepts/gitops) for how this fits together.
-
-## Cloud Provider Setup
-
-Hyve stores no cloud credentials of its own — each module reads whatever its provider's own CLI or environment variables already provide, the same way you'd authenticate for that provider outside of Hyve entirely. For example, the Civo module reads the active token from `~/.civo.json` (via `civo apikey save`/`civo apikey use`) or the `CIVO_TOKEN` environment variable.
-
-<Note>
-  This is per-module, not something Hyve standardizes — an EKS module typically follows the AWS SDK's default credential chain, a GKE module typically uses Application Default Credentials, and so on. Check the specific module's own README for what it expects.
-</Note>
-
-## Directory Structure
-
-After installation, Hyve creates:
-
-```
-~/.hyve/
-├── hyve.db     # Registry of contexts (hyve context create/list/use)
-└── temp/       # Temporary kubeconfig files
-```
-
-Context directories themselves live wherever you put them — Hyve never copies or clones anything into `~/.hyve`; `hyve.db` just tracks *where* each registered context's directory is. See [Contexts](/docs/concepts/contexts).
-
-### Overriding the data directory
-
-The default `~/.hyve` location can be overridden with the `--home` flag or the `HYVE_HOME` environment variable:
+Then put `./hyve` on your `PATH`, for example:
 
 ```bash
-# Use a custom directory for a single command
-hyve --home /tmp/hyve-staging reconcile
-
-# Set it persistently for a shell session
-export HYVE_HOME=~/hyve-staging
-hyve context create staging --path ~/repos/staging-state
-
-# Or point to an existing directory
-HYVE_HOME=/opt/hyve hyve cluster list
+sudo install hyve /usr/local/bin/
+hyve --version   # a build from source says "hyve dev"
 ```
 
-The `--home` flag takes precedence over `HYVE_HOME`.
+`task build` without `task ui` first gives a binary with no web UI.
 
-## Platform-Specific Notes
+## Build the image
 
-<AccordionGroup>
-  <Accordion title="Linux">
-    No system dependencies required for hyve itself. If you're using a git-backed context directory (optional — see [Git](#git-optional) above):
-
-    ```bash
-    # Debian/Ubuntu
-    sudo apt-get install git
-
-    # RHEL/CentOS
-    sudo yum install git
-    ```
-  </Accordion>
-
-  <Accordion title="Windows">
-    Variable substitution in workflows uses `cmd /C "command"`. Use `%VAR%` for environment variables alongside `${VAR}` for workflow variables.
-
-    To persist environment variables across sessions, set them via System Properties or add them to your PowerShell profile.
-  </Accordion>
-</AccordionGroup>
-
-## Verifying Installation
-
-Run these commands to verify everything is set up correctly:
+hyve-controller and the host run from hyve's image. A release uses its published image
+(`ghcr.io/cbridges1/hyve`). A build from source has none, so build one from the same checkout:
 
 ```bash
-# Check Hyve installation
-hyve --help
-
-# List registered contexts (after registering one)
-hyve context list
+task image   # docker build -t hyve:dev .
 ```
 
-## Troubleshooting
+The Dockerfile builds the UI itself, so `task ui` isn't needed for the image.
 
-<AccordionGroup>
-  <Accordion title="Command not found">
-    Ensure the `hyve` binary is in your PATH:
+- **Local mode** uses `hyve:dev` by default when the binary is a build from source, and
+  imports it from your Docker into the local cluster. `task local` builds the binary and the
+  image, then runs `hyve local up` with it.
+- **A standalone install** needs an image the cluster can pull: push `hyve:dev` to a
+  registry the cluster can reach and pass it with `hyve install --image`. Without `--image`, a
+  build from source refuses to install rather than deploy an image that doesn't exist.
 
-    ```bash
-    # Check if hyve is in PATH
-    which hyve
+## Where hyve keeps things
 
-    # If not, add Go bin to PATH
-    export PATH=$PATH:$(go env GOPATH)/bin
-    ```
-  </Accordion>
+Everything the CLI saves is under `~/.hyve` (or `--home`, or `HYVE_HOME`): the servers you've
+signed in to and their sessions, and local mode's kubeconfig, certificates and saved state. Your
+`~/.kube/config` is only changed by `hyve cluster auth`.
 
-  <Accordion title="Go binary not found after install">
-    Ensure `$(go env GOPATH)/bin` is in your PATH. Add to your shell profile:
-
-    ```bash
-    echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc
-    source ~/.zshrc
-    ```
-  </Accordion>
-</AccordionGroup>
-
-## Next Steps
-
-<CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#3b82f6">
-    Create your first cluster
-  </Card>
-
-  <Card title="Module System" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
-    Learn how modules work
-  </Card>
-
-  <Card title="CLI Reference" icon="terminal" href="/docs/cli/overview" color="#10b981">
-    Explore all commands
-  </Card>
-
-  <Card title="Git Management" icon="git" href="/docs/guides/git-management" color="#f97316">
-    Set up repositories
-  </Card>
-</CardGroup>
+Next: [Quickstart](/docs/quickstart), or [How hyve works](/docs/how-it-works).

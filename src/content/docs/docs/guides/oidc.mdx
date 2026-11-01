@@ -1,0 +1,192 @@
+---
+title: Signing in with OIDC
+description: Let people sign in to hyve through an identity provider such as Keycloak, Okta, Entra ID, Google or GitHub through Dex, with their groups as hyve groups.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+By default people sign in to a hyve host with a username and password: hyve `User`s you create
+with `hyve user add`. The host can also be an OpenID Connect client, so people sign in through
+your identity provider (Keycloak, Authentik, Okta, Entra ID, Google, or GitHub through Dex).
+Their groups come from the provider, and you grant access to those groups.
+
+This is for a [standalone install](/docs/running/standalone). Local mode signs you in as its
+admin.
+
+## How it works
+
+- The sign-in page shows **Sign in with &lt;provider&gt;** next to the password form. The browser
+  goes to the provider, and comes back to `<host>/v1-public/oidc/callback`, where the host
+  makes a session as it does for a password.
+- **A `User` is created on first sign-in**, with no password. Its name comes from the ID
+  token's `preferred_username` claim (or the one you choose), else the part of the email before
+  the `@`, made into a valid name. If the name is taken, by a password user or by someone else
+  from the provider, it gets a number (`alice-2`): two people never share a User.
+- **Groups come from the token at each sign-in**, from its `groups` claim (or the one you
+  choose), and last for that session, on top of any groups the User has in hyve. Kubernetes
+  sees each one as `hyve:<group>`, as it does hyve's own groups, so `ClusterAccess` grants and
+  RoleBindings can name them.
+- **Disabling the User** stops them signing in through the provider too.
+
+## Set it up
+
+<Steps>
+
+1. **Register hyve with the provider** as a confidential OIDC client (authorization code flow)
+   with the redirect URI `https://<your host>/v1-public/oidc/callback`, the host's URL you
+   installed with (`--host-url`). Have the provider put the user's groups in the ID token, and
+   note the issuer URL, the client ID and the client secret.
+
+2. **Store the client secret** in a Secret in hyve's namespace:
+
+   ```bash
+   OIDC_SECRET=... hyve secrets create hyve-oidc -n hyve-system --from-env client-secret=OIDC_SECRET
+   ```
+
+   or with `kubectl create secret generic`, or however your install manages secrets.
+
+3. **Give the host the provider**, in a values file:
+
+   ```yaml
+   auth:
+     oidc:
+       issuer: https://id.example.com/realms/platform
+       clientID: hyve
+       clientSecret:
+         name: hyve-oidc
+         key: client-secret
+       displayName: Example SSO
+   ```
+
+   and re-run the install with it (it's safe to re-run):
+
+   ```bash
+   hyve install --host-url https://hyve.example.com -f oidc-values.yaml
+   ```
+
+4. **Sign in**: `hyve login https://hyve.example.com` opens the sign-in page in your browser;
+   choose the provider. The CLI gets the session when you're done.
+
+5. **Grant access** to the provider's groups:
+
+   ```bash
+   hyve access grant --group platform-team --env-member -e dev
+   hyve access grant --group sre --role owner -e prod
+   ```
+
+   See [Users and access](/docs/concepts/access) for the roles.
+
+</Steps>
+
+## Values
+
+Under `auth.oidc` in the chart:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `issuer` | `""` | the provider's issuer URL. Setting it turns OIDC on |
+| `clientID` | `""` | the client ID (required with `issuer`) |
+| `clientSecret.name`, `.key` | `""`, `client-secret` | the Secret in hyve's namespace holding the client secret, and its key |
+| `displayName` | `""` | shown as "Sign in with &lt;displayName&gt;" |
+| `scopes` | `[]` | scopes besides `openid` (default `profile` and `email`) |
+| `groupsClaim` | `groups` | the ID token claim holding the user's groups |
+| `usernameClaim` | `preferred_username` | the claim a new User's name comes from |
+| `allowedDomains` | `[]` | admit only users with a verified email in these domains |
+| `allowedGroups` | `[]` | admit only users in at least one of these groups |
+
+And `auth.passwords` (default `true`): username and password sign-in for hyve's own Users.
+
+Without `allowedDomains` or `allowedGroups`, anyone the provider signs in gets a User. They can
+do nothing until something grants them access, but limit sign-in to your organization if the
+provider serves others too.
+
+The provider's discovery document is fetched on first use, so the host starts while the
+provider is down; sign-in through it fails until it's back, with a message on the sign-in page.
+
+## Admins from the provider
+
+The bootstrap `admin` is a cluster admin through the ClusterRoleBinding `hyve-admin`. To make a
+provider group admins, bind it the same way:
+
+```bash
+kubectl create clusterrolebinding hyve-admins-sso --clusterrole cluster-admin --group hyve:platform-admins
+```
+
+`hyve-user-admin` is a narrower role, for managing Users only.
+
+Turn passwords off (`auth.passwords: false`) only once an admin can sign in through the
+provider: the bootstrap admin signs in with a password.
+
+## Examples
+
+These show the shape of the provider's side; follow its docs for the details.
+
+### Keycloak
+
+- A client `hyve` in your realm, with client authentication on and the redirect URI above.
+- A **Group Membership** mapper on the client (or a client scope it uses), claim name `groups`,
+  added to the ID token, with "Full group path" off so groups are plain names.
+- The issuer is `https://<keycloak>/realms/<realm>`.
+
+```yaml
+auth:
+  oidc:
+    issuer: https://keycloak.example.com/realms/platform
+    clientID: hyve
+    clientSecret: {name: hyve-oidc, key: client-secret}
+    displayName: Keycloak
+```
+
+### GitHub, through Dex
+
+GitHub isn't an OIDC provider itself; [Dex](https://dexidp.io/) is, with a GitHub connector.
+In Dex's config:
+
+```yaml
+staticClients:
+  - id: hyve
+    name: hyve
+    secretEnv: HYVE_CLIENT_SECRET
+    redirectURIs: [https://hyve.example.com/v1-public/oidc/callback]
+connectors:
+  - type: github
+    id: github
+    name: GitHub
+    config:
+      clientID: $GITHUB_CLIENT_ID
+      clientSecret: $GITHUB_CLIENT_SECRET
+      redirectURI: https://dex.example.com/callback
+      orgs:
+        - name: example-org
+```
+
+Dex returns groups only when asked for the `groups` scope; with `orgs` set, the GitHub
+connector admits only members of those orgs, and their teams arrive as `org:team`
+(`example-org:platform`):
+
+```yaml
+auth:
+  oidc:
+    issuer: https://dex.example.com
+    clientID: hyve
+    clientSecret: {name: hyve-oidc, key: client-secret}
+    displayName: GitHub
+    scopes: [profile, email, groups]
+```
+
+```bash
+hyve access grant --group example-org:platform --env-member -e dev
+```
+
+## Managing provider users
+
+Users from the provider appear in `hyve user list` and on the Users page like any other.
+
+```bash
+hyve user list
+hyve user disable alice     # can't sign in; their sessions stop within 30 seconds
+hyve user enable alice
+```
+
+Removing a provider user's access at the provider takes effect at their next sign-in, when the
+host reads their groups again. To stop them now, disable the User.

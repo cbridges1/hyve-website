@@ -1,0 +1,121 @@
+---
+title: Local mode
+description: hyve on a K3s container in Docker that the CLI creates, stops and removes, for laptops and CI
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Local mode is a standalone hyve for your laptop or a CI job, with nothing to run yourself. The
+CLI runs a K3s container in Docker, installs hyve in it, and signs you in as its admin under
+the context `local`. Templates, clusters and commands are the same as on a server.
+
+```bash
+hyve local up
+```
+
+You don't run `kind`, `k3d`, `clusterctl` or `helm`. You need Docker.
+
+## The commands
+
+| Command | What it does |
+|---|---|
+| `hyve local up` | Creates the local cluster, or starts it if it's stopped, installs or updates hyve in it, and signs you in. Safe to re-run. |
+| `hyve local status` | Whether the local cluster exists and is running. |
+| `hyve local ui` | Opens the web UI, signed in (the same as `hyve ui --server local`). |
+| `hyve local stop` | Stops the local cluster's container. Child clusters keep running; their agents reconnect when it starts again. |
+| `hyve local down` | Saves the state, then deletes the local cluster and its context. CAPD clusters are containers of their own and keep running: delete them first if you're done with them. `--discard-state` removes the saved state too. |
+| `hyve local save` | Saves the state now (hyve also saves after each change). `--dir` saves somewhere else. |
+| `hyve local restore` | Restores saved state into the local cluster. `hyve local up` does this by itself for a new one. `--dir` restores from somewhere else. |
+
+## What `hyve local up` makes
+
+- **A container named `hyve-local`** running K3s (`rancher/k3s:v1.34.12-k3s1` by default;
+  `--k3s-image` changes it), on Docker's `kind` network, where CAPD puts its clusters. It
+  restarts with Docker unless you stop it. The container mounts the Docker socket, so CAPD can
+  make clusters as containers next to it.
+- **The lean install** of Cluster API and CAAPF: their release manifests applied directly,
+  with the webhook certificates made by hyve from one CA, instead of the Cluster API Operator
+  and cert-manager. That's 13 CRDs and four pods fewer. `--full` installs the operator and
+  cert-manager as a server install does.
+- **Fleet** (installed by CAAPF), **hyve-controller** and **the hyve host**, published on
+  `https://127.0.0.1:30444` (`--port` changes it). The host's certificate comes from a CA
+  local mode makes, which your browser doesn't trust, so `hyve ui` serves the UI through the
+  CLI at `http://127.0.0.1:30445`.
+- **The `local` context**, signed in as `admin`. Browsers at `127.0.0.1` or `localhost` are
+  signed in as `admin` without a password; the host is only published on `127.0.0.1`, where
+  anything that can reach it can already use your Docker.
+- **The environment `default` and the template namespace `capi-clusters`.**
+
+## Providers
+
+Local mode starts with core Cluster API and CAAPF only. hyve-controller adds a provider it
+knows (Docker and kubeadm) the first time something needs its kinds: a ClusterClass that
+refers to them, a cluster made from one, or a Fleet bundle that failed for want of them. To
+have them from the start:
+
+```bash
+hyve local up --providers docker      # CAPD, with the kubeadm bootstrap and control-plane providers
+```
+
+Add any other provider with `hyve provider add`; see [Providers](/docs/concepts/providers).
+
+## Saved state
+
+Local mode keeps its Cluster API objects, with hyve's templates and resources, as files
+(written with `clusterctl move --to-directory`) in `~/.hyve/local/state`. hyve saves after
+each change. A new local cluster restores them before anything else, so deleting the local
+cluster, or starting every CI job from nothing, loses no clusters. The clusters' agents
+reconnect to the new host by themselves.
+
+`hyve local up --state-dir DIR` keeps the state in `DIR` instead, such as a directory your
+CI caches. The choice is remembered.
+
+## Memory
+
+Measured on the management container with the Docker and kubeadm providers, idle, with no
+child cluster:
+
+| Install | Memory |
+|---|---|
+| lean (the default), `GOGC=40` everywhere | about 1.0 GiB |
+| `--full` (Cluster API Operator and cert-manager), `GOGC=40` | about 1.6 GiB |
+
+`--gogc` (default `40`) sets `GOGC` for K3s and every controller, trading a little CPU for
+memory. Each CAPD child adds its own containers: about 1.4 GiB for one control-plane node and
+one worker. Nothing runs while the local cluster is stopped.
+
+## Clusters outside Docker
+
+A child cluster's agents dial the host, and locally the host is a container on your
+machine. CAPD clusters are on the same Docker network, so they reach it as
+`https://hyve-local:30444`. A cloud cluster, or anything outside your machine, can't.
+
+You don't have to do anything about that: a cluster whose agent hasn't checked in gets its
+resources **pushed** by hyve-controller with the cluster's kubeconfig, so nothing on the
+cluster needs to reach you. See [Delivery: agents and push](/docs/concepts/delivery). Pushing
+only happens while the local cluster runs; while it's stopped, children keep what they have.
+
+If you already run a tunnel that can reach your machine, give its URL instead, and the agents
+connect as they would to a server:
+
+```bash
+hyve local up --public-url https://hyve.example.com
+```
+
+<Aside type="caution">
+Expiry needs the local cluster running. A cluster whose expiry passes while it's stopped is
+deleted the next time it starts.
+</Aside>
+
+## Other options
+
+| Flag | Default | |
+|---|---|---|
+| `--image` | the release's image, or `hyve:dev` for a build from source | hyve's image; a local Docker image is imported into the cluster |
+| `--apiserver-arg` | none | an extra kube-apiserver flag for K3s (repeatable) |
+| `--timeout` | `20m` | how long to wait |
+
+## Moving to a server
+
+Local mode is for clusters that live as long as your laptop session or CI job. A cluster that
+should outlive them belongs on a [standalone install](/docs/running/standalone).

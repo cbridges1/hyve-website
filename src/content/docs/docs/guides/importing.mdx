@@ -1,0 +1,115 @@
+---
+title: Importing old templates
+description: Convert hyve v1 Templates and herd ClusterTemplates into hyve ClusterTemplates with hyve import.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+`hyve import` converts templates from before this version of hyve into `ClusterTemplate`s:
+
+- **hyve v1 `Template`s** (`hyve.io`) built with `hyve-capi-module`, `hyve-civo-module` or
+  `hyve-unraid-k3s-module`.
+- **herd `ClusterTemplate`s** (`herd.io`).
+
+It reads them from YAML files or from a cluster, and prints the result or creates it. Anything
+it can't carry over is listed on stderr, so nothing is dropped silently.
+
+## What converts
+
+| From | Becomes |
+|---|---|
+| a module's `params` | ClusterClass variables. `hyve-capi-module` flavors (`capd`, `gke`) are expanded into their class, version, worker type and labels; the Civo and Unraid modules map onto the `civo` and `unraid` classes of their Cluster API providers |
+| `lockParams` | `lockedVariables`, for params that became variables. `lockParams: true` locks every variable |
+| the schedule | `schedule` |
+| Helm and git resources | Fleet `helmOp` and `gitRepo` entries; bundles from a directory become `bundle` entries with `path` |
+| a herd ClusterTemplate | the same spec in `hyve.io`, with each resource's herd shorthand written out as a Fleet spec |
+
+What doesn't, and is reported:
+
+| Not converted | Why, and what to do |
+|---|---|
+| templates for other drivers or modules | hyve builds clusters through Cluster API only; the template is skipped |
+| workflows and lifecycle hooks | hyve has none. Those that only registered the cluster with Rancher aren't needed (agents are installed automatically); turn the rest into template resources |
+| locks on things that aren't variables (version, worker counts) | hyve locks ClusterClass variables, and `kubernetesVersion`; add that lock by hand if you want it |
+| management-cluster params (`management`, `mgmt_kubeconfig`, `kind_cluster`, `providers`, `capi_version`, `init_env`, `cluster_class_path`) | the management cluster is the one hyve runs on; add providers with `hyve provider add` and apply ClusterClasses yourself |
+| `RANCHER_*` params | clusters get their agents automatically |
+| custom pod and service CIDRs | every cluster gets `10.244.0.0/16` and `10.128.0.0/12` |
+| params it doesn't know | listed as dropped |
+
+## Converting
+
+<Steps>
+
+1. **Look first.** Print the conversion without changing anything:
+
+   ```bash
+   hyve import -f ./templates
+   ```
+
+   `-f` takes files or directories (repeatable). The ClusterTemplates are printed as YAML on
+   stdout, and each skip or note on stderr:
+
+   ```text
+   note default/capd-small → capd-small: lockParams: true — locked the template's variables (...)
+   skip default/terraform-eks: driver "..." has no hyve equivalent
+   ```
+
+   From a running cluster instead, with its kubeconfig:
+
+   ```bash
+   hyve import --from-cluster --source-kubeconfig old-mgmt.yaml
+   ```
+
+   `--source-context` picks a context, and `--source-namespace` one namespace's templates (all
+   by default).
+
+2. **Make sure the ClusterClasses exist.** Each template names a ClusterClass in the template
+   namespace (`capd`, `gke`, `civo`, `unraid`, or the one a template's `cluster_class` param
+   named). Apply them and add their providers before making clusters
+   ([Providers](/docs/concepts/providers)).
+
+3. **Create them.** Save the output and apply it, which lets you review and edit it first:
+
+   ```bash
+   hyve import -f ./templates > templates.yaml
+   hyve template apply -f templates.yaml
+   ```
+
+   or create them directly with `--apply`. Templates go in the template namespace
+   (`capi-clusters` unless `--template-namespace` says otherwise). Old templates in several
+   namespaces can have the same name; `--prefix-namespace` names each `<old namespace>-<name>`.
+
+   A converted `bundle` entry keeps its `path`. Apply the result with `hyve template apply -f`
+   from the directory the manifests are relative to, so they're found and sent inline.
+
+4. **Check each one** renders and makes a cluster:
+
+   ```bash
+   hyve template list
+   hyve render -f templates.yaml -f classes.yaml --template capd-small
+   hyve cluster create import-check -t capd-small --ttl 1h
+   ```
+
+</Steps>
+
+The UI's `/import` page does the same: paste templates or load files, review the conversion
+and its notes, and create them.
+
+## Clusters herd made
+
+Clusters herd made from a herd template carry the label `herd.io/template`. With `--apply`,
+`--relabel-clusters` also labels each of them with the new template's `hyve.io/template` and
+`hyve.io/template-namespace`, so they get the template's resources and locks:
+
+```bash
+hyve import --from-cluster --source-kubeconfig mgmt.yaml --kubeconfig mgmt.yaml \
+    --apply --relabel-clusters
+```
+
+`--source-kubeconfig` is where the templates are read from; `--kubeconfig` (or the signed-in
+server) is where they're created and the clusters relabelled. This is for importing in place,
+on the management cluster herd ran on, so give both the same cluster.
+
+`--relabel-clusters` only covers herd's clusters. Clusters made by the hyve v1 modules aren't
+relabelled; label them (`hyve.io/template`, `hyve.io/template-namespace`) yourself if they're
+Cluster API clusters you want under a template, or recreate them from the new templates.

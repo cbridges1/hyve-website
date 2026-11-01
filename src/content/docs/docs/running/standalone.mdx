@@ -1,0 +1,152 @@
+---
+title: Standalone install
+description: Install hyve on a management cluster with hyve install, expose its host, and sign in
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+A standalone install puts hyve on a cluster you choose, as a long-lived platform: users sign
+in to its host, child clusters' agents connect to it, and the UI is served from it.
+
+```bash
+hyve install --host-url https://hyve.example.com --host-tls-cert tls.crt --host-tls-key tls.key
+```
+
+Run it as a cluster admin, with your kubeconfig pointing at the management cluster
+(`--kubeconfig` and `--context` pick another). It's safe to re-run: that's also how you
+change its settings.
+
+## What it installs
+
+`hyve install` adds whatever's missing, in this order, and leaves what's there:
+
+| Component | Version | Skipped when |
+|---|---|---|
+| cert-manager | v1.20.4 | its CRDs exist |
+| the Cluster API Operator | v0.29.0 | its CRDs exist |
+| core Cluster API, as an operator `CoreProvider` | v1.12.11 | the operator already manages a core |
+| CAAPF, as an operator `AddonProvider` | v0.15.1 | its CRDs exist |
+| Fleet | installed by CAAPF | Fleet is running |
+| hyve-controller and the hyve host (hyve's chart) | this hyve's | never: it's applied on every run |
+
+It also creates the environment `default` and the template namespace `capi-clusters`, and
+points CAAPF at the host, so child clusters' fleet-agents reach Fleet through
+`<host-url>/k8s/clusters/local`.
+
+`--only-hyve` installs hyve's chart and nothing else, for a cluster where you manage Cluster
+API and Fleet yourself.
+
+It installs no infrastructure providers. Add the ones your ClusterClasses need with
+`hyve provider add`; see [Providers](/docs/concepts/providers).
+
+<Aside type="caution">
+`hyve install` refuses to install on a cluster that runs Rancher with Turtles, which manages
+Cluster API there. See [Replacing Rancher](/docs/running/replacing-rancher).
+</Aside>
+
+## The host endpoint
+
+`--host-url` turns the host on and says where it is: the URL users sign in to and every
+child cluster's agent dials. Without it, only hyve-controller is installed and you use hyve
+with `--kubeconfig`.
+
+The URL has to be reachable from your users and from every child cluster. How you publish
+it is up to you:
+
+| Setup | Flags |
+|---|---|
+| hyve serves TLS itself | `--host-tls-cert tls.crt --host-tls-key tls.key` (stored as the Secret `hyve-host-tls`) |
+| a TLS-terminating ingress or reverse proxy in front | no TLS flags: the host serves plain HTTP on port 8080, behind the Service `hyve-host` on port 80 |
+| the certificate chains to a private CA | add `--host-cacerts ca.crt`; agents pin its checksum, and `hyve login --ca-cert` trusts it |
+
+Users sign in with passwords, so never publish the host without TLS in front.
+
+The Service is `ClusterIP` by default. To publish it some other way, set chart values with
+`-f`:
+
+```yaml
+# values.yaml
+host:
+  service:
+    type: LoadBalancer
+```
+
+```bash
+hyve install --host-url https://hyve.example.com -f values.yaml
+```
+
+The host doesn't need any SSO or authentication proxy in front of it: it does its own
+sign-in, and agents can't get past one.
+
+## Sign in as admin
+
+<Steps>
+
+1. **Read the first admin's password.** On its first start the host creates the user
+   `admin`, with the password in the Secret `hyve-system/bootstrap-secret` (key
+   `bootstrapPassword`), and generates one if that Secret doesn't exist:
+
+   ```bash
+   kubectl -n hyve-system get secret bootstrap-secret -o jsonpath='{.data.bootstrapPassword}' | base64 -d
+   ```
+
+   To choose it instead, create the Secret before you install:
+
+   ```bash
+   kubectl create namespace hyve-system
+   kubectl -n hyve-system create secret generic bootstrap-secret --from-literal=bootstrapPassword="$PASSWORD"
+   ```
+
+2. **Sign in.** The admin has to change the password at first sign-in:
+
+   ```bash
+   hyve login https://hyve.example.com --username admin
+   ```
+
+3. **Add users and give them access.**
+
+   ```bash
+   hyve user add alice --display-name "Alice" --password-stdin <<< "$INITIAL_PASSWORD"
+   hyve env create prod
+   hyve access grant alice --env-member -e prod
+   ```
+
+   Users change their initial password at first sign-in, unless you pass
+   `--no-password-change`. See [Users and access](/docs/concepts/access), and
+   [Signing in with OIDC](/docs/guides/oidc) to sign in through an identity provider instead.
+
+</Steps>
+
+## Chart values
+
+hyve's chart is built into the binary; `hyve install` renders and applies it. Values you pass
+with `-f` are merged over what the flags set. The ones most worth knowing:
+
+| Value | Default | |
+|---|---|---|
+| `ui.enabled` | `true` | the web UI, served by the host at `/` |
+| `auth.passwords` | `true` | username and password sign-in; turn it off only with `auth.oidc` set |
+| `auth.oidc.issuer`, `.clientID`, `.clientSecret` | unset | single sign-in through an OpenID Connect provider ([guide](/docs/guides/oidc)) |
+| `host.sessionTTL` | `16h` | how long a sign-in lasts |
+| `host.auditLog` | `true` | one JSON line on the host's stdout per request it proxies to a cluster: who, which cluster, verb, path and status |
+| `host.agentImage` | `rancher/rancher-agent:v2.14.3` | the `cattle-cluster-agent` image hyve is tested against |
+| `host.shell.image` | `rancher/shell:v0.8.2` | the UI's kubectl shell; empty turns it off |
+| `host.service.type`, `.nodePort` | `ClusterIP` | how the host's Service is published |
+| `host.replicaCount` | `1` | |
+| `controller.webhook` | `true` | the webhooks that fill in templated Clusters and keep locked variables locked |
+| `controller.lazyProviders` | `false` | add known providers (Docker, kubeadm) when first needed; gives the controller cluster-admin |
+| `image.repository`, `.tag` | `ghcr.io/cbridges1/hyve`, this hyve's version | also set by `--image` |
+
+`--namespace` (default `hyve-system`) puts hyve's own components in another namespace.
+
+## One hyve per cluster
+
+Only one hyve can run on a management cluster. Its cluster roles, webhook configurations and
+CRDs have fixed names, and hyve-controller watches every namespace, so a second install in
+another namespace would take them over from the first. Cluster API and Fleet are one per
+cluster anyway. For separate instances, use separate management clusters.
+
+## Upgrading
+
+Run `hyve install` again with the new binary (and its `--image`). It applies hyve's chart
+every time; the other components are only installed when missing.

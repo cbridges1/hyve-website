@@ -1,318 +1,164 @@
 ---
-title: "Template Concepts"
-description: "Understanding reusable cluster patterns and automated workflows"
+title: Templates
+description: A ClusterTemplate is a Cluster API ClusterClass plus defaults, locked variables, an expiry schedule and the resources every cluster made from it gets.
 ---
 
-import Card from '../../../../components/mdx/Card.astro';
-import CardGroup from '../../../../components/mdx/CardGroup.astro';
-import Steps from '../../../../components/mdx/Steps.astro';
-import Step from '../../../../components/mdx/Step.astro';
-import Accordion from '../../../../components/mdx/Accordion.astro';
-import AccordionGroup from '../../../../components/mdx/AccordionGroup.astro';
-import ParamField from '../../../../components/mdx/ParamField.astro';
-import Note from '../../../../components/mdx/Note.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-## Overview
+A **ClusterTemplate** (`hyve.io/v1alpha1`) is what people pick when they make a cluster. It
+sits on top of a Cluster API [ClusterClass](https://cluster-api.sigs.k8s.io/tasks/experimental-features/cluster-class/)
+and adds what a ClusterClass doesn't have:
 
-Templates in Hyve are reusable cluster configurations that combine a driver/region/params with automated post-deployment workflows. They enable consistent cluster creation with standardized configurations and deployment processes.
+- **Defaults:** the Kubernetes version, control-plane and worker replicas, and values for the
+  class's variables.
+- **Locked variables:** values a cluster can't change, enforced by a webhook.
+- **Expiry:** a cron schedule. Each cluster expires at the schedule's next occurrence after it's
+  created, and hyve-controller deletes it then.
+- **Labels** on every cluster made from it.
+- **Resources:** what Fleet delivers to every cluster made from it (see
+  [Resources](/docs/concepts/resources)).
 
-<CardGroup cols={2}>
-  <Card title="Reusable Patterns" icon="stamp" color="#06b6d4">
-    Define once, use multiple times
-  </Card>
+The ClusterClass still describes how the cluster is built. The template describes which
+clusters of that class people get.
 
-  <Card title="Workflow Integration" icon="diagram-project" color="#22c55e">
-    Automatic workflow execution after cluster creation
-  </Card>
-
-  <Card title="Consistency" icon="check-double" color="#22c55e">
-    Ensure all clusters follow the same pattern
-  </Card>
-
-  <Card title="Version Controlled" icon="code-branch" color="#8b5cf6">
-    Plain YAML in your context directory — add git for full history, entirely optional
-  </Card>
-</CardGroup>
-
-## Template Structure
-
-Templates are YAML files that define a driver, region, params, and optional lifecycle workflows:
+## An example
 
 ```yaml
 apiVersion: hyve.io/v1alpha1
-kind: Template
+kind: ClusterTemplate
 metadata:
-  name: prod-template
-  description: Production cluster template with monitoring
+  name: civo-small
+  namespace: capi-clusters          # the template namespace, beside its ClusterClass
 spec:
-  driver:
-    source: github.com/your-org/hyve-civo-module
-    version: v1.0.0
-  region: NYC1
-  params:
-    node_size: g4s.kube.large
-    node_count: "3"
-  schedule: "0 20 * * 5"   # optional: auto-expire clusters every Friday at 20:00
-  workflows:
-    onCreate:
-      - setup-monitoring
-      - deploy-base-apps
-    onDelete:
-      - backup-data
-```
-
-### Metadata
-
-<ParamField path="metadata.name" type="string" required>
-  Unique template identifier
-</ParamField>
-
-<ParamField path="metadata.description" type="string">
-  Human-readable description of the template
-</ParamField>
-
-### Spec
-
-<ParamField path="spec.driver.source" type="string" required>
-  Module source string (e.g. `github.com/your-org/hyve-civo-module`)
-</ParamField>
-
-<ParamField path="spec.driver.version" type="string" required>
-  Module version. Must be locked in `hyve.lock`.
-</ParamField>
-
-<ParamField path="spec.region" type="string">
-  Passed to the module as part of cluster context. Can be overridden at cluster-creation time with `--region`.
-</ParamField>
-
-<ParamField path="spec.mgmtCluster" type="string">
-  The cluster the driver module uses as its [management cluster](/docs/concepts/modules#management-clusters), copied onto every cluster created from the template.
-</ParamField>
-
-<ParamField path="spec.params" type="object">
-  Arbitrary key/value pairs, entirely module-specific — there's no hyve-defined schema of provider fields. Check the module's own `module.yaml`/README for what it expects. Injected as `HYVE_PARAM_<KEY>` env vars for every module operation; values can be overridden at cluster-creation time with `--set`.
-</ParamField>
-
-<ParamField path="spec.workflows.beforeCreate" type="array">
-  List of workflow names to execute before the cluster is created. No kubeconfig — the cluster does not exist yet. Output variables in `HYVE_KEY=value` format are captured and applied to the cluster definition.
-</ParamField>
-
-<ParamField path="spec.workflows.onCreate" type="array">
-  List of workflow names to execute after cluster creation, before `spec.resources` applies for this cycle. Kubeconfig is available.
-</ParamField>
-
-<ParamField path="spec.workflows.afterCreate" type="array">
-  List of workflow names to execute after cluster creation, after `spec.resources` has applied for this cycle. Kubeconfig is available. Use instead of `onCreate` when a workflow depends on something `spec.resources` creates.
-</ParamField>
-
-<ParamField path="spec.workflows.onDelete" type="array">
-  List of workflow names to execute before cluster deletion. Cluster is still running; kubeconfig is available.
-</ParamField>
-
-<ParamField path="spec.workflows.afterDelete" type="array">
-  List of workflow names to execute after the cluster has been deleted. No kubeconfig — the cluster no longer exists. Use to tear down infrastructure provisioned by `beforeCreate`.
-</ParamField>
-
-<ParamField path="spec.workflows.preReconcile" type="array">
-  List of workflow names to execute at the start of every reconcile loop for this cluster, before any create/update/delete decisions are made.
-</ParamField>
-
-<ParamField path="spec.resources" type="array">
-  Kubernetes manifests hyve owns, drift-checks, and re-applies — see [Resources](/docs/concepts/resources).
-</ParamField>
-
-<ParamField path="spec.lockParams" type="string[]">
-  Names of params whose values, once a cluster is created from this template, get hashed and recorded — not a permission lock. This is what `hyve cluster adopt`'s drift detection uses to tell "set intentionally at creation" apart from "looks like drift," for exactly the params listed here.
-
-  ```yaml
-  spec:
-    lockParams: [node_size, node_count]
-  ```
-</ParamField>
-
-## Creating Templates
-
-```bash
-hyve template create prod-template \
-  --driver github.com/your-org/hyve-civo-module --driver-version v1.0.0 \
-  --region NYC1 \
-  --set node_size=g4s.kube.large --set node_count=3
-```
-
-<Note>
-  `hyve template create` sets everything above through flags (`--set`, `--schedule`, `--on-create`, `--mgmt-cluster`, … — see [`hyve template`](/docs/cli/template)). Resources have no flag; for those, edit the generated YAML afterward, or write the file directly:
-
-  ```bash
-  cat > templates/prod-template.yaml <<EOF
-  apiVersion: hyve.io/v1alpha1
-  kind: Template
-  metadata:
-    name: prod-template
-    description: Production cluster with 3 large nodes
-  spec:
-    driver:
-      source: github.com/your-org/hyve-civo-module
-      version: v1.0.0
+  description: Civo K3s, one small node, gone by 8 pm
+  clusterClassRef:
+    name: civo                      # namespace defaults to the template's
+  kubernetesVersion: v1.35.0        # default: the class's hyve.io/default-version
+  variables:                        # defaults for the ClusterClass's variables
     region: NYC1
-    params:
-      node_size: g4s.kube.large
-      node_count: "3"
-    workflows:
-      onCreate:
-        - setup-monitoring
-        - deploy-base-apps
-      onDelete:
-        - backup-data
-  EOF
-  ```
-
-  If your context directory is git-backed (optional — see [Version Control](/docs/concepts/gitops)), commit it like any other file.
-</Note>
-
-## Executing Templates
-
-```bash
-hyve cluster create my-prod-cluster --template prod-template
+    nodeSize: g4s.kube.small
+    nodeCount: 1
+    credentialsSecret: civo-credentials
+  lockedVariables: [region, credentialsSecret]
+  schedule: CRON_TZ=America/Chicago 0 20 * * *
+  labels:
+    team: platform                  # on every Cluster; Fleet sees it through CAAPF
+  resources:
+    - name: podinfo
+      namespace: podinfo
+      helmOp:
+        helm:
+          repo: https://stefanprodan.github.io/podinfo
+          chart: podinfo
+          version: 6.7.1
 ```
 
-<Steps>
-  <Step title="Load template">
-    Read the template YAML from the active context.
-  </Step>
-  <Step title="Generate + provision">
-    Generate the cluster definition, then run reconciliation: `beforeCreate` → provision via the driver module → wait for `ACTIVE`.
-  </Step>
-  <Step title="Merge kubeconfig">
-    Merge the new cluster's kubeconfig into `~/.kube/config`.
-  </Step>
-  <Step title="Run onCreate / afterCreate">
-    Run `onCreate` workflows, apply `spec.resources`, then run `afterCreate` workflows.
-  </Step>
-</Steps>
+## Fields
 
-`onDelete`/`afterDelete` run later, when the cluster is deleted.
+| Field | What it does |
+|---|---|
+| `clusterClassRef.name`, `.namespace` | The ClusterClass to build from. Required. The namespace defaults to the template's own. |
+| `kubernetesVersion` | The version clusters get unless they give one. Without it, the ClusterClass's `hyve.io/default-version` annotation is used. |
+| `controlPlane.replicas` | Control-plane replicas for a machine-based control plane (kubeadm). Default 1. Ignored for a managed control plane (GKE, EKS, AKS), which has none. |
+| `workers.type` | `machineDeployment` or `machinePool`. Default: whichever the ClusterClass defines. |
+| `workers.class` | The worker class. Default: the ClusterClass's first of that type. |
+| `workers.count` | Worker replicas. Default 1. |
+| `variables` | Defaults for the ClusterClass's variables. A cluster may set others, and may override these unless they're locked. A variable set to `null` has no default here, so the class's own applies. |
+| `lockedVariables` | Variables clusters can't change. Each must be listed in `variables`, with the value clusters keep. `kubernetesVersion` in this list locks the version to the template's `kubernetesVersion`. |
+| `schedule` | A standard 5-field cron expression, in UTC unless prefixed with `CRON_TZ=<zone>`. |
+| `labels` | Extra labels on every Cluster made from the template. |
+| `resources` | What Fleet delivers to every cluster made from the template. See [Resources](/docs/concepts/resources). |
+| `description` | Shown by `hyve template list` and the UI. |
 
-### Lifecycle Events
+The status lists each Fleet object made from the template's resources, with Fleet's state, the
+Secrets those resources need that don't exist yet (`missingSecrets`), and a `Ready` condition.
 
-| Event | When It Runs | Kubeconfig | Use Cases |
-|-------|--------------|------------|-----------|
-| `beforeCreate` | Before the cluster is provisioned | No | Provision VPC, IAM roles, DNS zones |
-| `onCreate` | After cluster is ready, before `spec.resources` applies | Yes | Setup monitoring, deploy apps, configure ingress |
-| `afterCreate` | After cluster is ready, after `spec.resources` has applied | Yes | Create a Secret a resource-managed Deployment references, DNS pointing at a now-deployed app |
-| `onDelete` | Before cluster deletion | Yes | Backup data, drain workloads, notify teams |
-| `afterDelete` | After the cluster is deleted | No | Tear down VPC, IAM roles, DNS zones |
+## How a cluster is made from a template
 
-<Note>
-  Workflows referenced in a template must exist in the same context's `workflows/` directory (or as real `Workflow` objects, in cluster mode).
-</Note>
+A cluster is made from a template by creating a CAPI `Cluster` labelled
+`hyve.io/template: <name>` (and `hyve.io/template-namespace` when the template is in another
+namespace). hyve-controller's mutating webhook fills it in when it's created, whoever creates
+it: `hyve cluster create`, `kubectl apply`, a GitOps tool or the UI. So there is one path, and
+the template's rules apply to all of them.
 
-## Managing Templates
+When it fills in a Cluster, the webhook:
+
+- sets the class (`spec.topology.classRef`), with its namespace when it's another;
+- sets the version, control-plane replicas and workers when the Cluster doesn't give them;
+- sets each variable the Cluster doesn't set from the template's `variables`;
+- adds the ClusterClass's `hyve.io/cluster-labels`, the template's `labels`, the template
+  labels and `app.kubernetes.io/managed-by: hyve`;
+- sets the default cluster network (`10.244.0.0/16` for pods, `10.128.0.0/12` for services)
+  when the Cluster has none;
+- sets `hyve.io/expires-at` from the schedule, unless the Cluster already has one.
+
+What the Cluster already sets is kept, with two exceptions. It can't name a different class
+from the template's. And it can't set a locked variable to a different value. A second,
+validating webhook refuses that on every later update too, so the UI and `kubectl edit` can't
+get around a lock. A cluster made before a lock was added keeps its value; only changing it is
+refused.
+
+`hyve render` runs the same fill on your machine, with no cluster:
 
 ```bash
+hyve render -f template.yaml -f clusterclass.yaml --name demo -e dev --set nodeCount=2
+```
+
+Without the ClusterClass among the files, the class's defaults (version, workers) can't be
+filled in.
+
+## The ClusterClass's annotations
+
+Two annotations on a ClusterClass are read by hyve:
+
+| Annotation | What it does |
+|---|---|
+| `hyve.io/default-version` | The Kubernetes version used when neither the cluster nor the template gives one. |
+| `hyve.io/cluster-labels` | `k=v,k2=v2`: labels every Cluster of the class gets, for example the label a CNI `ClusterResourceSet` selects. |
+
+## Where templates live
+
+A template lives in the same namespace as its ClusterClass: a **template namespace**,
+`capi-clusters` by default. Clusters live in [environments](/docs/concepts/environments), other
+namespaces, and use the class from the template namespace (`spec.topology.classRef.namespace`).
+
+That's the layout CAAPF, Cluster API's Fleet add-on provider, is built for. hyve-controller
+creates one Fleet object per template resource in the template namespace, aimed at clusters
+labelled with the template. CAAPF copies each CAPI Cluster's labels onto its Fleet Cluster and
+maps the cluster's namespace into the class's namespace with a `BundleNamespaceMapping`, so
+those Fleet objects reach clusters in every environment. hyve creates no copies per
+environment.
+
+<Aside>
+Whoever can write the template namespace can deliver to every cluster built from its classes.
+That's the point of a template, so give write access there only to platform admins.
+Environment members can read it, which is enough to pick a template.
+</Aside>
+
+You can have more than one template namespace. `--template-namespace` picks one per command,
+and `hyve env use NAME --template-namespace NS` saves one for the current server.
+
+## Commands
+
+```bash
+hyve template create capd-small --class capd --workers 1 --schedule "0 20 * * *"
+hyve template create gke-small --from-clusterclass gke --set project=my-proj --lock project
+hyve template apply -f template.yaml          # anything more: write the YAML
 hyve template list
-hyve template show prod-template
-hyve template delete old-template
+hyve template show civo-small                  # its resources' state and its clusters
+hyve template resource add civo-small --helm podinfo --repo https://stefanprodan.github.io/podinfo --version 6.7.1
+hyve template resource remove civo-small podinfo
+hyve template delete civo-small
 ```
 
-<Note>
-  Deleting a template doesn't affect clusters already created from it — a cluster's YAML is a full, independent copy of what the template generated at creation time, not a live reference back to it.
-</Note>
+`--from-clusterclass` copies every variable the ClusterClass declares, with its default (or
+`null`), as a starting point to edit. `--dry-run` prints the template instead of creating it.
 
-## Use Cases
-
-### Rapid Environment Creation
-
-```bash
-hyve cluster create prod-cluster-01 --template prod-template
-hyve cluster create prod-cluster-02 --template prod-template
-# Both identical: same driver, region, params, and workflows
-```
-
-### Multi-Region Deployment
-
-```bash
-hyve cluster create us-east-prod --template prod-template --region NYC1
-hyve cluster create us-west-prod --template prod-template --region PHX1
-hyve cluster create eu-prod --template prod-template --region FRA1
-```
-
-### Testing Infrastructure Changes
-
-```bash
-hyve context use development
-hyve cluster create test-new-config --template prod-template
-
-# If successful
-hyve context use production
-hyve cluster create prod-new-cluster --template prod-template
-```
-
-## Best Practices
-
-<AccordionGroup>
-  <Accordion title="Use descriptive names">
-    ```yaml
-    # Good
-    metadata:
-      name: production-ha-template
-      description: Production HA cluster with monitoring and logging
-
-    # Avoid
-    metadata:
-      name: template1
-    ```
-  </Accordion>
-
-  <Accordion title="Include essential workflows">
-    ```yaml
-    workflows:
-      onCreate:
-        - setup-monitoring
-        - configure-security
-        - setup-backup
-        - deploy-core-services
-      onDelete:
-        - export-logs
-        - backup-final-state
-    ```
-  </Accordion>
-
-  <Accordion title="Test templates in development first">
-    ```bash
-    hyve context use development
-    hyve cluster create test-cluster --template new-template
-    # Verify workflows run successfully, then:
-    hyve context use production
-    hyve cluster create prod-cluster --template new-template
-    ```
-  </Accordion>
-
-  <Accordion title="Version control templates (optional)">
-    If your context directory is git-backed, commit template changes with descriptive messages — tags work fine too for marking a template version you want to be able to return to:
-
-    ```bash
-    git commit -am "Update production template: add cert-manager to onCreate"
-    git tag -a prod-template-v1.1 -m "Add cert-manager"
-    ```
-  </Accordion>
-</AccordionGroup>
+Deleting a template deletes the Fleet objects made from its resources, so Fleet removes those
+resources from its clusters. The clusters themselves stay, with their variables.
 
 ## Related
 
-<CardGroup cols={2}>
-  <Card title="Template Management" icon="stamp" href="/docs/guides/template-management" color="#3b82f6">
-    The full command-by-command guide
-  </Card>
-
-  <Card title="CLI: Template Commands" icon="terminal" href="/docs/cli/template" color="#10b981">
-    Complete command reference
-  </Card>
-
-  <Card title="Modules" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
-    What a driver actually is
-  </Card>
-
-  <Card title="Workflows" icon="diagram-project" href="/docs/concepts/workflows" color="#22c55e">
-    Lifecycle hooks in depth
-  </Card>
-</CardGroup>
+- [Writing a template](/docs/guides/writing-a-template)
+- [Clusters](/docs/concepts/clusters), [Resources](/docs/concepts/resources)
+- [`hyve template`](/docs/cli/template), [`hyve render`](/docs/cli/render)

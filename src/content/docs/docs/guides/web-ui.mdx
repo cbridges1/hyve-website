@@ -1,0 +1,111 @@
+---
+title: The web UI
+description: Open hyve's UI, what each page does, the Explorer for any cluster's objects, and the kubectl shell.
+---
+
+The hyve host serves a web UI for everything the CLI does: clusters, templates, resources,
+secrets, repos, providers, users and access, plus an Explorer for any object on any cluster
+and a kubectl shell in the browser. It's built into hyve's binary, so nothing more is
+installed. Everything in it runs as the signed-in user, through the same proxy as kubectl, so
+your RBAC decides what you see and change.
+
+## Opening it
+
+```bash
+hyve ui
+```
+
+`hyve ui` opens the UI for the current context in your browser, already signed in: the browser
+gets a session of its own made from the CLI's, so there's no password to type. `--server NAME`
+opens another saved server; `--no-browser` prints the URL instead.
+
+When the host's certificate comes from a CA the browser doesn't trust (local mode's, or a
+private one you gave `hyve login --ca-cert`), `hyve ui` serves the UI itself at
+`http://127.0.0.1:30445`, trusting the CA on the browser's behalf, until you press Ctrl-C.
+`--port` picks another port (`0` for any free one); if 30445 is taken, it uses a free one.
+
+Otherwise, go to the host's URL and sign in with your username and password, or through the
+identity provider when the host has one ([Signing in with OIDC](/docs/guides/oidc)). A user who
+must change their password does it on the sign-in page.
+
+In local mode, `hyve local ui` is the same as `hyve ui --server local`.
+
+## Pages
+
+The sidebar shows what your access lets you use.
+
+| Page | What it does | CLI |
+|---|---|---|
+| **Overview** | every cluster with its provider, template, environment, phase and expiry; resources failing anywhere; clusters expiring soon | `hyve cluster list` |
+| **Clusters** | the clusters in an environment. Create one from a template; open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML or delete it | `hyve cluster` |
+| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it | `hyve template`, `hyve render` |
+| **Resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters | `hyve resource` |
+| **Delivery** | resources down the side, clusters across the top: Fleet's state for each resource on each cluster, and why it's there. Add a resource to a template or a cluster, or edit one where it's defined | `hyve resource status` |
+| **Secrets** | the Secrets in the template namespace and the environment, and the ones each resource copies to clusters, with whether they exist. Create, change and delete them | `hyve secrets` |
+| **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |
+| **Providers** | the installed Cluster API providers and their health; add and remove them | `hyve provider` |
+| **Users** | hyve's users: create, set passwords, disable, groups | `hyve user` |
+| **Environments** | create and delete environments | `hyve env` |
+| **Access** | who can reach which clusters: grant and revoke owner, member and read-only roles, and environment membership | `hyve access` |
+| **Explorer** | the management cluster's objects (below). Shown to users who may list its namespaces | `kubectl` |
+
+Old hyve Templates and herd ClusterTemplates can be pasted or loaded from files at `/import`
+and converted, as `hyve import` does ([Importing old templates](/docs/guides/importing)). Any
+kind the cluster serves can be listed at `/list/<type>` and edited as YAML; that's the way to
+manage what has no form of its own.
+
+Each cluster's page has three tabs: **Overview** (its fields, conditions, variables, size and
+expiry), **Resources** (its template's resources and its extras) and **Explorer**.
+
+## The Explorer
+
+The Explorer lists every resource type a cluster serves, the way `kubectl get` lists them, and
+opens each object. Each cluster has one on its Explorer tab; the management cluster's is the
+Explorer page.
+
+- **Types** are in a sidebar grouped by API group, with the common ones (Pods, Deployments,
+  Services, ...) first and the ones you opened recently above them. Find a type by name. On a
+  phone the list is a drawer.
+- **Lists** show the same columns as `kubectl get`, with status pills, ages instead of
+  timestamps, and the namespace under each name. The columns menu adds the ones
+  `kubectl get -o wide` adds. Filter by namespace, search by name, or give a label selector
+  (`app=web`) and press Enter. Lists stay live: the host watches them as you and the page
+  updates.
+- **An object** opens with its kind, namespace, labels and owners, and tabs:
+  - **YAML**, to view, or edit and save with server-side apply. A conflict with another
+    change is reported, and you can overwrite it.
+  - **Events** for the object, warnings marked.
+  - For a pod, **Logs** (followed as they're written, per container, downloadable) and
+    **Shell** (a shell in a container, through the proxy as you).
+  - **Delete**, when you're allowed to.
+
+The URL holds where you are (type, namespace, object and tab), so it can be bookmarked and
+shared. Cmd- or Ctrl-click a row to open it in a new tab.
+
+## The kubectl shell
+
+The **kubectl shell** button on a cluster's page (and on the management cluster's Explorer)
+docks a terminal with `kubectl`, `helm`, `k9s` and `kustomize`, already pointed at that
+cluster.
+
+It runs as you. The host starts a short-lived pod in the `hyve-shell` namespace on the cluster,
+from `rancher/shell`, with a ServiceAccount that may only impersonate you and your groups. So
+the cluster's RBAC decides every command, as through the proxy, and no hyve session is stored
+on the cluster. It works on [push](/docs/concepts/delivery) clusters too, since nothing in the
+pod has to reach the host.
+
+- A shell lasts at most an hour. Closing the terminal deletes its pod; one the host couldn't
+  clean up ends at that deadline, and the next shell on the cluster removes it.
+- The first shell on a new node waits for the image to be pulled.
+- The chart's `host.shell.image` sets the image; empty turns the shell off.
+
+## Turning the UI off
+
+The chart's `ui.enabled` (on by default) decides whether the host serves the UI. Off, the host
+still serves sign-in, the agent tunnel and the proxy, so the CLI and kubectl work as before.
+Pass it to `hyve install -f values.yaml`:
+
+```yaml
+ui:
+  enabled: false
+```

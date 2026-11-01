@@ -1,0 +1,84 @@
+---
+title: Providers
+description: Cluster API providers build clusters. hyve installs them through the Cluster API Operator, or from release manifests in local mode.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Cluster API **providers** are the controllers that build clusters: an infrastructure provider
+for each place clusters run (Docker, GCP, AWS, Azure, Civo), and bootstrap and control-plane
+providers for how nodes join (kubeadm). A ClusterClass names the kinds its provider defines, so
+a template works once its provider is installed.
+
+hyve installs core Cluster API and CAAPF (the Fleet add-on provider) itself. You add the
+providers your templates need.
+
+## Two ways they're installed
+
+| | Standalone install | Local mode |
+|---|---|---|
+| How | Through the [Cluster API Operator](https://cluster-api-operator.sigs.k8s.io/): each provider is an operator object (`InfrastructureProvider`, `BootstrapProvider`, ...) with a `<name>-variables` Secret | From release manifests applied directly, with variables substituted the way `clusterctl` does. No operator, to save memory |
+| Providers it can add by name | Any provider `clusterctl` knows (`aws`, `gcp`, `azure`, ...), plus `docker` and `kubeadm` at core Cluster API's version | `docker` and `kubeadm`, which hyve carries |
+| Others | `--fetch-url` to the provider's components manifest | `--fetch-url` |
+
+The same `hyve provider` commands work for both; hyve picks the method from what's installed.
+
+In local mode, hyve-controller also adds `docker` and `kubeadm` the first time something needs
+their kinds: a ClusterClass that refers to them, or a Fleet bundle that failed for want of their
+CRDs. So local mode starts with no providers. On a standalone install this is off unless the
+chart's `controller.lazyProviders` is set, since installing providers takes cluster-admin.
+
+## Adding one
+
+```bash
+hyve provider add docker
+hyve provider add gcp --variable-b64-file GCP_B64ENCODED_CREDENTIALS=./key.json --variable EXP_CAPG_GKE=true
+hyve provider add civo \
+    --fetch-url https://github.com/cbridges1/cluster-api-provider-civo/releases/latest/download/infrastructure-components.yaml \
+    --variable CIVO_API_KEY          # read from your environment
+```
+
+| Flag | |
+|---|---|
+| `--type` | `infrastructure` (the default), `bootstrap`, `controlPlane`, `core`, `addon`, `ipam` or `runtimeExtension`. |
+| `--version` | The provider's version. Default: the latest the installer knows. |
+| `--fetch-url` | Where to fetch the components manifest, for providers `clusterctl` doesn't know. A GitHub release URL works, `latest` included. |
+| `--namespace` | Default `<name>-system`. |
+| `--provider-name` | The `clusterctl` name, when it differs from the name you give. |
+| `--variable KEY=value` | A provider variable. `KEY` alone reads it from your environment. |
+| `--variable-file KEY=path`, `--variable-b64-file KEY=path` | A variable from a file's contents, as they are or base64-encoded. |
+
+## Provider variables
+
+Variables are what the provider's `clusterctl` configuration reads: credentials and feature
+flags. hyve always sets `CLUSTER_TOPOLOGY`, `EXP_MACHINE_POOL` and `EXP_CLUSTER_RESOURCE_SET` to
+`true`, which ClusterClasses need; your variables can override them. On a standalone install
+they're kept in a Secret, `<name>-variables` in the provider's namespace, that the operator
+reads.
+
+Credentials come in two kinds, depending on the provider:
+
+- **The provider's own**, as variables: CAPG's `GCP_B64ENCODED_CREDENTIALS`, CAPA's
+  `AWS_B64ENCODED_CREDENTIALS`. Every cluster from that provider uses them.
+- **Per cluster**, as a Secret or identity object the ClusterClass names, in the cluster's
+  environment (Civo's API key Secret, an `AzureClusterIdentity`). See
+  [Secrets](/docs/concepts/secrets#which-namespace).
+
+## Seeing and removing them
+
+```bash
+hyve provider list            # each provider and its state
+hyve provider show gcp        # the provider and its controller
+hyve provider remove gcp      # delete its clusters first
+```
+
+<Aside type="caution">
+Remove a provider only after its clusters are gone. Without its controller, Cluster API can't
+delete their infrastructure.
+</Aside>
+
+## Related
+
+- [Writing a template](/docs/guides/writing-a-template)
+- [Standalone install](/docs/running/standalone), [Local mode](/docs/running/local-mode)
+- [`hyve provider`](/docs/cli/provider)

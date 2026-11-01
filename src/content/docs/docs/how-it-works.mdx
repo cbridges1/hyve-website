@@ -1,0 +1,110 @@
+---
+title: How hyve works
+description: The management cluster, its controllers, the host endpoint, and what runs on each child cluster
+---
+
+hyve runs on a **management cluster**, next to Cluster API and Fleet. The clusters it makes
+are **child clusters**. Every object hyve works with is a Kubernetes object on the management
+cluster, so `kubectl`, GitOps and the UI all see the same thing the CLI does.
+
+```
+                    users: hyve CLI, kubectl, browser
+                                  │  sign in, /k8s/clusters/<id>
+                                  ▼
+ ┌───────────────────────── management cluster ─────────────────────────┐
+ │  hyve host ── sign-in, UI, agent tunnel, proxy                        │
+ │  hyve-controller ── templates, resources, expiry, push delivery       │
+ │  Cluster API (+ providers)        Fleet        CAAPF                  │
+ │                                                                       │
+ │  capi-clusters/  ClusterClasses, ClusterTemplates, Resources          │
+ │  dev/, prod/     Clusters, ClusterResources (environments)            │
+ └───────────────────────────────────────────────────────────────────────┘
+          ▲  agents dial out to the host          │ Cluster API builds
+          │                                       ▼
+ ┌──────── child cluster ────────┐
+ │  cattle-cluster-agent          │
+ │  fleet-agent                   │
+ │  the template's resources      │
+ └────────────────────────────────┘
+```
+
+## On the management cluster
+
+| Component | What it does |
+|---|---|
+| **Cluster API** | Makes and deletes clusters from `Cluster` objects and their `ClusterClass`, through its providers (CAPD for Docker, CAPA, CAPZ, CAPG, Civo, ...). A standalone install manages it with the Cluster API Operator. |
+| **Fleet** | Delivers Helm charts, manifests and git repositories to clusters, as `HelmOp`s, `Bundle`s and `GitRepo`s, and keeps them there. |
+| **CAAPF** (Cluster API Addon Provider Fleet) | Registers each Cluster API cluster with Fleet under the same name and namespace, copies its labels, and lets bundles in a ClusterClass's namespace reach clusters in other namespaces that use it. It also installs Fleet when it's missing. |
+| **hyve-controller** | Fills in and guards Clusters made from a template (a mutating and a validating webhook), turns template resources and per-cluster extras into Fleet objects, deletes expired clusters, installs the agent on each child, and pushes resources to children whose agent can't connect. |
+| **The hyve host** | The one endpoint people and agents use. It serves sign-in (passwords, or OpenID Connect), the web UI, the server side of each child's agent tunnel, and a proxy to every cluster at `/k8s/clusters/<id>`, including the management cluster itself at `/k8s/clusters/local`. |
+
+`hyve install` adds whichever of these are missing; see [Standalone install](/docs/running/standalone).
+
+## On each child cluster
+
+- **`cattle-cluster-agent`**, Rancher's own agent (`rancher/rancher-agent`, pinned to a
+  version hyve is tested against). hyve-controller installs it once the cluster is up. It dials
+  the host and holds a tunnel open, so the host can reach the cluster's API server even when
+  nothing can connect to the cluster. It runs with Rancher's multi-cluster management features
+  off: it only holds the tunnel.
+- **fleet-agent**, installed by Fleet. It reaches Fleet through the host's
+  `/k8s/clusters/local`, so the host is the only address a child needs.
+- **The template's resources**, put there by fleet-agent.
+
+A child whose agents can't reach the host (a cloud cluster made from your laptop, say) still
+gets its resources: hyve-controller deploys them from the management side with the cluster's
+kubeconfig. See [Delivery: agents and push](/docs/concepts/delivery).
+
+## Reaching clusters as yourself
+
+The CLI, kubectl and the UI reach every cluster through the host:
+
+```
+https://hyve.example.com/k8s/clusters/local         the management cluster
+https://hyve.example.com/k8s/clusters/dev.demo      cluster demo in environment dev
+```
+
+The host signs requests through to the cluster as the signed-in user (Kubernetes sees
+`hyve:<username>`, in groups `hyve:<group>`), so RBAC applies as it would to that user. The
+kubeconfigs `hyve cluster kubeconfig` prints hold no secret: their credential is
+`hyve token`, the current session. No one is given a cluster's admin kubeconfig. See
+[kubectl access](/docs/guides/kubectl-access) and [Users and access](/docs/concepts/access).
+
+## Namespaces
+
+| Namespace | Holds | Who writes it |
+|---|---|---|
+| a **template namespace** (`capi-clusters` by default; more than one is fine) | ClusterClasses, the ClusterTemplates over them, shared `Resource`s, the Fleet objects hyve-controller makes from templates, and the Secrets those copy to clusters | platform admins |
+| an **environment** (`default`, `dev`, `prod`, ...) | Cluster API Clusters, the Fleet clusters CAAPF registers, each cluster's extras (`ClusterResource`s) and their Secrets | that environment's users |
+| `hyve-system` | hyve-controller, the host, `User`s' password and session Secrets | hyve |
+
+A Cluster in an environment uses a ClusterClass from a template namespace. CAAPF carries the
+template's Fleet objects from there to every environment using that class, so hyve makes no
+copies per environment. See [Environments](/docs/concepts/environments).
+
+## The objects
+
+| Kind | From | What it is |
+|---|---|---|
+| `Cluster`, `ClusterClass` | Cluster API | a cluster and the shape it's built from; hyve labels each Cluster with its template (`hyve.io/template`) |
+| `ClusterTemplate` | hyve | a ClusterClass plus defaults, locked variables, an expiry schedule and resources ([Templates](/docs/concepts/templates)) |
+| `Resource` | hyve | a named, shared Fleet `HelmOp` or `Bundle` spec that templates refer to ([Resources](/docs/concepts/resources)) |
+| `ClusterResource` | hyve | one cluster's extra resource, in its environment |
+| `User` | hyve | someone who signs in to the host |
+| `ClusterAccess` | hyve | a role for a user or group on one cluster or a whole environment |
+| `HelmOp`, `Bundle`, `GitRepo`, `Cluster`, `ClusterGroup` | Fleet | what hyve-controller and CAAPF create, and what you can write yourself |
+
+## Two ways to run
+
+| | Standalone | Local mode |
+|---|---|---|
+| Management cluster | any cluster you install hyve on | a K3s container the CLI creates and manages |
+| Installed with | `hyve install` | `hyve local up` |
+| Cluster API | through the Cluster API Operator, with cert-manager | the lean install: Cluster API's and CAAPF's manifests applied directly, no operator or cert-manager |
+| Providers | `hyve provider add` | added the first time a ClusterClass or bundle needs them (Docker and kubeadm), or `hyve provider add` |
+| Signing in | `hyve login`, with a password or an identity provider | automatic, as the local `admin` |
+| Agents on children | `cattle-cluster-agent` and fleet-agent, dialing the host | the same; children that can't reach your machine get push delivery |
+| UI | served by the host | the same; `hyve ui` opens it |
+
+The commands are the same in both. `hyve context use` picks which one they go to. See
+[Local mode](/docs/running/local-mode) and [Standalone install](/docs/running/standalone).

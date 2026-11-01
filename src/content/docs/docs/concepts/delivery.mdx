@@ -1,0 +1,95 @@
+---
+title: "Delivery: agents and push"
+description: How hyve reaches its clusters. Agents on each cluster dial the host; clusters whose agents can't reach it get push delivery from the management side.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Two things have to reach each cluster: Fleet's bundles (its template's resources and extras),
+and people (`kubectl`, the UI, `hyve cluster show`). hyve does both in one of two directions.
+
+## Agents: the cluster dials hyve
+
+Normally each cluster runs two agents that connect *out* to the management side:
+
+- **fleet-agent**, which CAAPF installs when it registers the cluster with Fleet. It reads the
+  cluster's BundleDeployments, deploys them and reports their status.
+- **Rancher's `cattle-cluster-agent`**, which hyve-controller installs, pointed at the host
+  endpoint. It holds a tunnel open to the host, and the host proxies the cluster's API through it
+  at `<url>/k8s/clusters/<environment>.<name>`, as the signed-in user.
+
+hyve runs Rancher's published `rancher/rancher-agent` image, pinned to the version it's tested
+against (`v2.14.3`; the chart's `host.agentImage`). It serves the small part of Rancher's server
+the agent needs, so no Rancher is installed.
+
+hyve-controller installs `cattle-cluster-agent` only when the host has an address clusters can
+reach: `hyve install --host-url` (the chart's `host.agentURL`). When the host's certificate isn't
+publicly trusted, the agents pin the CA from `host.caCertsConfigMap`.
+
+Because the agents connect out, the management cluster needs no route *to* the cluster, and the
+cluster's API server needn't be public. But the cluster has to reach the host.
+
+## Push: hyve-controller delivers from the management side
+
+A cluster that can't reach the host (one made from a laptop in [local mode](/docs/running/local-mode),
+or from behind NAT or a CI runner) never gets its agents connected. The management side can
+still reach the cluster: that's how Cluster API builds it, with the `<name>-kubeconfig` Secret
+it writes. Push delivery uses that direction.
+
+Fleet still works out what goes where, fills in per-cluster values and makes a BundleDeployment
+per bundle per cluster. For a push cluster, hyve-controller does fleet-agent's part:
+
+1. It deploys each BundleDeployment with Fleet's own `fleet deploy`, in a Job in the cluster's
+   namespace, using the image `fleet-controller` runs and the cluster's kubeconfig. A HelmOp's
+   chart is packaged first (once per chart, repo and version), with the repository's credentials
+   when the HelmOp has them.
+2. It copies the Secrets and ConfigMaps a bundle lists in `downstreamResources`.
+3. It writes the BundleDeployment's status as fleet-agent would, so Fleet's roll-ups,
+   `hyve resource status` and the UI show push clusters like any other.
+4. When a BundleDeployment goes away, it uninstalls the release.
+
+Every 10 minutes it checks each push cluster again and puts back releases missing from it.
+Bundles with `correctDrift` are deployed again on that check, undoing changes made on the
+cluster.
+
+People reach a push cluster the same way: the host dials the cluster's API with its kubeconfig
+and impersonates the caller, user and groups. It does that for any cluster whose agent isn't
+connected, push or not.
+
+## When a cluster is push
+
+| | Delivery |
+|---|---|
+| The CAPI Cluster is labelled `hyve.io/delivery: push` | Push, even when an agent connects. |
+| The CAPI Cluster is labelled `hyve.io/delivery: agent` | Agent, never push (for a cluster that's slow to register, say). |
+| Otherwise, its Fleet agent has never checked in, or last did more than 15 minutes ago | Push. |
+| Otherwise | Agent. |
+
+A cluster switches back to its agent as soon as the agent checks in, for example after
+`hyve local up --public-url`. Both use the same Helm deployer and release markers, so either
+picks up the other's releases, and there's nothing to migrate. fleet-agent stays installed on a
+push cluster, retrying registration every minute, so that it takes over without any step from
+you once the cluster can reach the host.
+
+Fleet clusters that aren't CAPI clusters (`fleet-local`, or a cluster registered some other way)
+are always left to their agent.
+
+## Limits of push
+
+- No updates or drift correction while the management cluster is off. The cluster keeps running
+  what it has. A cluster meant to outlive your laptop belongs on a [standalone install](/docs/running/standalone).
+- Expiry still needs the management cluster running at the time.
+- The cluster's kubeconfig has to keep working. Civo's and k3s's are long-lived; CAPA rotates
+  EKS tokens in the Secret, and each Job reads it afresh.
+- It's slower to react than an agent: a Job per change, seconds to a minute. At most two deploy
+  Jobs run at once per cluster.
+
+<Aside>
+Access grants ([ClusterAccess](/docs/concepts/access)) are written to clusters with the CAPI
+kubeconfig in both cases, so they don't depend on the agents.
+</Aside>
+
+## Related
+
+- [Local mode](/docs/running/local-mode), [Standalone install](/docs/running/standalone)
+- [kubectl access](/docs/guides/kubectl-access)

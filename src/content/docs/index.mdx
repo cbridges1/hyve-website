@@ -1,17 +1,17 @@
 ---
-title: "Hyve"
-description: "Kubernetes clusters as code — run it locally, in pipelines, or as a controller in your cluster"
+title: "hyve"
+description: "Kubernetes clusters from templates, made by Cluster API and kept up to date by Fleet"
 template: splash
 editUrl: false
 hero:
-  title: Hyve
-  tagline: Kubernetes clusters as code — on your laptop, in a pipeline, or as a controller in your cluster.
+  title: hyve
+  tagline: Kubernetes clusters from templates. Cluster API makes them, Fleet puts things on them, and hyve is the server your users sign in to.
   image:
     dark: ../../assets/banner-dark.svg
     light: ../../assets/banner-light.svg
-    alt: Worker bees in hard hats assembling the Hyve logo block by block
+    alt: Worker bees in hard hats assembling the hyve logo block by block
   actions:
-    - text: Get Started
+    - text: Get started
       link: /docs/quickstart
       icon: right-arrow
       variant: primary
@@ -24,92 +24,65 @@ hero:
 import Card from '../../components/mdx/Card.astro';
 import CardGroup from '../../components/mdx/CardGroup.astro';
 
-<div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '640px', margin: '-1.5rem auto 1.5rem' }}>
-  Describe a cluster in YAML and Hyve creates, updates, and deletes it to match. How a cluster gets built is up to a module — Cluster API, Terraform, Crossplane, or a provider's own CLI.
+<div style={{ textAlign: 'center', fontSize: '1.15rem', color: 'var(--sl-color-gray-2)', maxWidth: '680px', margin: '-1.5rem auto 1.5rem' }}>
+  A ClusterTemplate is a Cluster API ClusterClass with defaults, locked variables, an expiry schedule and the apps every cluster gets. Make a cluster from it with one command, kubectl, GitOps or the UI.
 </div>
 
-<div style={{ maxWidth: '480px', margin: '0 auto 1rem' }}>
+<div style={{ maxWidth: '520px', margin: '0 auto 1rem' }}>
 ```bash
-go install github.com/cbridges1/hyve@latest
+git clone -b v2 https://github.com/cbridges1/hyve.git && cd hyve
+task ui && task local      # builds hyve and its image, then hyve local up
 ```
 </div>
 
-<div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem', margin: '0 auto 3rem', maxWidth: '640px' }}>
-  {['Cluster API', 'Terraform', 'Crossplane', 'Provider CLIs', 'Your own modules'].map((p) => (
+<div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.5rem', margin: '0 auto 3rem', maxWidth: '680px' }}>
+  {['Cluster API', 'Fleet', 'CAAPF', "Rancher's cluster agent", 'Any CAPI provider'].map((p) => (
     <span style={{ border: '1px solid var(--sl-color-hairline)', borderRadius: '999px', padding: '0.25rem 0.9rem', fontSize: '0.85rem', color: 'var(--sl-color-gray-2)' }}>{p}</span>
   ))}
 </div>
 
 ## Run it where you need it
 
-The same YAML and the same reconcile engine everywhere.
+The same objects and the same commands everywhere.
 
 <CardGroup cols={3}>
-  <Card title="Locally" icon="terminal" href="/docs/quickstart" color="#3b82f6">
-    `hyve reconcile` against a directory on your machine. Git-backed if you want history and review; a plain folder if you don't.
+  <Card title="On your laptop" icon="terminal" href="/docs/running/local-mode" color="#3b82f6">
+    `hyve local up` runs hyve on a K3s container in Docker and signs you in. CAPD clusters run as containers next to it.
   </Card>
 
-  <Card title="In pipelines" icon="code-branch" href="/docs/guides/cicd" color="#22c55e">
-    Run the same command from CI — create clusters for a test run and tear them down after.
+  <Card title="In CI" icon="code-branch" href="/docs/guides/ci" color="#22c55e">
+    Local mode in a pipeline: create a cluster from a template for a test run, delete it after. State can be cached between jobs.
   </Card>
 
-  <Card title="In Kubernetes" icon="server" href="/docs/guides/deploying-cluster-mode" color="#8b5cf6">
-    Deploy Hyve as a controller with an API and web console for your team. Reconcile on the cluster it runs on, or point each organization at a separate reconciling cluster to keep the app apart from the work.
-  </Card>
-</CardGroup>
-
-## Clusters as code
-
-A cluster is one YAML file. Create it and the cluster is created, edit it and it's updated, mark it `delete: true` and it's deleted. Locally it's a file; in Kubernetes it's a custom resource — the same shape either way.
-
-```yaml
-apiVersion: hyve.io/v1alpha1
-kind: ClusterDefinition
-metadata:
-  name: web
-spec:
-  driver:
-    source: github.com/cbridges1/hyve-capi-module
-    version: v0.2.0
-  mgmtCluster: capi-mgmt
-  params:
-    cluster_class: aws-small
-    kubernetes_version: v1.34.8
-    worker_count: "3"
-```
-
-Templates stamp out clusters to a pattern, lifecycle hooks run workflows before and after each change, and `hyve cluster auth` hands you a working kubeconfig.
-
-## Bring your own provisioner
-
-A [module](/docs/concepts/modules) is a small, versioned set of scripts — create, status, scale, auth, delete — so anything you can script can provision a cluster: Terraform, Crossplane, Cluster API, or a provider's CLI. Hyve embeds no cloud SDKs; credentials stay where your tools already keep them.
-
-<CardGroup cols={2}>
-  <Card title="Cluster API, first-class" icon="cube" href="https://github.com/cbridges1/hyve-capi-module" color="#f97316">
-    **hyve-capi-module** builds clusters from any ClusterClass on any provider Cluster API supports. Use a management cluster you already run, or let it start a kind cluster for local runs and pipelines.
-  </Card>
-
-  <Card title="Write your own" icon="code" href="/docs/guides/module-authoring" color="#06b6d4">
-    `hyve module init` scaffolds a module. Wrap whatever your team already uses.
+  <Card title="On a server" icon="server" href="/docs/running/standalone" color="#8b5cf6">
+    `hyve install` puts hyve on any cluster, with whatever's missing of Cluster API, cert-manager and Fleet. Users sign in with a password or your identity provider.
   </Card>
 </CardGroup>
 
-## Get started
+## What you get
 
 <CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/docs/quickstart" color="#3b82f6">
-    Your first cluster in a few minutes
+  <Card title="Templates with locks and expiry" icon="layer-group" href="/docs/concepts/templates">
+    Defaults for a ClusterClass's variables, the ones users can't change, and a cron schedule that deletes clusters when it's due.
   </Card>
 
-  <Card title="Deploy to Kubernetes" icon="server" href="/docs/guides/deploying-cluster-mode" color="#8b5cf6">
-    The controller, API, and console for your team
+  <Card title="Apps on every cluster" icon="cubes" href="/docs/concepts/resources">
+    A template's resources are Fleet HelmOps, Bundles and GitRepos. Every cluster made from it gets them, and Fleet keeps them there.
   </Card>
 
-  <Card title="Why Hyve" icon="map" href="/docs/why-hyve" color="#22c55e">
-    How it compares to Terraform and GitOps tools
+  <Card title="One sign-in for every cluster" icon="key" href="/docs/concepts/access">
+    kubectl, Helm and k9s reach each cluster through hyve as you, with your own permissions. No admin kubeconfigs handed out.
   </Card>
 
-  <Card title="hyve-sample-repo" icon="flask" href="https://github.com/cbridges1/hyve-sample-repo" color="#ec4899">
-    A complete, runnable example — no cloud credentials needed
+  <Card title="Clusters that can't reach you" icon="arrow-right-arrow-left" href="/docs/concepts/delivery">
+    A cluster whose agent can't connect gets its resources pushed from the management side instead, with nothing to configure.
+  </Card>
+
+  <Card title="A web UI" icon="window" href="/docs/guides/web-ui">
+    Clusters, templates and environments, an explorer for any cluster's objects, and a kubectl shell in the browser.
+  </Card>
+
+  <Card title="A way off Rancher" icon="right-left" href="/docs/running/replacing-rancher">
+    `hyve install --replace-rancher` removes Rancher, keeps Fleet and Cluster API running, and takes over their providers.
   </Card>
 </CardGroup>

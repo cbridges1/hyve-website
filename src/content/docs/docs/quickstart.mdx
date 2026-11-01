@@ -1,213 +1,127 @@
 ---
-title: "Quick Start"
-description: "Get up and running with Hyve in 5 minutes"
+title: Quickstart
+description: Run hyve on your laptop, make a template, and create a cluster from it
 ---
 
-import Card from '../../../components/mdx/Card.astro';
-import CardGroup from '../../../components/mdx/CardGroup.astro';
-import Steps from '../../../components/mdx/Steps.astro';
-import Step from '../../../components/mdx/Step.astro';
-import Accordion from '../../../components/mdx/Accordion.astro';
-import AccordionGroup from '../../../components/mdx/AccordionGroup.astro';
-import Note from '../../../components/mdx/Note.astro';
-import Tip from '../../../components/mdx/Tip.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
 
-## Overview
-
-This guide walks you through creating your first Kubernetes cluster with Hyve using the module system. Hyve uses modules — versioned, self-contained packages — to provision clusters on any cloud provider.
-
-<Tip>
-  **Prefer to explore a working example first?** [hyve-sample-repo](https://github.com/cbridges1/hyve-sample-repo) is a complete, runnable state repository — modules, templates, workflows, and a cluster already wired together, using a fully local fake module so it works offline with zero cloud credentials. Clone it and run `hyve reconcile --path .` to see the whole lifecycle run immediately.
-</Tip>
-
-## Prerequisites
-
-<AccordionGroup>
-  <Accordion icon="cloud" title="Cloud provider CLI">
-    Hyve does not bundle cloud SDKs. Your credentials stay in your environment. Install the CLI for whichever provider you're using:
-
-    - **Civo**: Install the [Civo CLI](https://github.com/civo/cli) and authenticate with `civo apikey save my-token <token> && civo apikey use my-token`
-    - **AWS**: Install the [AWS CLI](https://aws.amazon.com/cli/) and run `aws configure`
-    - **GCP**: Install the [gcloud CLI](https://cloud.google.com/sdk/docs/install) and run `gcloud auth application-default login`
-    - **Azure**: Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) and run `az login`
-  </Accordion>
-
-  <Accordion icon="folder" title="A directory for cluster state">
-    Hyve reads and writes cluster YAML in a plain local directory — no database, no built-in git. A git repository is optional, only if you want version history and review (see [Contexts](/docs/concepts/contexts)).
-  </Accordion>
-
-  <Accordion icon="code" title="Go 1.26+">
-    Install [Go 1.26 or higher](https://golang.org/doc/install) to build and install Hyve.
-  </Accordion>
-</AccordionGroup>
-
-## Step 1 — Install Hyve
+This runs hyve in [local mode](/docs/running/local-mode) and makes a cluster with CAPD,
+Cluster API's Docker provider, so everything runs as containers on your machine. You need
+Docker with about 3 GB of memory to spare: about 1 GB for hyve's cluster and about 1.5 GB for
+the CAPD cluster.
 
 <Steps>
-  <Step title="Install with Go">
+
+1. **Build hyve and its image.** See [Installation](/docs/installation) for the
+   prerequisites.
+
+   ```bash
+   git clone -b v2 https://github.com/cbridges1/hyve.git && cd hyve
+   task ui build image
+   export PATH="$PWD:$PATH"
+   ```
+
+2. **Start local mode,** with the Docker and kubeadm providers CAPD clusters need:
+
+   ```bash
+   hyve local up --providers docker
+   ```
+
+   This creates a K3s container (`hyve-local`) on Docker's `kind` network, installs Cluster
+   API, CAAPF, Fleet and hyve in it, and signs you in as its `admin` under the context
+   `local`. It takes a few minutes the first time. A build from source uses the `hyve:dev`
+   image you just built.
+
+3. **Add a ClusterClass.** hyve's templates are built on Cluster API ClusterClasses. Download
+   an example class for CAPD and apply it to the management cluster, through hyve:
+
+   ```bash
+   curl -LO https://cbridges1.github.io/hyve-website/examples/capd/clusterclass.yaml
+   curl -LO https://cbridges1.github.io/hyve-website/examples/capd/kube-flannel.yml
+   hyve kubeconfig > local.kubeconfig
+   kubectl --kubeconfig local.kubeconfig apply -f clusterclass.yaml
+   ```
+
+   The class is `capd`, in `capi-clusters`, hyve's default template namespace.
+   `hyve kubeconfig` prints a kubeconfig that reaches the management cluster through hyve as
+   you; it holds no secret.
+
+4. **Make a template.** A template sets the class's defaults and says what every cluster
+   gets. This one has one worker and expires its clusters at 8 pm:
+
+   ```bash
+   hyve template create capd-small --class capd --workers 1 --schedule "0 20 * * *"
+   ```
+
+   CAPD installs no CNI, so the template delivers one, and an app to show it works:
+
+   ```bash
+   hyve template resource add capd-small --path kube-flannel.yml --name flannel
+   hyve template resource add capd-small --helm podinfo \
+       --repo https://stefanprodan.github.io/podinfo --version 6.7.1 -N podinfo
+   hyve template show capd-small
+   ```
+
+5. **Make an environment** for your clusters, and make it the default:
+
+   ```bash
+   hyve env create dev
+   hyve env use dev
+   ```
+
+6. **Create a cluster from the template.** It waits until the cluster is up and registered
+   with Fleet, about five minutes:
+
+   ```bash
+   hyve cluster create demo -t capd-small
+   hyve cluster list
+   ```
+
+7. **See what was delivered.** Fleet puts the template's resources on the cluster:
+
+   ```bash
+   hyve resource status demo
+   ```
+
+8. **Use the cluster.** `hyve cluster auth` adds it to your kubeconfig and switches kubectl to
+   it. kubectl then reaches it through hyve, as you:
+
+   ```bash
+   hyve cluster auth demo
+   kubectl get nodes
+   kubectl -n podinfo get pods
+   ```
+
+   `hyve cluster kubeconfig demo > demo.kubeconfig` prints the same kubeconfig instead.
+
+9. **Open the UI,** signed in:
+
+   ```bash
+   hyve ui
+   ```
+
+10. **Clean up.** Delete the cluster, then the local cluster:
+
     ```bash
-    go install github.com/cbridges1/hyve@latest
+    hyve cluster delete demo
+    hyve local down
     ```
 
-    This installs the `hyve` binary to your `$GOPATH/bin`. Ensure `$(go env GOPATH)/bin` is in your `PATH`.
-  </Step>
+    `hyve local down` saves hyve's state first, so the next `hyve local up` brings back your
+    templates and environments. `hyve local down --discard-state` forgets them.
 
-  <Step title="Verify installation">
-    ```bash
-    hyve --help
-    ```
-  </Step>
 </Steps>
 
-## Step 2 — Point hyve at a directory
+<Aside type="tip">
+Left alone, `demo` is deleted at the template's next 8 pm. `hyve cluster create demo -t
+capd-small --ttl 2h` sets its own expiry instead, and `--no-expiry` sets none.
+</Aside>
 
-Hyve has no built-in git functionality — it just reads and writes plain files in whatever directory you register. If you want it version-controlled, clone it yourself first (using your own git credentials, however you normally authenticate — SSH key, token, whatever your provider needs):
+## Next
 
-```bash
-git clone https://github.com/your-org/hyve-state.git
-hyve context create production --path ./hyve-state
-```
-
-Don't want git at all? Skip the clone — `hyve context create --path` works against any plain local directory:
-
-```bash
-mkdir my-hyve-config && hyve context create production --path ./my-hyve-config
-```
-
-Either way, `hyve context create` registers it *and* makes it active immediately — every command below operates against it. See [Contexts](/docs/concepts/contexts).
-
-## Step 3 — Install a module
-
-Modules implement cluster operations for a cloud provider — Hyve itself has no idea which one, it just calls whatever module a template references. Install one and lock it in `hyve.lock`:
-
-```bash
-hyve module add github.com/your-org/hyve-civo-module@v1.0.0
-```
-
-<Note>
-  This guide uses a Civo module as the example — `github.com/your-org/hyve-civo-module` is a placeholder for whichever module you use. Swap in any other module and every command below works identically; see [Writing a Module](/docs/guides/module-authoring) to build your own.
-</Note>
-
-## Step 4 — Create a template
-
-Templates define the shape of a cluster — driver, region, and module-specific params. Use `--set KEY=VALUE` to supply params:
-
-```bash
-hyve template create my-civo-template \
-  --driver github.com/your-org/hyve-civo-module \
-  --driver-version v1.0.0 \
-  --region PHX1 \
-  --set node_size=g4s.kube.medium \
-  --set node_count=3
-```
-
-Civo credentials are read automatically from the Civo CLI (`~/.civo.json`) or the `CIVO_TOKEN` environment variable — every module reads whichever credentials its own provider CLI expects, in whatever way that provider normally works.
-
-## Step 5 — Create a cluster
-
-Create a cluster from the template — this generates the cluster definition YAML and provisions the cluster:
-
-```bash
-hyve cluster create my-cluster --template my-civo-template
-```
-
-This writes `clusters/my-cluster.yaml` to your context directory and runs reconciliation to provision the cluster. If that directory is git-backed, committing the new file is your own step (optional — see [Version Control](/docs/concepts/gitops)).
-
-## Step 6 — Authenticate (get kubeconfig)
-
-Once the cluster is ready, run the module's auth operation to merge the cluster into `~/.kube/config`:
-
-```bash
-hyve cluster auth my-cluster
-```
-
-Then use the cluster:
-
-```bash
-kubectl config use-context my-cluster
-kubectl get nodes
-```
-
-## Step 7 — Reconcile
-
-Going forward, any change to a cluster definition is applied by running:
-
-```bash
-hyve reconcile
-```
-
-This reads all cluster YAMLs from Git, calls the appropriate module, and reconciles desired state with actual state.
-
-<Note>
-  For CI/CD pipelines, set `reconcile.mode: cicd` in `hyve.yaml` at your repo root. Then your pipeline calls `hyve reconcile --path .` after each push to apply changes.
-</Note>
-
-## Next Steps
-
-<CardGroup cols={2}>
-  <Card title="Module System" icon="cube" href="/docs/concepts/modules" color="#8b5cf6">
-    Understand how modules work and how to write your own
-  </Card>
-
-  <Card title="Lifecycle Hooks" icon="gears" href="/docs/concepts/workflows" color="#22c55e">
-    Attach workflows to cluster creation and deletion
-  </Card>
-
-  <Card title="Templates" icon="file-code" href="/docs/cli/template" color="#06b6d4">
-    Full template command reference
-  </Card>
-
-  <Card title="CI/CD Integration" icon="diagram-project" href="/docs/guides/cicd" color="#f97316">
-    Automate reconciliation in your pipeline
-  </Card>
-
-  <Card title="hyve-sample-repo" icon="flask" href="https://github.com/cbridges1/hyve-sample-repo" color="#ec4899">
-    A complete, runnable example repository to clone and explore
-  </Card>
-
-  <Card title="Contexts" icon="folder" href="/docs/cli/context" color="#3b82f6">
-    Point hyve at a plain local directory, no git required
-  </Card>
-</CardGroup>
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="Module not found after add">
-    Run `hyve module validate` to confirm all template modules are locked and cached:
-
-    ```bash
-    hyve module validate
-    ```
-  </Accordion>
-
-  <Accordion title="Credentials not found">
-    Modules read credentials from environment variables or the cloud CLI's config files. Ensure the relevant CLI is authenticated before running Hyve:
-
-    ```bash
-    # Civo
-    civo apikey list
-
-    # AWS
-    aws sts get-caller-identity
-
-    # GCP
-    gcloud auth application-default print-access-token
-
-    # Azure
-    az account show
-    ```
-  </Accordion>
-
-  <Accordion title="No context configured">
-    You need to register one first:
-
-    ```bash
-    hyve context create my-project --path ./my-hyve-config
-    ```
-  </Accordion>
-
-  <Accordion title="Cloning a private repository fails">
-    That's your own `git clone` step, before `hyve context create` — authenticate with `git` however you normally do (SSH key, a credential helper, a token in the URL). Hyve itself never touches the clone or its credentials.
-  </Accordion>
-</AccordionGroup>
+- [How hyve works](/docs/how-it-works): the pieces you just installed.
+- [Templates](/docs/concepts/templates) and [Writing a template](/docs/guides/writing-a-template):
+  variables, locks and expiry.
+- [Delivering apps](/docs/guides/delivering-apps): Helm charts, git repos and per-cluster
+  extras.
+- [Standalone install](/docs/running/standalone): hyve on a server, for a team.

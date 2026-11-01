@@ -1,0 +1,178 @@
+---
+title: Users and access
+description: hyve Users sign in to the host with a password or an identity provider. ClusterAccess grants them roles on clusters, applied the way Rancher applies its cluster role bindings.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everyone reaches hyve through its host endpoint, signed in as a hyve **User**. The host
+forwards each request to the management cluster or a child cluster as that user, so access is
+ordinary Kubernetes RBAC on the user's name and groups. What hyve adds is a way to grant roles
+on clusters that you can't express with RBAC on the management cluster alone: **ClusterAccess**.
+
+## Users
+
+A `User` (`hyve.io/v1alpha1`, cluster-scoped) is one person or one CI identity. Its
+`metadata.name` is the username. Kubernetes sees it as `hyve:<username>`, in groups
+`hyve:<group>` for each of its groups, plus `system:authenticated`.
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: User
+metadata:
+  name: alice
+spec:
+  displayName: Alice Example
+  groups: [ops]
+```
+
+There's no database. A password user's bcrypt hash is a Secret in the host's namespace
+(`hyve-system`), owned by the User, and so is each session's hash. Deleting a User deletes its
+password and sessions.
+
+| Field | |
+|---|---|
+| `displayName` | Shown in the UI and by `hyve user list`. |
+| `groups` | Its groups, for a password user. |
+| `disabled` | It can't sign in, and its existing sessions stop working within 30 seconds. |
+| `mustChangePassword` | The next sign-in changes the password before it gets a session. Set on the bootstrap admin, and by `hyve user add` unless `--no-password-change`. |
+| `provider`, `subject`, `email` | Set for a user from an identity provider (`provider: oidc`), which has no password. |
+
+Passwords are at least 12 characters (and at most 72 bytes, bcrypt's limit). Failed sign-ins
+are rate-limited per username and per client address.
+
+### The admin
+
+The chart creates `admin` with a bootstrap password from the Secret `bootstrap-secret` in
+`hyve-system` (key `bootstrapPassword`), which must be changed at first sign-in. If that Secret
+doesn't exist, the host generates a password and logs how to read it. `hyve:admin` is bound to
+`cluster-admin` on the management cluster, and is cluster-admin on every cluster hyve installs
+its agent on, as Rancher's admin is.
+
+In [local mode](/docs/running/local-mode), the CLI keeps the local `admin`'s password and signs
+in as it without asking.
+
+### Users from an identity provider
+
+With single sign-in on (the chart's `auth.oidc`; see [Signing in with OIDC](/docs/guides/oidc)),
+the sign-in page offers "Sign in with &lt;provider&gt;". A person who signs in that way becomes a
+`User` on first sign-in, named from the token's `preferred_username` (or the email's local
+part); a name that's taken gets a number, so two people never share a User. Their groups come
+from the token's groups claim at each sign-in, so RBAC and `ClusterAccess` can name the
+provider's groups as `hyve:<group>`. Disabling the `User` locks them out even if the provider
+would still let them in.
+
+### Sessions
+
+Every sign-in ends in a session. Sessions last 16 hours by default (the chart's
+`host.sessionTTL`). The CLI keeps the session in its config and the UI in a cookie; kubeconfigs
+from hyve hold no secret, only a call to `hyve token`, which hands kubectl the current session.
+
+```bash
+hyve login https://hyve.example.com      # opens the sign-in page in your browser
+echo "$PW" | hyve login https://hyve.example.com --username ci --password-stdin   # CI, no browser
+hyve logout
+```
+
+Users from an identity provider have no password, so unattended runs sign in as a password
+User of their own.
+
+### Managing users
+
+```bash
+hyve user add alice --display-name "Alice Example" --group ops   # asks for the first password
+hyve user list
+hyve user show alice
+hyve user passwd                 # your own: asks for the current one, signs out your other sessions
+hyve user passwd alice           # someone else's: signs them out everywhere
+hyve user disable alice
+hyve user enable alice
+hyve user remove alice
+```
+
+These go through the host as you, so they need RBAC on `users.hyve.io`, and `update` on
+`users/password` to set someone else's password. The chart's `hyve-user-admin` ClusterRole has
+both; it's bound to nobody by default, and `cluster-admin` already includes it.
+
+## ClusterAccess
+
+A `ClusterAccess` (`hyve.io/v1alpha1`) in an environment gives a user or a group a role on one
+cluster, or on every cluster in the environment, now and later. It's hyve's version of Rancher's
+`ClusterRoleTemplateBinding`.
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: ops-readonly
+  namespace: prod
+spec:
+  role: read-only
+  group: ops            # or user: alice; exactly one of the two
+  # clusterName: web    # one cluster; without it, every cluster in prod
+```
+
+| Role | On the cluster | On the management cluster |
+|---|---|---|
+| `owner` | Everything (`*` on everything). | Get, watch, update, patch and delete its CAPI `Cluster`. |
+| `member` | See the cluster's nodes, storage classes, CRDs, ingress classes, metrics and events, and create namespaces of their own, as Rancher's Cluster Member can. Workloads need a namespace role. | Get and watch its CAPI `Cluster`. |
+| `read-only` | Kubernetes' own `view`: read everything but Secrets. | Get and watch its CAPI `Cluster`. |
+
+For each cluster a grant covers, hyve-controller:
+
+- writes the role's rules as a ClusterRole on the cluster (`hyve-cluster-owner`,
+  `hyve-cluster-member` or `hyve-cluster-readonly`) and binds the user or group to it, using the
+  cluster's CAPI kubeconfig;
+- writes a Role on the management cluster, limited by `resourceNames` to that cluster's own
+  `Cluster` object, and binds the user or group to it.
+
+The rules come from ClusterRoles of the same names on the management cluster, labelled
+`hyve.io/role-template`. They're never bound there; they're only the source of what's written to
+clusters. Edit them to change what a role means.
+
+When someone creates a cluster, hyve-controller gives them an `owner` grant on it
+(`<cluster>-creator`). That's recorded by the webhook from the API server's view of the request,
+so it can't be claimed by the client.
+
+```bash
+hyve access grant alice --role owner --cluster web
+hyve access grant --group ops --role read-only          # every cluster in the environment
+hyve access list
+hyve access revoke ops-readonly                          # a name from 'hyve access list'
+```
+
+Requests to a cluster go through the host, which impersonates `hyve:<username>` and the user's
+groups on it, through the agent's tunnel or directly with the CAPI kubeconfig (see
+[Delivery](/docs/concepts/delivery)). The cluster's own RBAC then decides, with the bindings
+above.
+
+## Environment members
+
+Access to an environment itself is a different grant: an ordinary RoleBinding.
+
+```bash
+hyve access grant bob --env-member -e ci
+```
+
+This binds `hyve-environment-member` in the environment and `hyve-template-reader` in the
+template namespace:
+
+| Role | Can |
+|---|---|
+| `hyve-environment-member` | Create, list and watch CAPI Clusters; create, change and delete `ClusterResource`s; read ClusterTemplates, Resources, ClusterAccesses, ClusterClasses and Fleet's objects. No Secrets. |
+| `hyve-template-reader` | Read ClusterTemplates, shared Resources, ClusterClasses and the Fleet objects made from templates. |
+
+An environment member can't change or delete a cluster without a grant on it. The creator's
+automatic owner grant covers the clusters they make.
+
+<Aside>
+The host's service account can impersonate any user, since Kubernetes can't limit impersonation
+to names with a prefix. It only ever impersonates `hyve:` names built from a valid session.
+Trust the host as you would Rancher's server.
+</Aside>
+
+## Related
+
+- [Signing in with OIDC](/docs/guides/oidc), [kubectl access](/docs/guides/kubectl-access)
+- [Environments](/docs/concepts/environments)
+- [`hyve user`](/docs/cli/user), [`hyve access`](/docs/cli/access), [`hyve login`](/docs/cli/login)

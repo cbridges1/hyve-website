@@ -1,0 +1,184 @@
+---
+title: Delivering apps
+description: Put Helm charts, manifests and git repositories on clusters, through templates, shared Resources, per-cluster extras and Fleet GitRepos.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+hyve delivers everything with [Fleet](https://fleet.rancher.io/). What you write is Fleet's own
+`HelmOp`, `Bundle` or `GitRepo` spec, without targets; hyve aims it at the right clusters. See
+[Resources](/docs/concepts/resources) for the model.
+
+| You want it on | Use | Lives in |
+|---|---|---|
+| every cluster made from a template | a template resource: `hyve template resource add` | the template namespace |
+| one cluster | an extra: `hyve cluster resource add` | the cluster's environment |
+| several templates or clusters, defined once | a shared `Resource`, referred to with `--ref` | the template namespace |
+| whatever a git repository holds, kept in sync | a Fleet `GitRepo`: `hyve repo add` | `fleet-local` or an environment |
+
+Each command takes the same source flags:
+
+| Source | Flags |
+|---|---|
+| a Helm chart | `--helm CHART --repo URL --version V`, or `--helm oci://...` |
+| manifests on your machine | `--path FILE-or-DIR` (sent inline, as a Fleet Bundle) |
+| a git repository | `--git URL` with `--branch` or `--revision`, and `--git-path` (repeatable) |
+| a shared Resource | `--ref NAME` |
+
+and the same options: `-N` (the namespace its objects go in on the cluster), `--set key=value`
+and `-f values.yaml` (Helm values), `--release-name`, `--secret NAME` (repeatable) and
+`--correct-drift` (Fleet undoes changes made on the cluster).
+
+## On every cluster from a template
+
+```bash
+hyve template resource add capd-small --helm traefik \
+    --repo https://traefik.github.io/charts --version 37.1.0 \
+    -N traefik --set service.type=LoadBalancer
+```
+
+Clusters already made from the template get it as well as new ones. Adding a resource with the
+same name replaces it; `hyve template resource remove TEMPLATE NAME` removes it, and Fleet
+uninstalls it from every cluster.
+
+In the template's YAML, the same entry is:
+
+```yaml
+spec:
+  resources:
+    - name: traefik
+      namespace: traefik
+      helmOp:
+        helm:
+          repo: https://traefik.github.io/charts
+          chart: traefik
+          version: 37.1.0
+          values:
+            service: {type: LoadBalancer}
+```
+
+A `bundle` entry holds manifests inline (`resources: [{name, content}]`), or `path: DIR` in a
+file you apply with `hyve template apply -f`: the manifests in that directory, relative to the
+file, are sent inline. A `gitRepo` entry is a Fleet GitRepo spec (`repo`, `branch` or
+`revision`, `paths`).
+
+Pin chart versions in templates. Without one, each cluster gets whatever is newest when Fleet
+installs it.
+
+Values can use Fleet's templating, such as `${ .ClusterName }`, for what differs per cluster.
+
+## On one cluster
+
+```bash
+hyve cluster resource add web --helm podinfo \
+    --repo https://stefanprodan.github.io/podinfo --version 6.7.1 -e prod
+hyve cluster resource add web --path ./manifests --name base -e prod
+hyve cluster resource list web -e prod
+hyve cluster resource remove web podinfo -e prod
+```
+
+An extra is a `ClusterResource` in the cluster's environment, so the people who own or are
+members of the cluster can manage it ([Users and access](/docs/concepts/access)). As YAML, for
+`hyve resource apply -f`:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: ClusterResource
+metadata:
+  name: podinfo
+  namespace: prod
+spec:
+  clusterName: web
+  namespace: podinfo
+  helmOp:
+    helm:
+      repo: https://stefanprodan.github.io/podinfo
+      chart: podinfo
+      version: 6.7.1
+```
+
+Deleting the cluster deletes its extras.
+
+## Defined once, used by several
+
+A shared `Resource` is a spec with no targets. Templates and extras refer to it by name and can
+override its Helm values:
+
+<Steps>
+
+1. Define it:
+
+   ```bash
+   hyve resource create --name external-dns --helm external-dns \
+       --repo https://kubernetes-sigs.github.io/external-dns/ --version 1.19.0 \
+       -N external-dns -f external-dns-values.yaml --secret cloudflare-dns
+   ```
+
+2. Refer to it, with this template's own values:
+
+   ```bash
+   hyve template resource add capd-small --ref external-dns --set domainFilters='["example.com"]'
+   ```
+
+   In YAML:
+
+   ```yaml
+   resources:
+     - name: external-dns
+       ref: external-dns
+       values:
+         domainFilters: [example.com]
+   ```
+
+</Steps>
+
+Changing the Resource changes it everywhere it's used. Deleting it leaves the templates and
+clusters that refer to it reporting it missing.
+
+## Secrets they need
+
+A resource names the Secrets it needs with `--secret` (`secrets:` in YAML). The Secrets stay
+on the management cluster, and Fleet copies them to each target cluster, into the namespace
+the resource deploys to. hyve holds no values: create the Secrets with `hyve secrets create`,
+or however your install manages secrets (External Secrets, the Infisical operator,
+sealed-secrets).
+
+```bash
+CF_TOKEN=... hyve secrets create cloudflare-dns --from-env api-token=CF_TOKEN
+hyve secrets list        # what each resource needs, and whether it exists
+```
+
+Put a template resource's Secrets in the template namespace, and an extra's in its cluster's
+environment. A `gitRepo` entry can't copy Secrets this way; list them under
+`downstreamResources` in the repo's `fleet.yaml`. See [Secrets](/docs/concepts/secrets).
+
+## A git repository, kept in sync
+
+For a repository laid out for Fleet (a `fleet.yaml` per directory, one bundle each), add it as a
+plain Fleet `GitRepo`:
+
+```bash
+GIT_TOKEN=... hyve repo add platform --repo https://github.com/example/platform.git \
+    --path apps --username me --token-env GIT_TOKEN
+hyve repo list
+```
+
+The default workspace, `fleet-local`, is the management cluster itself: use it for what the
+management cluster runs, such as ClusterClasses and templates kept in git.
+`--workspace ENV` puts the GitRepo in an environment instead, where its bundles target that
+environment's clusters (the `targets` in each `fleet.yaml` pick which). hyve keeps the
+username and token in a basic-auth Secret the GitRepo uses. See
+[Repositories](/docs/concepts/repositories).
+
+## Checking what's where
+
+```bash
+hyve resource status web -e prod             # what's on a cluster and why
+hyve resource status --template capd-small   # each resource on each of the template's clusters
+hyve resource show podinfo                   # as written, and as delivered
+hyve resource list                           # shared Resources, and everything delivered
+```
+
+`status` lists each resource with why it's there (the template, or an extra), its kind, source
+and Fleet's state on the cluster. The UI's Delivery page is the same as a matrix: resources down
+the side, clusters across the top.

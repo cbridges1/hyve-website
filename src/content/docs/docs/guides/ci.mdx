@@ -1,0 +1,147 @@
+---
+title: hyve in CI
+description: Create clusters for a pipeline run and delete them after, with local mode on the runner or against a standalone hyve.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+A pipeline can make a cluster from a template, test against it and delete it, in two ways:
+
+| | Local mode on the runner | A standalone hyve |
+|---|---|---|
+| Where the management cluster runs | a K3s container on the runner, made and removed by the job | your hyve host |
+| Clusters | CAPD clusters in the runner's Docker, or cloud clusters | any template the CI user may use |
+| Signs in as | local mode's admin, automatically | a hyve user, with a password from the pipeline's secrets |
+| Needs | Docker and about 1 GB of memory for hyve, plus the clusters | network access to the host |
+
+## Local mode on the runner
+
+<Steps>
+
+1. **Start hyve.** [Install the CLI](/docs/installation), then:
+
+   ```bash
+   hyve local up
+   ```
+
+   It creates the K3s container, installs hyve in it and signs you in as the `local` context;
+   the first run on a runner also pulls the images. A build of hyve from
+   source has no published image: build one first (`docker build -t hyve:dev .` in the
+   checkout) and `hyve local up` uses `hyve:dev`, or pass `--image`.
+
+2. **Give it a ClusterClass and template**, from the repository under test:
+
+   ```bash
+   kubectl --kubeconfig <(hyve kubeconfig) apply -f ci/capd-class.yaml
+   hyve template apply -f ci/capd-small.yaml
+   ```
+
+3. **Make a cluster, test, and delete it:**
+
+   ```bash
+   hyve cluster create ci-$RUN_ID -t capd-small --ttl 2h
+   hyve cluster kubeconfig ci-$RUN_ID > kubeconfig
+   KUBECONFIG=kubeconfig ./run-tests.sh
+   hyve cluster delete ci-$RUN_ID
+   ```
+
+   `cluster create` waits until the cluster is `ACTIVE` and registered with Fleet, so the
+   template's resources are on their way when it returns. `--ttl` makes hyve delete the cluster
+   by itself if the job dies before it does.
+
+4. **Stop hyve:** `hyve local down`. CAPD clusters are containers of their own; delete them
+   first.
+
+</Steps>
+
+`hyve local up --state-dir DIR` keeps local mode's saved state (templates, resources, Cluster
+API objects) in a directory the CI system caches, so a later job restores it. See
+[Local mode](/docs/running/local-mode).
+
+## Against a standalone hyve
+
+<Steps>
+
+1. **Make a CI user** once, as an admin, and let it create clusters in a CI environment:
+
+   ```bash
+   hyve env create ci
+   hyve user add ci --password-stdin --no-password-change < ci-password.txt
+   hyve access grant ci --env-member -e ci
+   ```
+
+2. **Sign in from the pipeline** with the password from its secrets:
+
+   ```bash
+   echo "$HYVE_PASSWORD" | hyve login https://hyve.example.com --username ci --password-stdin
+   hyve env use ci
+   ```
+
+3. **Make a cluster, test, delete it**, as above.
+
+</Steps>
+
+A template whose resources need Secrets can have them made from the pipeline's environment:
+`hyve cluster create --secrets-env` creates Secret `my-secret` from the variable `MY_SECRET`
+(a JSON object of keys, or one value under the key `value`). That needs permission to create
+Secrets, which environment members don't have: it suits local mode, or a CI user an admin has
+given that right.
+
+## GitHub Actions
+
+Local mode, with a CAPD cluster on the runner:
+
+```yaml
+name: e2e
+on: [pull_request]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install hyve
+        run: |
+          # however you install hyve; see /docs/installation
+          ./ci/install-hyve.sh
+          hyve local up
+
+      - name: Cluster
+        run: |
+          kubectl --kubeconfig <(hyve kubeconfig) apply -f ci/capd-class.yaml
+          hyve template apply -f ci/capd-small.yaml
+          hyve cluster create pr-${{ github.run_id }} -t capd-small --ttl 2h
+          hyve cluster kubeconfig pr-${{ github.run_id }} > "$RUNNER_TEMP/kubeconfig"
+
+      - name: Test
+        env:
+          KUBECONFIG: ${{ runner.temp }}/kubeconfig
+        run: ./run-tests.sh
+
+      - name: Clean up
+        if: always()
+        run: |
+          hyve cluster delete pr-${{ github.run_id }} || true
+          hyve local down --discard-state
+```
+
+Against a standalone host, replace `hyve local up` with the `hyve login ... --password-stdin`
+step and keep the password in a repository secret:
+
+```yaml
+      - name: Sign in
+        env:
+          HYVE_PASSWORD: ${{ secrets.HYVE_PASSWORD }}
+        run: echo "$HYVE_PASSWORD" | hyve login https://hyve.example.com --username ci --password-stdin
+```
+
+## Checking templates in CI
+
+`hyve render` needs no cluster. Run it on every change to a template, so a template that no
+longer fills in (a missing default version, a bad schedule, a resource with `targets`) fails
+before it's merged:
+
+```bash
+hyve render -f templates/capd-small.yaml -f classes/capd.yaml --name ci > /dev/null
+```
