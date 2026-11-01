@@ -47,7 +47,8 @@ the CAPD cluster.
    you; it holds no secret.
 
 4. **Make a template.** A template sets the class's defaults and says what every cluster
-   gets. This one has one worker and expires its clusters at 8 pm:
+   gets. This one has one worker and expires its clusters at 20:00 UTC (put
+   `CRON_TZ=<zone> ` in front of the schedule for your own time zone):
 
    ```bash
    hyve template create capd-small --class capd --workers 1 --schedule "0 20 * * *"
@@ -70,7 +71,7 @@ the CAPD cluster.
    ```
 
 6. **Create a cluster from the template.** It waits until the cluster is up and registered
-   with Fleet, about five minutes:
+   with Fleet, a couple of minutes:
 
    ```bash
    hyve cluster create demo -t capd-small
@@ -113,7 +114,7 @@ the CAPD cluster.
 </Steps>
 
 <Aside type="tip">
-Left alone, `demo` is deleted at the template's next 8 pm. `hyve cluster create demo -t
+Left alone, `demo` is deleted at the template's next 20:00 UTC. `hyve cluster create demo -t
 capd-small --ttl 2h` sets its own expiry instead, and `--no-expiry` sets none.
 </Aside>
 

@@ -32,7 +32,8 @@ You don't run `kind`, `k3d`, `clusterctl` or `helm`. You need Docker.
 - **A container named `hyve-local`** running K3s (`rancher/k3s:v1.34.12-k3s1` by default;
   `--k3s-image` changes it), on Docker's `kind` network, where CAPD puts its clusters. It
   restarts with Docker unless you stop it. The container mounts the Docker socket, so CAPD can
-  make clusters as containers next to it.
+  make clusters as containers next to it. The name is fixed, so there's one local mode per
+  Docker daemon, whatever `--home` you use.
 - **The lean install** of Cluster API and CAAPF: their release manifests applied directly,
   with the webhook certificates made by hyve from one CA, instead of the Cluster API Operator
   and cert-manager. That's 13 CRDs and four pods fewer. `--full` installs the operator and
