@@ -8,7 +8,8 @@ interface Props {
   href?: string;
   horizontal?: boolean;
 }
-const { title, icon: rawIcon, color = '#000000', href: rawHref } = Astro.props as Props;
+// Without a color, the icon is the text color, so it shows in both themes.
+const { title, icon: rawIcon, color, href: rawHref } = Astro.props as Props;
 
 // Astro doesn't rewrite hardcoded hrefs with `base` — only assets/links it
 // generates itself (see src/plugins/rehype-base-links.mjs for the full story).
@@ -36,7 +37,7 @@ const iconName = icon ? `fa6-${BRAND_ICONS.has(icon) ? 'brands' : 'solid'}:${ico
 
 const Tag = href ? 'a' : 'div';
 ---
-<Tag class="mdx-card" href={href} style={`--card-accent: ${color}`}>
+<Tag class="mdx-card" href={href} style={color ? `--card-accent: ${color}` : undefined}>
   {iconName && (
     <div class="mdx-card-icon">
       <Icon name={iconName} />
@@ -69,7 +70,7 @@ const Tag = href ? 'a' : 'div';
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--card-accent, #000);
+    color: var(--card-accent, var(--sl-color-white));
     font-size: 1.35rem;
     margin-bottom: 0.6rem;
   }

@@ -1,7 +1,7 @@
-<svg width="960" height="720" viewBox="0 -33 960 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Worker bees in hard hats assembling the Hyve logo block by block">
+<svg width="960" height="720" viewBox="0 -33 960 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Worker bees in hard hats assembling the Hyve logo cell by cell">
   <defs>
     <style>
-      /* Dark-theme palette: white blocks on a transparent background.
+      /* Dark-theme palette: white cells on a transparent background.
          banner-light.svg is identical except for these values. */
       svg {
         --block: #ffffff;
@@ -89,39 +89,38 @@
   <!-- ground line -->
   <line x1="240" y1="612" x2="720" y2="612" stroke="var(--ground)" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- ===== the hive: three rows already placed (bottom-up) ===== -->
-  <rect x="420" y="536" width="120" height="64" rx="8" fill="var(--block)"/>
-  <rect x="360" y="440" width="240" height="64" rx="8" fill="var(--block)"/>
-  <rect x="320" y="344" width="320" height="64" rx="8" fill="var(--block)"/>
+  <!-- ===== the hive: Hyve's mark, three cells; the bottom two are placed ===== -->
+  <polygon points="393.4,436.9 461.0,475.9 461.0,554.0 393.4,593.0 325.8,554.0 325.8,475.9" fill="var(--block)" stroke="var(--block)" stroke-width="14" stroke-linejoin="round"/>
+  <polygon points="566.6,436.9 634.2,475.9 634.2,554.0 566.6,593.0 499.0,554.0 499.0,475.9" fill="var(--block)" stroke="var(--block)" stroke-width="14" stroke-linejoin="round"/>
 
-  <!-- target slot for the final (top) block -->
-  <rect class="dash-crawl" x="360" y="248" width="240" height="64" rx="8" fill="none" stroke="var(--slot)" stroke-width="2.5"/>
+  <!-- target slot for the last (top) cell -->
+  <polygon class="dash-crawl" points="480.0,286.9 547.6,325.9 547.6,404.0 480.0,443.0 412.4,404.0 412.4,325.9" fill="none" stroke="var(--slot)" stroke-width="2.5" stroke-linejoin="round"/>
 
-  <!-- guide lines from carried block down to the slot -->
+  <!-- guide lines from the carried cell down to the slot -->
   <g stroke="var(--guide)" stroke-width="1.5" stroke-dasharray="3 7">
-    <line x1="330" y1="188" x2="366" y2="246"/>
-    <line x1="540" y1="164" x2="594" y2="246"/>
+    <line x1="395" y1="206" x2="401" y2="310"/>
+    <line x1="545" y1="188" x2="559" y2="310"/>
   </g>
 
-  <!-- ===== final block airlifted in by two bees ===== -->
+  <!-- ===== the last cell, airlifted in by two bees ===== -->
   <g class="bob">
-    <g transform="translate(316, 96) rotate(-6)">
+    <g transform="translate(480, 150) rotate(-6)">
       <!-- carry ropes -->
-      <line x1="18" y1="-4" x2="24" y2="28" stroke="var(--rope)" stroke-width="2"/>
-      <line x1="222" y1="-10" x2="216" y2="24" stroke="var(--rope)" stroke-width="2"/>
-      <!-- the block -->
-      <rect x="0" y="24" width="240" height="64" rx="8" fill="var(--block)"/>
+      <line x1="-92" y1="-106" x2="-78.8" y2="-45.5" stroke="var(--rope)" stroke-width="2"/>
+      <line x1="92" y1="-112" x2="78.8" y2="-45.5" stroke="var(--rope)" stroke-width="2"/>
+      <!-- the cell -->
+      <polygon points="0.0,-78.1 67.6,-39.0 67.6,39.0 0.0,78.1 -67.6,39.0 -67.6,-39.0" fill="var(--block)" stroke="var(--block)" stroke-width="14" stroke-linejoin="round"/>
       <!-- carrier bees -->
-      <use href="#bee" transform="translate(14, -18) scale(0.9)"/>
-      <use href="#bee" transform="translate(226, -24) scale(0.9) scale(-1,1)"/>
+      <use href="#bee" transform="translate(-106, -124) scale(0.9)"/>
+      <use href="#bee" transform="translate(106, -130) scale(0.9) scale(-1,1)"/>
     </g>
   </g>
 
-  <!-- ===== foreman bee checking the last placed row ===== -->
+  <!-- ===== foreman bee checking the placed cells ===== -->
   <g class="bob-2">
-    <use href="#bee" transform="translate(238, 376) scale(0.85)"/>
+    <use href="#bee" transform="translate(236, 446) scale(0.85)"/>
     <!-- clipboard -->
-    <g transform="translate(268, 386) rotate(8)">
+    <g transform="translate(266, 456) rotate(8)">
       <rect x="0" y="0" width="26" height="34" rx="3" fill="var(--clipboard)" stroke="#8a8a8a" stroke-width="1"/>
       <rect x="7" y="-4" width="12" height="7" rx="2" fill="#8a8a8a"/>
       <path d="M 5 10 l 4 4 l 7 -8 M 5 24 h 16" stroke="#3a3a3a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
