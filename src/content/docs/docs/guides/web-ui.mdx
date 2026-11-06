@@ -40,13 +40,11 @@ The sidebar shows what your access lets you use.
 | **Clusters** | the clusters in an environment. Create one from a template; open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML or delete it | `hyve cluster` |
 | **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it | `hyve template`, `hyve render` |
 | **Resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters | `hyve resource` |
-| **Delivery** | resources down the side, clusters across the top: Fleet's state for each resource on each cluster, and why it's there. Add a resource to a template or a cluster, or edit one where it's defined | `hyve resource status` |
 | **Secrets** | the Secrets in the template namespace and the environment, and the ones each resource copies to clusters, with whether they exist. Create, change and delete them | `hyve secrets` |
 | **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |
 | **Providers** | the installed Cluster API providers and their health; add and remove them | `hyve provider` |
-| **Users** | hyve's users: create, set passwords, disable, groups | `hyve user` |
+| **People** | two tabs. **Users**: hyve's users (create, invite, set passwords, disable, groups), each with what they and their groups may reach. **Access**: who can reach which clusters; grant and revoke owner, member and read-only roles, and environment membership, for everyone or one user | `hyve user`, `hyve access` |
 | **Environments** | create and delete environments | `hyve env` |
-| **Access** | who can reach which clusters: grant and revoke owner, member and read-only roles, and environment membership | `hyve access` |
 | **Explorer** | the management cluster's objects (below). Shown to users who may list its namespaces | `kubectl` |
 
 Old hyve Templates and herd ClusterTemplates can be pasted or loaded from files at `/import`
