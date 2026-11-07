@@ -38,9 +38,8 @@ The sidebar shows what your access lets you use.
 |---|---|---|
 | **Overview** | every cluster with its provider, template, environment, phase and expiry; resources failing anywhere; clusters expiring soon | `hyve cluster list` |
 | **Clusters** | the clusters in an environment. Create one from a template; open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML or delete it | `hyve cluster` |
-| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it | `hyve template`, `hyve render` |
-| **Resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters | `hyve resource` |
-| **Secrets** | the Secrets in the template namespace and the environment, and the ones each resource copies to clusters, with whether they exist. Create, change and delete them | `hyve secrets` |
+| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. A template's page lists the Secrets its resources copy to clusters, with whether each exists; create or change them there | `hyve template`, `hyve render`, `hyve secrets` |
+| **Shared resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters | `hyve resource` |
 | **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |
 | **Providers** | the installed Cluster API providers and their health; add and remove them | `hyve provider` |
 | **People** | two tabs. **Users**: hyve's users (create, invite, set passwords, disable, groups), each with what they and their groups may reach. **Access**: who can reach which clusters; grant and revoke owner, member and read-only roles, and environment membership, for everyone or one user | `hyve user`, `hyve access` |
@@ -53,7 +52,13 @@ kind the cluster serves can be listed at `/list/<type>` and edited as YAML; that
 manage what has no form of its own.
 
 Each cluster's page has three tabs: **Overview** (its fields, conditions, variables, size and
-expiry), **Resources** (its template's resources and its extras) and **Explorer**.
+expiry), **Resources** (its template's resources and its extras, and the Secrets its extras and
+its Cluster API provider need from the environment) and **Explorer**.
+
+Secrets are listed where they're used: a template's on its page, a cluster's on its Resources
+tab. Those lists include Secrets that git resources name in their `fleet.yaml`. One an operator
+syncs (Infisical's, External Secrets) shows what manages it and isn't edited there, since the
+next sync would undo the edit. Any other Secret is in the Explorer.
 
 ## The Explorer
 
@@ -69,9 +74,15 @@ Explorer page.
   `kubectl get -o wide` adds. Filter by namespace, search by name, or give a label selector
   (`app=web`) and press Enter. Lists stay live: the host watches them as you and the page
   updates.
+- **Create** adds an object of the listed type, in the list's namespace: a Secret in the
+  key/value form, anything else as YAML from a starting point. It fails if the name is taken,
+  so it never changes another object.
 - **An object** opens with its kind, namespace, labels and owners, and tabs:
   - **YAML**, to view, or edit and save with server-side apply. A conflict with another
     change is reported, and you can overwrite it.
+  - For a Secret, its **keys** above the YAML, decoded: show or copy each value. **Edit** opens
+    the key/value form (values typed as text, or from a file); **Edit YAML** edits the raw object.
+    **Show values (decoded)** shows the YAML's text values as `stringData`.
   - **Events** for the object, warnings marked.
   - For a pod, **Logs** (followed as they're written, per container, downloadable) and
     **Shell** (a shell in a container, through the proxy as you).
