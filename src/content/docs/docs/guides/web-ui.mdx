@@ -38,8 +38,8 @@ The sidebar shows what your access lets you use.
 |---|---|---|
 | **Overview** | every cluster with its provider, template, environment, phase and expiry; resources failing anywhere; clusters expiring soon | `hyve cluster list` |
 | **Clusters** | the clusters in an environment. Create one from a template; open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML or delete it | `hyve cluster` |
-| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. A template's page lists the Secrets its resources copy to clusters, with whether each exists; create or change them there | `hyve template`, `hyve render`, `hyve secrets` |
-| **Shared resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters | `hyve resource` |
+| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. Add, edit or remove a template's resources right on its page (each change is saved at once). A template's page lists the Secrets its resources copy to clusters, with whether each exists; create or change them there | `hyve template`, `hyve render`, `hyve secrets` |
+| **Shared resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters. **Add to template** on one's page adds it to a template by reference | `hyve resource` |
 | **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |
 | **Providers** | the installed Cluster API providers and their health; add and remove them | `hyve provider` |
 | **People** | two tabs. **Users**: hyve's users (create, invite, set passwords, disable, groups), each with what they and their groups may reach. **Access**: who can reach which clusters; grant and revoke owner, member and read-only roles, and environment membership, for everyone or one user | `hyve user`, `hyve access` |
