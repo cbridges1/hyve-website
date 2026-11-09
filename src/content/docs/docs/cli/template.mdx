@@ -27,8 +27,10 @@ Aliases: `template, templates, tpl`
 
 ### hyve template apply
 
-Applies hyve objects from YAML files. Objects without a namespace go in the
-template namespace (a ClusterResource in the environment). A bundle entry
+Applies hyve objects from YAML files, and ClusterClasses with their
+provider templates (CivoClusterTemplate, DockerMachineTemplate...). Objects
+without a namespace go in the template namespace (a ClusterResource in the
+environment). A bundle entry
 may give 'path: DIR' instead of resources; the manifests there, relative to
 the file, are sent inline.
 

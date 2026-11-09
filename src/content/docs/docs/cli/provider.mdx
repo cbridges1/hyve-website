@@ -28,7 +28,14 @@ Aliases: `provider, providers`
 
 ### hyve provider add
 
-Install a Cluster API provider
+Installs a Cluster API provider: its CRDs and controller, nothing more.
+
+--clusterclass also installs a ClusterClass the provider publishes, the way
+clusterctl finds them: clusterclass-NAME.yaml beside the components manifest
+(--fetch-url), with its provider templates, in the template namespace. Run
+it again to update the class to that release's. Templates are then built on
+it ('hyve template create --from-clusterclass NAME'). A ClusterClass of your
+own goes in with 'hyve template apply -f'.
 
 ```text
   hyve provider add NAME [flags]
@@ -41,11 +48,14 @@ Install a Cluster API provider
   hyve provider add gcp --variable-b64-file GCP_B64ENCODED_CREDENTIALS=./key.json --variable EXP_CAPG_GKE=true
   hyve provider add civo --fetch-url https://github.com/cbridges1/cluster-api-provider-civo/releases/latest/download/infrastructure-components.yaml \
       --variable CIVO_API_KEY
+  hyve provider add civo --fetch-url https://github.com/cbridges1/cluster-api-provider-civo/releases/v0.2.0/infrastructure-components.yaml \
+      --clusterclass civo
 ```
 
 **Flags**
 
 ```text
+      --clusterclass stringArray        a ClusterClass the provider publishes, to install in the template namespace: NAME for clusterclass-NAME.yaml beside --fetch-url, or the file's URL (repeatable)
       --fetch-url string                where to fetch the provider's components, for providers clusterctl doesn't know
   -h, --help                            help for add
       --namespace string                namespace (default: NAME-system)

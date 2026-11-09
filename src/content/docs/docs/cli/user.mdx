@@ -28,18 +28,27 @@ someone else's password).
 
 ### hyve user add
 
-Create a user and set its password
+Creates a user. With --invite, the host emails them a link and code to set
+their own password (it works for 7 days; 'hyve user invite' sends another).
+Otherwise you choose their initial password, which they change at first
+sign-in unless --no-password-change, and they're emailed that the account
+exists.
+
+An email address is required: it's where password resets and account
+emails go.
 
 ```text
-  hyve user add NAME [flags]
+  hyve user add NAME --email ADDRESS [flags]
 ```
 
 **Flags**
 
 ```text
       --display-name string   name shown in the UI
+      --email string          address for password resets and account emails (required)
       --group strings         group to add the user to (repeatable)
   -h, --help                  help for add
+      --invite                email them a link to set their own password instead of choosing one
       --no-password-change    don't make the user change the password at first sign-in
       --password-stdin        read the initial password from stdin
       --server string         saved server to use (default: the one last signed in to)
@@ -60,6 +69,26 @@ Stop a user signing in; their sessions stop working within 30 seconds
       --server string   saved server to use (default: the one last signed in to)
 ```
 
+### hyve user edit
+
+Changes the flags given and leaves the rest. --group replaces the user's
+groups; --group "" removes them all. The user is emailed when their groups
+or address change (at the old address), once the host has SMTP set up.
+
+```text
+  hyve user edit NAME [flags]
+```
+
+**Flags**
+
+```text
+      --display-name string   name shown in the UI
+      --email string          address for password resets and account emails ("" removes it)
+      --group strings         the user's groups, replacing the current ones (repeatable)
+  -h, --help                  help for edit
+      --server string         saved server to use (default: the one last signed in to)
+```
+
 ### hyve user enable
 
 Let a disabled user sign in again
@@ -72,6 +101,24 @@ Let a disabled user sign in again
 
 ```text
   -h, --help            help for enable
+      --server string   saved server to use (default: the one last signed in to)
+```
+
+### hyve user invite
+
+Emails NAME a link and code to set their own password, good for 7 days and
+replacing any earlier one: to send an invitation again, or to let someone
+who never set a password choose one. It takes the right to set NAME's
+password.
+
+```text
+  hyve user invite NAME [flags]
+```
+
+**Flags**
+
+```text
+  -h, --help            help for invite
       --server string   saved server to use (default: the one last signed in to)
 ```
 

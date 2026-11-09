@@ -32,7 +32,7 @@ Adds the kubeconfig 'hyve cluster kubeconfig' prints to your kubeconfig
 ($KUBECONFIG, or ~/.kube/config) and makes it the current context, so
 kubectl reaches the cluster through the signed-in server's proxy, as you.
 Running it again refreshes the entry. Like that kubeconfig, it holds no
-secret: the credential is 'hyve token'.
+secret: the credential is 'hyve token'. NAME local is the host cluster.
 
 ```text
   hyve cluster auth NAME [flags]
@@ -42,6 +42,7 @@ secret: the credential is 'hyve token'.
 
 ```text
   hyve cluster auth demo
+  hyve cluster auth local
   hyve cluster auth web -e prod
 ```
 
@@ -146,7 +147,7 @@ Prints a kubeconfig for &lt;url&gt;/k8s/clusters/&lt;id&gt; on the signed-in ser
 the same proxy and the same sign-in as the management cluster, so kubectl
 runs under your own permissions. It holds no secret; it runs 'hyve token'.
 The cluster's admin credentials are never handed out. 'hyve cluster auth'
-adds it to your kubeconfig instead.
+adds it to your kubeconfig instead. NAME local is the host cluster.
 
 ```text
   hyve cluster kubeconfig NAME [flags]
@@ -160,7 +161,8 @@ adds it to your kubeconfig instead.
 
 ### hyve cluster list
 
-List clusters
+Lists the environment's clusters, after the host cluster, local, which
+is in no environment.
 
 ```text
   hyve cluster list [flags]

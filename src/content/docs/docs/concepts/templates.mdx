@@ -116,6 +116,26 @@ Two annotations on a ClusterClass are read by hyve:
 | `hyve.io/default-version` | The Kubernetes version used when neither the cluster nor the template gives one. |
 | `hyve.io/cluster-labels` | `k=v,k2=v2`: labels every Cluster of the class gets, for example the label a CNI `ClusterResourceSet` selects. |
 
+## Getting a ClusterClass
+
+Installing a provider installs its CRDs and controller, not a ClusterClass. As with
+clusterctl, a provider publishes its ClusterClasses beside its components manifest, as
+`clusterclass-NAME.yaml`. `--clusterclass` installs one with the provider, in the template
+namespace:
+
+```bash
+hyve provider add civo --clusterclass civo \
+    --fetch-url https://github.com/cbridges1/cluster-api-provider-civo/releases/v0.2.0/infrastructure-components.yaml
+```
+
+In the UI, **Add provider** has a ClusterClasses field that does the same. Running it again
+with a newer release updates the class.
+
+A class of your own, or a provider's you've changed, goes in like a template:
+`hyve template apply -f clusterclass.yaml` (or **Apply YAML** on the Templates page) takes a
+ClusterClass and the provider templates it refers to (`CivoClusterTemplate`,
+`KubeadmControlPlaneTemplate` and so on).
+
 ## Where templates live
 
 A template lives in the same namespace as its ClusterClass: a **template namespace**,

@@ -58,9 +58,15 @@ KUBECONFIG outside a cluster.
       --oidc-issuer string             turns on single sign-in: the OpenID Connect issuer URL
       --oidc-scopes strings            scopes besides openid (default profile,email)
       --oidc-username-claim string     the ID token claim a new user's name comes from (then the email's local part) (default "preferred_username")
-      --public-url string              the host's address as browsers reach it (needed for single sign-in's callback)
+      --public-url string              the host's address as browsers reach it (needed for single sign-in's callback, and for the link in password-reset emails)
       --session-ttl duration           how long a sign-in lasts (default 16h0m0s)
       --shell-image string             image for the UI's kubectl shell (kubectl, helm, k9s; empty turns the shell off) (default "rancher/shell:v0.8.2")
+      --smtp-from-address string       the From: address of hyve's emails (see --smtp-host)
+      --smtp-from-name string          the From: name of hyve's emails (default "hyve"; see --smtp-host)
+      --smtp-host string               SMTP relay for password resets and account emails, saved on first start only: after that the UI's Settings page owns it (the password comes from $HYVE_SMTP_PASSWORD)
+      --smtp-port int                  the SMTP relay's port (see --smtp-host) (default 587)
+      --smtp-tls                       implicit TLS, usually port 465; otherwise STARTTLS when offered (see --smtp-host)
+      --smtp-username string           the SMTP relay's username; none for an anonymous relay (see --smtp-host)
       --tls-cert string                TLS certificate file (serves plain HTTP when unset, for use behind a TLS-terminating ingress)
       --tls-key string                 TLS key file
       --ui                             serve hyve's own UI at / (built into the binary with 'task ui')
