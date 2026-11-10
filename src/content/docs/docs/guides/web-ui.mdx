@@ -37,7 +37,7 @@ The sidebar shows what your access lets you use.
 | Page | What it does | CLI |
 |---|---|---|
 | **Overview** | every cluster with its provider, template, environment, phase and expiry; resources failing anywhere; clusters expiring soon | `hyve cluster list` |
-| **Clusters** | the clusters in an environment. Create one from a template; open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML or delete it | `hyve cluster` |
+| **Clusters** | the clusters in an environment. Create one from a template, adopt an existing one through a template's provider, or import one from its kubeconfig ([Bringing in existing clusters](/docs/guides/existing-clusters)); open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML, or delete it (detach it, when imported) | `hyve cluster` |
 | **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. **Apply YAML** also takes a ClusterClass and its provider templates. Add, edit or remove a template's resources right on its page (each change is saved at once). A template's page lists the Secrets its resources copy to clusters, with whether each exists; create or change them there | `hyve template`, `hyve render`, `hyve secrets` |
 | **Shared resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters. **Add to template** on one's page adds it to a template by reference | `hyve resource` |
 | **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |

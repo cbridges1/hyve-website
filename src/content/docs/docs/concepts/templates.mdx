@@ -68,6 +68,7 @@ spec:
 | `schedule` | A standard 5-field cron expression, in UTC unless prefixed with `CRON_TZ=<zone>`. |
 | `labels` | Extra labels on every Cluster made from the template. |
 | `resources` | What Fleet delivers to every cluster made from the template. See [Resources](/docs/concepts/resources). |
+| `adopt.idVariable`, `adopt.variables` | Lets `hyve cluster adopt` take over an existing cluster through the provider: the variable that takes its ID, and values used in place of `variables` on adopted clusters (`null` keeps the cluster's own). Adopted clusters take no `schedule`. See [Bringing in existing clusters](/docs/guides/existing-clusters). |
 | `description` | Shown by `hyve template list` and the UI. |
 
 The status lists each Fleet object made from the template's resources, with Fleet's state, the

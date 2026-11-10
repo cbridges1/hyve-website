@@ -88,6 +88,7 @@ export default defineConfig({
             { label: 'The web UI', link: '/docs/guides/web-ui' },
             { label: 'Signing in with OIDC', link: '/docs/guides/oidc' },
             { label: 'hyve in CI', link: '/docs/guides/ci' },
+            { label: 'Bringing in existing clusters', link: '/docs/guides/existing-clusters' },
             { label: 'Importing old templates', link: '/docs/guides/importing' },
           ],
         },

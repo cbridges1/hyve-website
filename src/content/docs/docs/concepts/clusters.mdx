@@ -50,6 +50,13 @@ hyve cluster create demo --class capd --class-namespace capi-clusters
 Then nothing is locked, nothing expires unless you say so, and no template resources are
 delivered.
 
+## Clusters hyve didn't create
+
+A cluster made some other way can be brought in. `hyve cluster import` attaches any cluster you
+have a kubeconfig for, without hyve managing its lifecycle. `hyve cluster adopt` has a provider
+that supports it take over an existing cluster by ID. See
+[Bringing in existing clusters](/docs/guides/existing-clusters).
+
 `hyve cluster create` waits until the cluster is active and registered with Fleet (`--no-wait`
 returns once the object exists; `--timeout` defaults to 30 minutes). `--set` sets ClusterClass
 variables: a value is parsed as JSON when it's valid JSON (numbers, lists, objects) and used as
@@ -121,11 +128,13 @@ hyve cluster delete demo
 ```
 
 This deletes the `Cluster`. Its extras (`ClusterResource`s) go with it, and Cluster API deletes
-the infrastructure. By default the command waits until the cluster is gone (up to 15 minutes;
+the infrastructure. An imported cluster is detached instead and keeps running; an adopted one is
+kept when its provider's deletion policy says so. By default the command waits until the cluster is gone (up to 15 minutes;
 `--wait=false` doesn't wait).
 
 ## Related
 
 - [Templates](/docs/concepts/templates), [Environments](/docs/concepts/environments)
+- [Bringing in existing clusters](/docs/guides/existing-clusters)
 - [kubectl access](/docs/guides/kubectl-access)
 - [`hyve cluster`](/docs/cli/cluster)

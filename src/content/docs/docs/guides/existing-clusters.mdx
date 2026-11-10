@@ -1,0 +1,122 @@
+---
+title: Bringing in existing clusters
+description: Import a cluster hyve didn't create, or have its provider adopt it by ID.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+hyve can take on a cluster it didn't create in two ways:
+
+| | Import | Adopt |
+|---|---|---|
+| What hyve manages | Access, resources, kubeconfigs, the Explorer. Never the cluster's lifecycle. | Everything, as for a cluster it created: scaling, upgrades and deletion go through the provider. |
+| Works with | Any cluster you have a kubeconfig for: EKS, GKE, AKS, on-prem, kind... | Clusters whose Cluster API provider can take over an existing one by ID, such as [cluster-api-provider-civo](https://github.com/cbridges1/cluster-api-provider-civo) v0.3.0 and later. |
+| Deleting it in hyve | Detaches it. The cluster keeps running. | Up to the provider. The Civo provider keeps it when `deletionPolicy` is `Retain`. |
+| Command | `hyve cluster import` | `hyve cluster adopt` |
+
+## Importing a cluster
+
+```bash
+hyve cluster import legacy-eks -e prod --from-context arn:aws:eks:us-east-1:123456789012:cluster/legacy
+hyve cluster import lab -e dev --from-kubeconfig lab.yaml --template base
+```
+
+hyve reaches the cluster with your kubeconfig: the current context, or `--from-kubeconfig` and
+`--from-context`. It then gives itself credentials of its own there: a ServiceAccount
+`kube-system/hyve-import` bound to `cluster-admin`, as Rancher's import does. So a kubeconfig
+that signs in by running a command (`aws`, `gcloud`) works, because it's only used once.
+
+In the environment, hyve makes a Cluster API `Cluster` whose infrastructure and control plane are
+hyve's own `ImportedCluster` and `ImportedControlPlane`. hyve-controller reports them ready while
+the cluster answers, so Cluster API and Fleet treat the cluster like any other:
+
+- it's registered with Fleet, and gets hyve's agent;
+- `hyve cluster auth`, `kubeconfig`, the kubectl shell and the Explorer reach it through the
+  host, as you;
+- per-cluster resources (`hyve cluster resource add`) and access grants work;
+- `--template` gives it a template's resources. The template's variables, version, workers and
+  expiry don't apply: nothing is provisioned.
+
+`hyve cluster scale` and `upgrade` refuse an imported cluster. `hyve cluster list` shows its
+class as `(imported)` and the version the cluster reports.
+
+<Aside>
+hyve's host must reach the cluster's API server. When it reaches it at another address than you
+do, such as a private DNS name or `host.docker.internal` for a kind cluster, give that address
+with `--api-server https://...`.
+</Aside>
+
+The UI's **Clusters › Import cluster** does the same from a pasted or uploaded kubeconfig. There
+the host uses the kubeconfig itself, so it must hold a token or certificate. Importing needs
+permission to create Secrets in the environment, since the cluster's credentials are stored
+there.
+
+### Detaching
+
+```bash
+hyve cluster delete legacy-eks -e prod
+```
+
+This deletes the `Cluster`, and hyve removes from the cluster what it put there: hyve's and
+Fleet's agents, the ClusterRoles and bindings labelled as hyve's, and the `hyve-import`
+ServiceAccount, last. What Fleet deployed stays, as do the agents' empty namespaces. A cluster
+that can't be reached at the time keeps them all.
+
+## Adopting a cluster
+
+Adopting creates a cluster from a template, with the existing cluster's ID in the variable the
+template's `adopt` names. The provider takes that cluster over instead of creating one, and from
+then on hyve manages it like any other.
+
+```bash
+hyve cluster adopt web -t civo -e prod --id 7f3c0d6e-0b5d-4b51-9b8a-1c2d3e4f5a6b --set region=NYC1 --version v1.33.0
+```
+
+- The template must set `adopt`; the command refuses one that doesn't.
+- The name in hyve needn't be the cluster's own.
+- Give `--version` as the cluster's Kubernetes version, since the template's is used otherwise.
+- `--set` the variables the provider finds the cluster by, such as Civo's `region`.
+- An adopted cluster takes no expiry schedule from its template; `--ttl` gives it one.
+
+In the UI, **New cluster** has an *Adopt an existing cluster* option, which lists templates that
+set `adopt`.
+
+### A template that adopts
+
+`adopt.idVariable` is the ClusterClass variable the provider adopts by. `adopt.variables`
+replace the template's variables on adopted clusters. `null` leaves one unset, so the provider
+keeps what the cluster has:
+
+```yaml
+apiVersion: hyve.io/v1alpha1
+kind: ClusterTemplate
+metadata:
+  name: civo
+  namespace: capi-clusters
+spec:
+  clusterClassRef: {name: civo}
+  kubernetesVersion: v1.35.0
+  schedule: "0 20 * * *"            # new clusters only
+  variables:
+    region: NYC1
+    nodeCount: 1
+  adopt:
+    idVariable: clusterID
+    variables:
+      nodeCount: null               # keep the cluster's own size until someone scales it
+      deletionPolicy: Retain        # deleting it in hyve leaves the Civo cluster
+```
+
+With the Civo provider:
+
+- `clusterID` adopts that cluster and never creates one. It refuses an ID another Cluster already
+  manages.
+- With `nodeCount` unset, the provider leaves the node pool alone. Setting it later scales the
+  pool.
+- `deletionPolicy: Retain` makes deleting the hyve cluster leave the Civo cluster, its volumes
+  and its firewall. `Delete`, the default, removes them.
+
+## Related
+
+- [Clusters](/docs/concepts/clusters), [Templates](/docs/concepts/templates)
+- [`hyve cluster`](/docs/cli/cluster)
