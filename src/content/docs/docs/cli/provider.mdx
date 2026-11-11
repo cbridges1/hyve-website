@@ -2,7 +2,7 @@
 title: hyve provider
 description: "Add, list and remove Cluster API providers"
 sidebar:
-  order: 13
+  order: 3
   label: provider
 ---
 
@@ -67,6 +67,22 @@ own goes in with 'hyve template apply -f'.
       --version string                  provider version (default: the latest the installer knows)
 ```
 
+### hyve provider delete
+
+Uninstall a Cluster API provider (delete its clusters first)
+
+```text
+  hyve provider delete NAME [flags]
+```
+
+Aliases: `delete, remove, rm`
+
+**Flags**
+
+```text
+  -h, --help   help for delete
+```
+
 ### hyve provider list
 
 List Cluster API providers and their state
@@ -81,22 +97,6 @@ Aliases: `list, ls`
 
 ```text
   -h, --help   help for list
-```
-
-### hyve provider remove
-
-Uninstall a Cluster API provider (delete its clusters first)
-
-```text
-  hyve provider remove NAME [flags]
-```
-
-Aliases: `remove, rm`
-
-**Flags**
-
-```text
-  -h, --help   help for remove
 ```
 
 ### hyve provider show

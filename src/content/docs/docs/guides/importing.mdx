@@ -1,11 +1,11 @@
 ---
 title: Importing old templates
-description: Convert hyve v1 Templates and herd ClusterTemplates into hyve ClusterTemplates with hyve import.
+description: Convert hyve v1 Templates and herd ClusterTemplates into hyve ClusterTemplates with hyve template convert.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
-`hyve import` converts templates from before this version of hyve into `ClusterTemplate`s:
+`hyve template convert` converts templates from before this version of hyve into `ClusterTemplate`s:
 
 - **hyve v1 `Template`s** (`hyve.io`) built with `hyve-capi-module`, `hyve-civo-module` or
   `hyve-unraid-k3s-module`.
@@ -21,7 +21,7 @@ it can't carry over is listed on stderr, so nothing is dropped silently.
 | a module's `params` | ClusterClass variables. `hyve-capi-module` flavors (`capd`, `gke`) are expanded into their class, version, worker type and labels; the Civo and Unraid modules map onto the `civo` and `unraid` classes of their Cluster API providers |
 | `lockParams` | `lockedVariables`, for params that became variables. `lockParams: true` locks every variable |
 | the schedule | `schedule` |
-| Helm and git resources | Fleet `helmOp` and `gitRepo` entries; bundles from a directory become `bundle` entries with `path` |
+| Helm and git resources | the template's `resources`, as Fleet `helmOp` and `gitRepo` entries; bundles from a directory become `bundle` entries with `path`. Once applied, hyve-controller turns each into a [Deployment](/docs/concepts/deployments) aimed at the template |
 | a herd ClusterTemplate | the same spec in `hyve.io`, with each resource's herd shorthand written out as a Fleet spec |
 
 What doesn't, and is reported:
@@ -29,7 +29,7 @@ What doesn't, and is reported:
 | Not converted | Why, and what to do |
 |---|---|
 | templates for other drivers or modules | hyve builds clusters through Cluster API only; the template is skipped |
-| workflows and lifecycle hooks | hyve has none. Those that only registered the cluster with Rancher aren't needed (agents are installed automatically); turn the rest into template resources |
+| workflows and lifecycle hooks | hyve has none. Those that only registered the cluster with Rancher aren't needed (agents are installed automatically); turn the rest into [Deployments](/docs/concepts/deployments) |
 | locks on things that aren't variables (version, worker counts) | hyve locks ClusterClass variables, and `kubernetesVersion`; add that lock by hand if you want it |
 | management-cluster params (`management`, `mgmt_kubeconfig`, `kind_cluster`, `providers`, `capi_version`, `init_env`, `cluster_class_path`) | the management cluster is the one hyve runs on; add providers with `hyve provider add` and apply ClusterClasses yourself |
 | `RANCHER_*` params | clusters get their agents automatically |
@@ -43,7 +43,7 @@ What doesn't, and is reported:
 1. **Look first.** Print the conversion without changing anything:
 
    ```bash
-   hyve import -f ./templates
+   hyve template convert -f ./templates
    ```
 
    `-f` takes files or directories (repeatable). The ClusterTemplates are printed as YAML on
@@ -57,7 +57,7 @@ What doesn't, and is reported:
    From a running cluster instead, with its kubeconfig:
 
    ```bash
-   hyve import --from-cluster --source-kubeconfig old-mgmt.yaml
+   hyve template convert --from-cluster --source-kubeconfig old-mgmt.yaml
    ```
 
    `--source-context` picks a context, and `--source-namespace` one namespace's templates (all
@@ -71,7 +71,7 @@ What doesn't, and is reported:
 3. **Create them.** Save the output and apply it, which lets you review and edit it first:
 
    ```bash
-   hyve import -f ./templates > templates.yaml
+   hyve template convert -f ./templates > templates.yaml
    hyve template apply -f templates.yaml
    ```
 
@@ -82,11 +82,15 @@ What doesn't, and is reported:
    A converted `bundle` entry keeps its `path`. Apply the result with `hyve template apply -f`
    from the directory the manifests are relative to, so they're found and sent inline.
 
+   hyve-controller then moves each template's `resources` into Deployments aimed at it and
+   empties the list. `hyve deploy list` shows them. To keep the templates in git, keep those
+   Deployments there instead of `resources`: `hyve template render` prints them.
+
 4. **Check each one** renders and makes a cluster:
 
    ```bash
    hyve template list
-   hyve render -f templates.yaml -f classes.yaml --template capd-small
+   hyve template render -f templates.yaml -f classes.yaml --template capd-small
    hyve cluster create import-check -t capd-small --ttl 1h
    ```
 
@@ -99,10 +103,11 @@ and its notes, and create them.
 
 Clusters herd made from a herd template carry the label `herd.io/template`. With `--apply`,
 `--relabel-clusters` also labels each of them with the new template's `hyve.io/template` and
-`hyve.io/template-namespace`, so they get the template's resources and locks:
+`hyve.io/template-namespace`, so they join the template's group, and get the Deployments aimed at
+it and its locks:
 
 ```bash
-hyve import --from-cluster --source-kubeconfig mgmt.yaml --kubeconfig mgmt.yaml \
+hyve template convert --from-cluster --source-kubeconfig mgmt.yaml --kubeconfig mgmt.yaml \
     --apply --relabel-clusters
 ```
 

@@ -32,8 +32,7 @@ A pipeline can make a cluster from a template, test against it and delete it, in
 2. **Give it a ClusterClass and template**, from the repository under test:
 
    ```bash
-   kubectl --kubeconfig <(hyve kubeconfig) apply -f ci/capd-class.yaml
-   hyve template apply -f ci/capd-small.yaml
+   hyve apply -f ci/capd-class.yaml -f ci/capd-small.yaml
    ```
 
 3. **Make a cluster, test, and delete it:**
@@ -46,7 +45,7 @@ A pipeline can make a cluster from a template, test against it and delete it, in
    ```
 
    `cluster create` waits until the cluster is `ACTIVE` and registered with Fleet, so the
-   template's resources are on their way when it returns. `--ttl` makes hyve delete the cluster
+   Deployments aimed at it are on their way when it returns. `--ttl` makes hyve delete the cluster
    by itself if the job dies before it does.
 
 4. **Stop hyve:** `hyve local down`. CAPD clusters are containers of their own; delete them
@@ -54,37 +53,54 @@ A pipeline can make a cluster from a template, test against it and delete it, in
 
 </Steps>
 
-`hyve local up --state-dir DIR` keeps local mode's saved state (templates, resources, Cluster
-API objects) in a directory the CI system caches, so a later job restores it. See
+`hyve local up --state-dir DIR` keeps local mode's saved state (templates and Cluster API
+objects) in a directory the CI system caches, so a later job restores it. See
 [Local mode](/docs/running/local-mode).
 
 ## Against a standalone hyve
 
 <Steps>
 
-1. **Make a CI user** once, as an admin, and let it create clusters in a CI environment:
+1. **Make a CI user** once, as an admin: a service user (no password), allowed to create
+   clusters in a CI environment:
 
    ```bash
    hyve env create ci
-   hyve user add ci --password-stdin --no-password-change < ci-password.txt
-   hyve access grant ci --env-member -e ci
+   hyve user create ci --service
+   hyve access grant ci --role environment-member -e ci
    ```
 
-2. **Sign in from the pipeline** with the password from its secrets:
+2. **Let the pipeline sign in.** Where the CI system gives jobs ID tokens (GitHub Actions,
+   GitLab CI, Buildkite, CircleCI...), trust the repository's jobs, and there's no secret to
+   keep:
 
    ```bash
-   echo "$HYVE_PASSWORD" | hyve login https://hyve.example.com --username ci --password-stdin
+   hyve user trust add ci e2e --github org/web       # once, as an admin
+   ```
+
+   ```bash
+   hyve login https://hyve.example.com --username ci --github-actions   # in the job
    hyve env use ci
    ```
+
+   Otherwise, make an API token, keep it in the pipeline's secrets, and set `HYVE_URL` and
+   `HYVE_TOKEN`: every command uses them, with no `hyve login`.
+
+   ```bash
+   hyve user token create ci-pipeline --user ci --expires 90d    # once; printed once
+   ```
+
+   See [Scripts and CI](/docs/concepts/access#scripts-and-ci) for the claims an entry can
+   require, and how tokens are revoked.
 
 3. **Make a cluster, test, delete it**, as above.
 
 </Steps>
 
-A template whose resources need Secrets can have them made from the pipeline's environment:
-`hyve cluster create --secrets-env` creates Secret `my-secret` from the variable `MY_SECRET`
-(a JSON object of keys, or one value under the key `value`). That needs permission to create
-Secrets, which environment members don't have: it suits local mode, or a CI user an admin has
+When the Deployments aimed at a template need Secrets, the pipeline can make them from its
+environment: `hyve cluster create --secrets-env` creates Secret `my-secret` from the variable
+`MY_SECRET` (a JSON object of keys, or one value under the key `value`). That needs permission
+to create Secrets, which environment members don't have: it suits local mode, or a CI user an admin has
 given that right.
 
 ## GitHub Actions
@@ -109,8 +125,7 @@ jobs:
 
       - name: Cluster
         run: |
-          kubectl --kubeconfig <(hyve kubeconfig) apply -f ci/capd-class.yaml
-          hyve template apply -f ci/capd-small.yaml
+          hyve apply -f ci/capd-class.yaml -f ci/capd-small.yaml
           hyve cluster create pr-${{ github.run_id }} -t capd-small --ttl 2h
           hyve cluster kubeconfig pr-${{ github.run_id }} > "$RUNNER_TEMP/kubeconfig"
 
@@ -126,22 +141,109 @@ jobs:
           hyve local down --discard-state
 ```
 
-Against a standalone host, replace `hyve local up` with the `hyve login ... --password-stdin`
-step and keep the password in a repository secret:
+Against a standalone host, replace `hyve local up` with signing in as the job. The job needs
+permission to ask GitHub for its ID token:
 
 ```yaml
+    permissions:
+      id-token: write
+      contents: read
+    steps:
       - name: Sign in
-        env:
-          HYVE_PASSWORD: ${{ secrets.HYVE_PASSWORD }}
-        run: echo "$HYVE_PASSWORD" | hyve login https://hyve.example.com --username ci --password-stdin
+        run: hyve login https://hyve.example.com --username ci --github-actions
+```
+
+With an API token instead, keep it in a repository secret and set it for every step:
+
+```yaml
+    env:
+      HYVE_URL: https://hyve.example.com
+      HYVE_TOKEN: ${{ secrets.HYVE_TOKEN }}
+```
+
+## Releasing to clusters
+
+A pipeline that builds an app can roll the new version out to every cluster a Deployment
+targets, and fail the job if it doesn't come up.
+
+**Push a version.** `hyve deploy update` changes just the version or values given:
+
+```bash
+hyve deploy update web --version "$VERSION" --wait --timeout 15m
+hyve deploy update web --set image.tag="$GITHUB_SHA" --wait
+hyve deploy update platform --revision "v$VERSION" --wait     # a git source, pinned to a tag
+```
+
+**Or keep the Deployment as YAML** in the app's repository, and apply it every time. `hyve deploy
+apply` creates it the first time and updates it after:
+
+```bash
+sed "s/VERSION/$VERSION/" deploy/web.yaml | hyve deploy apply -f - --wait
+```
+
+`deploy/web.yaml` is a Fleet object, the same as `hyve deploy show web -o yaml` prints:
+
+```yaml
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: web
+spec:
+  defaultNamespace: web
+  helm:
+    repo: oci://ghcr.io/example/charts/web
+    version: VERSION
+  rolloutStrategy:
+    maxUnavailable: 1      # one cluster at a time
+  targets:
+  - clusterGroup: template-web
+```
+
+With `--wait`, the job ends when every cluster runs the new version and is ready, and fails
+when one can't: a version that doesn't exist, a cluster that can't apply it, or the timeout
+passing first. The clusters that aren't done are listed. A rollout of one cluster at a time
+or canary clusters first goes on while the job waits, so a cluster that doesn't come back ready
+stops the rest and fails the job.
+
+**Or don't push at all.** A Deployment of a git source follows its branch; the pipeline
+commits the new version to that repository and Fleet does the rest. `hyve deploy wait`
+can still tell the job when it's out.
+
+The CI user needs to change Deployments where they live. An environment's members can change
+the ones that target only their environment. Those aimed at templates, classes or every cluster
+live in the template namespace: `hyve access grant ci --role deployer` lets the CI user change them,
+and nothing else. A release job on GitHub Actions, from tags only:
+
+```bash
+hyve user create releaser --service
+hyve access grant releaser --role deployer
+hyve user trust add releaser web-tags --github org/web --claim ref='refs/tags/*'
+```
+
+```yaml
+name: release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - run: ./ci/install-hyve.sh
+      - run: hyve login https://hyve.example.com --username releaser --github-actions
+      - run: hyve deploy update web --version "${GITHUB_REF_NAME#v}" --wait --timeout 15m
 ```
 
 ## Checking templates in CI
 
-`hyve render` needs no cluster. Run it on every change to a template, so a template that no
-longer fills in (a missing default version, a bad schedule, a resource with `targets`) fails
-before it's merged:
+`hyve template render` needs no cluster. Run it on every change to a template, so a template that no
+longer fills in (a missing default version, a bad schedule, a locked variable without a value)
+fails before it's merged:
 
 ```bash
-hyve render -f templates/capd-small.yaml -f classes/capd.yaml --name ci > /dev/null
+hyve template render -f templates/capd-small.yaml -f classes/capd.yaml --name ci > /dev/null
 ```

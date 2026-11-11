@@ -35,7 +35,7 @@ password and sessions.
 | `displayName` | Shown in the UI and by `hyve user list`. |
 | `groups` | Its groups, for a password user. |
 | `disabled` | It can't sign in, and its existing sessions stop working within 30 seconds. |
-| `mustChangePassword` | The next sign-in changes the password before it gets a session. Set on the bootstrap admin, and by `hyve user add` unless `--no-password-change`. |
+| `mustChangePassword` | The next sign-in changes the password before it gets a session. Set on the bootstrap admin, and by `hyve user create` unless `--no-password-change`. |
 | `provider`, `subject`, `email` | Set for a user from an identity provider (`provider: oidc`), which has no password. |
 
 Passwords are at least 12 characters (and at most 72 bytes, bcrypt's limit). Failed sign-ins
@@ -74,25 +74,70 @@ echo "$PW" | hyve login https://hyve.example.com --username ci --password-stdin 
 hyve logout
 ```
 
-Users from an identity provider have no password, so unattended runs sign in as a password
-User of their own.
+### Scripts and CI
+
+Unattended runs don't use a person's password. They sign in as a User of their own, usually a
+**service user**, which has no password or email:
+
+```bash
+hyve user create ci --service --group deployers
+```
+
+and then in one of two ways.
+
+**As a trusted CI job.** CI systems give each job an ID token, a short-lived signed statement of
+which repository, branch and workflow it is. A User that trusts a CI system's jobs lets them
+sign in as it with that token, so the pipeline keeps no secret at all:
+
+```bash
+hyve user trust add ci web-releases --github org/web --claim ref='refs/tags/*'
+hyve user trust add ci infra --gitlab platform/infra --claim ref_protected=true
+hyve user trust add ci builds --issuer https://agent.buildkite.com --claim organization_slug=acme --claim pipeline_slug=web
+```
+
+The job then runs `hyve login URL --username ci --github-actions` (or `--id-token-env` with the
+token its CI system put in a variable). The host checks the token's signature against the
+issuer's published keys, its audience (`hyve` unless the entry says otherwise), its expiry, and
+the entry's claims. A `*` in a claim matches anything, and one claim must pin the repository or
+project (`repository`, `sub`, `project_path`...), so another repository's jobs can't match. The
+session lasts an hour. The entries are `spec.trustedCI` on the User, which only those who may
+update the User (admins) can change.
+
+**With an API token.** Where the CI system has no ID tokens, or for scripts:
+
+```bash
+hyve user token create github --user ci --expires 90d     # printed once
+hyve user token list --all
+hyve user token revoke github --user ci
+```
+
+The pipeline signs in with `hyve login URL --token-stdin`, or sets `HYVE_URL` and `HYVE_TOKEN`,
+which every command then uses without saving anything. A token acts as its User, lasts until it
+expires (a year at most) or is revoked, and records when it was last used. A password change
+doesn't revoke tokens; disabling the User stops them. A token, or a CI job's session, can't
+make tokens, so one that leaks can't outlive its expiry. Anyone can manage their own tokens;
+another User's take the right to the `users/tokens` subresource of that User.
+
+Either way, the User has only the access you grant it: for releasing apps, see
+[Deployers](#deployers).
 
 ### Managing users
 
 ```bash
-hyve user add alice --display-name "Alice Example" --group ops   # asks for the first password
+hyve user create alice --display-name "Alice Example" --group ops   # asks for the first password
 hyve user list
 hyve user show alice
 hyve user passwd                 # your own: asks for the current one, signs out your other sessions
 hyve user passwd alice           # someone else's: signs them out everywhere
 hyve user disable alice
 hyve user enable alice
-hyve user remove alice
+hyve user delete alice
 ```
 
-These go through the host as you, so they need RBAC on `users.hyve.io`, and `update` on
-`users/password` to set someone else's password. The chart's `hyve-user-admin` ClusterRole has
-both; it's bound to nobody by default, and `cluster-admin` already includes it.
+These go through the host as you, so they need RBAC on `users.hyve.io`, `update` on
+`users/password` to set someone else's password, and `list`, `create` and `delete` on
+`users/tokens` to manage someone else's API tokens. The chart's `hyve-user-admin` ClusterRole
+has all of them; it's bound to nobody by default, and `cluster-admin` already includes it.
 
 ## ClusterAccess
 
@@ -151,7 +196,7 @@ above.
 Access to an environment itself is a different grant: an ordinary RoleBinding.
 
 ```bash
-hyve access grant bob --env-member -e ci
+hyve access grant bob --role environment-member -e ci
 ```
 
 This binds `hyve-environment-member` in the environment and `hyve-template-reader` in the
@@ -159,11 +204,27 @@ template namespace:
 
 | Role | Can |
 |---|---|
-| `hyve-environment-member` | Create, list and watch CAPI Clusters; create, change and delete `ClusterResource`s; read ClusterTemplates, Resources, ClusterAccesses, ClusterClasses and Fleet's objects. No Secrets. |
-| `hyve-template-reader` | Read ClusterTemplates, shared Resources, ClusterClasses and the Fleet objects made from templates. |
+| `hyve-environment-member` | Create, list and watch CAPI Clusters; create, change and delete Deployments in the environment (Fleet `HelmOp`s, `Bundle`s and `GitRepo`s); read ClusterTemplates, ClusterAccesses, ClusterClasses and Fleet's other objects. No Secrets. |
+| `hyve-template-reader` | Read ClusterTemplates, ClusterClasses, and the Deployments and ClusterGroups in the template namespace. |
 
 An environment member can't change or delete a cluster without a grant on it. The creator's
 automatic owner grant covers the clusters they make.
+
+## Deployers
+
+The Deployments aimed at templates, classes and every cluster live in the template namespace,
+which environment members can only read. A pipeline that releases apps to them needs a
+deployer grant:
+
+```bash
+hyve access grant ci --role deployer
+```
+
+This binds `hyve-deployer` in the template namespace: create, change and delete Fleet
+`HelmOp`s, `Bundle`s and `GitRepo`s there, and read ClusterGroups, ClusterTemplates and
+ClusterClasses. It doesn't make clusters, change templates or read Secrets. A Deployment's
+progress on its clusters (`hyve deploy wait`, `hyve deploy show`) comes from the host, for
+anyone who can read the Deployment.
 
 <Aside>
 The host's service account can impersonate any user, since Kubernetes can't limit impersonation

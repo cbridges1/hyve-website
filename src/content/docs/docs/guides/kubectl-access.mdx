@@ -77,8 +77,8 @@ The management cluster is `local`, as in Rancher. hyve's own commands reach it t
 `<host>/k8s/clusters/local`, as you. For kubectl:
 
 ```bash
-hyve kubeconfig > mgmt.yaml               # the management cluster
-hyve kubeconfig dev.demo > demo.yaml      # or a cluster, by ID
+hyve cluster kubeconfig local > mgmt.yaml           # the management cluster
+hyve cluster kubeconfig demo -e dev > demo.yaml     # or a cluster
 ```
 
 What you can do there depends on your grants: environment members can create clusters and

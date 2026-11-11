@@ -2,7 +2,7 @@
 title: hyve cluster
 description: "Create, inspect, reach, scale and delete clusters"
 sidebar:
-  order: 2
+  order: 1
   label: cluster
 ---
 
@@ -23,7 +23,7 @@ Aliases: `cluster, clusters`
   -h, --help                        help for cluster
       --kubeconfig string           talk to a management cluster with this kubeconfig instead of a signed-in server (admins, CI)
       --server string               saved server to use (default: the current one; see 'hyve context list')
-      --template-namespace string   namespace of templates and shared resources (default: the context's, or capi-clusters)
+      --template-namespace string   namespace of templates and their Deployments (default: the context's, or capi-clusters)
 ```
 
 ### hyve cluster adopt
@@ -35,8 +35,9 @@ be the cluster's own name. From then on hyve manages it like any other:
 scaling, upgrades and deletion go through the provider.
 
 The template's adopt.variables replace its variables on an adopted
-cluster: usually so the provider leaves its size alone (nodeCount: null)
-and keeps it when the hyve cluster is deleted (deletionPolicy: Retain).
+cluster, and adopt.unset leaves some unset: usually so the provider keeps
+the cluster when the hyve cluster is deleted (deletionPolicy: Retain) and
+leaves its size alone (unset: [nodeCount]).
 An adopted cluster takes no expiry schedule; --ttl gives it one.
 
 Give --version as the cluster's Kubernetes version: the template's is
@@ -99,8 +100,8 @@ secret: the credential is 'hyve token'. NAME local is the host cluster.
 Creates a Cluster API Cluster in the environment. With --template it's
 labelled with the template, and filled in from it and its ClusterClass:
 the same thing hyve-controller does for a labelled Cluster created any
-other way (kubectl, GitOps, the UI). The template's resources then reach
-it through Fleet.
+other way (kubectl, GitOps, the UI). What's deployed to the template (its
+group in Fleet) then reaches it.
 
 --set sets ClusterClass variables; values are parsed as JSON when they are
 valid JSON (numbers, lists, objects), otherwise used as strings. A variable
@@ -131,7 +132,7 @@ By default waits until the cluster is ACTIVE and registered with Fleet.
       --label stringArray        label key=value on the Cluster (repeatable; Fleet sees it through CAAPF)
       --no-expiry                don't expire the cluster, whatever the template's schedule
       --no-wait                  return once the Cluster object is created
-      --secrets-env              create the Secrets the template's resources need from environment variables: Secret my-secret from MY_SECRET (a JSON object of keys, or one value under key "value")
+      --secrets-env              create the Secrets the Deployments aimed at the template copy, from environment variables: Secret my-secret from MY_SECRET (a JSON object of keys, or one value under key "value")
       --set stringArray          ClusterClass variable name=value (repeatable)
   -t, --template string          ClusterTemplate to build from (in the template namespace)
       --timeout duration         how long to wait (default 30m0s)
@@ -144,7 +145,7 @@ By default waits until the cluster is ACTIVE and registered with Fleet.
 
 ### hyve cluster delete
 
-Delete a cluster, its extras and what Fleet deployed for it
+Delete a cluster and what Fleet deployed for it
 
 ```text
   hyve cluster delete NAME [flags]
@@ -156,6 +157,20 @@ Delete a cluster, its extras and what Fleet deployed for it
   -h, --help               help for delete
       --timeout duration   how long to wait (default 15m0s)
       --wait               wait until the cluster is gone (default true)
+```
+
+### hyve cluster deployments
+
+What's delivered to a cluster, why, and its state there
+
+```text
+  hyve cluster deployments CLUSTER [flags]
+```
+
+**Flags**
+
+```text
+  -h, --help   help for deployments
 ```
 
 ### hyve cluster expire
@@ -192,9 +207,10 @@ reached with a kubeconfig you have: your current context unless
 On the cluster, a ServiceAccount (kube-system/hyve-import, cluster-admin)
 gives hyve credentials of its own, so a kubeconfig that runs a command
 (aws, gcloud) works too. In the environment, a Cluster API Cluster points
-at it; Fleet registers it, and access, resources, kubeconfigs and the
-Explorer work as for any cluster. --template gives it a template's
-resources (not its variables, version or expiry).
+at it; Fleet registers it, and access, Deployments, kubeconfigs and the
+Explorer work as for any cluster. --template puts it in a template's group,
+so it gets what's deployed to the template (not its variables, version or
+expiry).
 
 hyve never creates, scales, upgrades or deletes an imported cluster.
 'hyve cluster delete' detaches it: it removes hyve's and Fleet's agents and
@@ -226,7 +242,7 @@ give it with --api-server.
   -h, --help                     help for import
       --label stringArray        label key=value on the Cluster (repeatable; Fleet sees it through CAAPF)
       --no-wait                  return once the objects are created
-  -t, --template string          give the cluster this template's resources
+  -t, --template string          put the cluster in this template's group, so it gets what's deployed to the template
       --timeout duration         how long to wait (default 10m0s)
 ```
 
@@ -266,91 +282,6 @@ Aliases: `list, ls`
   -h, --help               help for list
 ```
 
-### hyve cluster resource
-
-Add or remove extras on one cluster, without changing its template
-
-```text
-  hyve cluster resource [command]
-```
-
-Aliases: `resource, resources, res`
-
-**Flags**
-
-```text
-  -h, --help   help for resource
-```
-
-#### hyve cluster resource add
-
-Add an extra to a cluster, or replace the one of the same name
-
-```text
-  hyve cluster resource add CLUSTER (--helm CHART | --git REPO | --path DIR | --ref RESOURCE) [flags]
-```
-
-**Examples**
-
-```text
-  hyve cluster resource add civo-test --helm podinfo --repo https://stefanprodan.github.io/podinfo --version 6.7.1
-  hyve cluster resource add web --path ./manifests --name base
-```
-
-**Flags**
-
-```text
-      --branch string             git branch
-      --correct-drift             have Fleet undo changes made to its objects on the cluster
-      --git string                git repository URL
-      --git-path stringArray      path in the repo (repeatable; default: the whole repo)
-      --helm string               Helm chart (a name with --repo, or an oci:// URL)
-  -h, --help                      help for add
-      --name string               resource name (default: the chart, repo or ref name)
-      --path string               local manifests: a file or directory of .yaml/.yml/.json, sent inline
-      --ref string                a shared Resource (see 'hyve resource create'); --set and -f then override its Helm values
-      --release-name string       Helm release name (default: the resource name)
-      --repo string               Helm repository URL
-      --revision string           git revision (commit or tag)
-      --secret stringArray        Secret (in the owner's namespace) for Fleet to copy to each cluster (repeatable)
-      --set stringArray           Helm value key=value; dotted keys nest, JSON values are parsed (repeatable)
-  -N, --target-namespace string   namespace for its objects on the cluster
-  -f, --values string             Helm values file
-      --version string            chart version (pin it in templates)
-```
-
-#### hyve cluster resource list
-
-List what's on a cluster: its template's resources and its extras
-
-```text
-  hyve cluster resource list CLUSTER [flags]
-```
-
-Aliases: `list, ls`
-
-**Flags**
-
-```text
-  -h, --help   help for list
-```
-
-#### hyve cluster resource remove
-
-Remove an extra; Fleet removes it from the cluster
-
-```text
-  hyve cluster resource remove CLUSTER NAME [flags]
-```
-
-Aliases: `remove, rm`
-
-**Flags**
-
-```text
-  -h, --help   help for remove
-```
-
 ### hyve cluster scale
 
 Change a cluster's worker or control-plane replicas
@@ -369,7 +300,7 @@ Change a cluster's worker or control-plane replicas
 
 ### hyve cluster show
 
-Show a cluster's spec, Fleet state, resources and conditions
+Show a cluster's spec, Fleet state and conditions
 
 ```text
   hyve cluster show NAME [flags]

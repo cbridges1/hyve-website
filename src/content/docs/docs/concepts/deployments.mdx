@@ -1,0 +1,217 @@
+---
+title: Deployments
+description: What hyve puts on clusters is Deployments. Each is one plain Fleet GitRepo, HelmOp or Bundle, aimed at Fleet ClusterGroups that hyve keeps for templates and environments.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+What hyve puts on clusters is **Deployments**. A Deployment is one plain Fleet object; hyve has
+no delivery object of its own:
+
+| Fleet kind | For |
+|---|---|
+| `GitRepo` | Manifests, charts or Kustomize from paths in a git repository. |
+| `HelmOp` | A Helm chart from a repository or an `oci://` URL. |
+| `Bundle` | Manifests sent inline. |
+
+Its `targets` name Fleet **ClusterGroups**. hyve keeps a group for each template and each
+environment, so "every cluster made from `civo-small`" or "every cluster in `prod`" is one
+target, and a cluster made later is in it from the start. Fleet does the rest: per-cluster
+values like `${ .ClusterName }`, rollout, status and drift.
+
+```bash
+hyve deploy create podinfo --helm podinfo --repo https://stefanprodan.github.io/podinfo \
+    --version 6.7.1 -N podinfo --to template/civo-small
+```
+
+```yaml
+# what that creates
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: podinfo
+  namespace: capi-clusters
+spec:
+  defaultNamespace: podinfo
+  helm:
+    repo: https://stefanprodan.github.io/podinfo
+    chart: podinfo
+    version: 6.7.1
+    releaseName: podinfo
+  targets:
+    - clusterGroup: template-civo-small
+```
+
+## Targets
+
+| `--to` | Delivered to | Fleet target |
+|---|---|---|
+| `template/NAME` | every cluster made from a template | `clusterGroup: template-NAME` |
+| `class/NAME` | every cluster of a ClusterClass (every Civo cluster, say) | `clusterGroup: NAME` |
+| `env/NAME` | every cluster in an environment | `clusterGroup: env-NAME` |
+| `cluster/ENV/NAME` | one cluster | its `hyve.io/environment` and `hyve.io/cluster` labels |
+| `group/NAME` | a ClusterGroup of your own | `clusterGroup: NAME` |
+| `all` | every cluster hyve manages | `app.kubernetes.io/managed-by: hyve` |
+| `host` | the management cluster | `clusterName: local`, in `fleet-local` |
+
+A Deployment can have several targets (`--to` is repeatable); a cluster any of them names gets
+it. Targets hyve doesn't model (a `clusterSelector` with expressions, say) are kept, and shown
+as custom.
+
+## Groups
+
+hyve keeps these Fleet ClusterGroups:
+
+| Group | Selects |
+|---|---|
+| `template-<name>`, one per ClusterTemplate | `hyve.io/template: <name>`, `hyve.io/template-namespace: <ns>` |
+| `env-<name>`, one per environment | `hyve.io/environment: <name>` |
+
+CAAPF, Cluster API's Fleet add-on provider, keeps one more per ClusterClass, named after the
+class. hyve-controller labels every CAPI Cluster with `hyve.io/environment` and `hyve.io/cluster`,
+and CAAPF copies a Cluster's labels to its Fleet cluster, so the groups find it.
+
+Fleet looks a group up in each cluster's own namespace. So hyve keeps the template and
+environment groups in the template namespace and in every environment namespace, and copies
+the template namespace's other groups (the class groups, and any you make) into each
+environment. Make your own groups in the template namespace; `--to group/NAME` then works for
+clusters in every environment.
+
+Fleet doesn't work out a bundle's targets again when a group changes. hyve does that for it: when
+a group appears or changes, it touches the bundles so Fleet re-targets them.
+
+## Where a Deployment lives
+
+| Namespace | When | Who can manage it |
+|---|---|---|
+| The template namespace (`capi-clusters` by default) | Normally: it targets templates, classes, groups, several environments or `all` | Platform admins |
+| An environment's namespace | All it targets is that environment's clusters (one, several, or the whole environment) | That environment's members |
+| `fleet-local` | It targets `host` | Platform admins |
+
+`hyve deploy create` picks the namespace from the targets; `-n` sets it. CAAPF's
+`BundleNamespaceMapping` carries the template namespace's Deployments to clusters in every
+environment.
+
+An environment-namespace Deployment can only target that environment's clusters: single
+clusters by `clusterName`, or the whole environment (an empty `clusterSelector`). To also reach
+another environment, make a Deployment in the template namespace instead. The host is reached
+only from `fleet-local`, so a Deployment for the host and other clusters is two Deployments.
+
+## Rollout
+
+How a change reaches the clusters a HelmOp or Bundle targets:
+
+| `--rollout` | Fleet `rolloutStrategy` | |
+|---|---|---|
+| `all` (default) | none | Every cluster at once. |
+| `one-at-a-time` | `maxUnavailable: 1` | Fleet updates a cluster only while fewer than `maxUnavailable` are unavailable, so one at a time, and a cluster that doesn't come back ready stops the rest. |
+| `canary` | the same, with ordered partitions | Clusters labelled `hyve.io/canary=true` first, then the rest. |
+
+<Aside>
+Fleet's own automatic partitioning is off under 200 clusters, which is why hyve uses
+`maxUnavailable` rather than partition sizes.
+</Aside>
+
+A git source's rollout is set per bundle, in its `fleet.yaml` (`rolloutStrategy`). A strategy
+hyve doesn't model is kept; edit it as YAML.
+
+Label a cluster as a canary with `kubectl label cluster web hyve.io/canary=true -n prod`; CAAPF
+copies the label to Fleet.
+
+## Pausing, deploying again, deleting
+
+```bash
+hyve deploy pause podinfo     # spec.paused: changes wait; what's deployed stays
+hyve deploy resume podinfo
+hyve deploy force podinfo     # deploy again to every cluster, even where nothing changed
+hyve deploy delete podinfo    # Fleet removes what it deployed
+```
+
+A paused Deployment still follows its targets: a cluster that stops being a target loses it at
+once. `force` bumps Fleet's `forceSyncGeneration`.
+
+<Aside type="caution">
+Deleting a Deployment, or a directory from its git source, removes what Fleet deployed from it,
+including any Namespace it listed and everything in that Namespace. Keep Namespaces that other
+things use in a Deployment that stays.
+</Aside>
+
+## Secrets
+
+A Deployment's `downstreamResources` (`--secret`, or **Secrets to copy** in the UI) name
+Secrets that Fleet copies to each cluster it reaches. They must exist in the Deployment's own
+namespace. A git source lists them in its `fleet.yaml` instead. `hyve deploy secret list` lists them
+per Deployment, with whether each exists. See [Secrets](/docs/concepts/secrets).
+
+## Private git repositories
+
+Give a username and a token, read from an environment variable or a file so the token stays out
+of your shell history:
+
+```bash
+GIT_TOKEN=... hyve deploy create platform --git https://github.com/example/platform.git \
+    --git-path fleet --username me --token-env GIT_TOKEN --to host
+```
+
+hyve keeps them in a `kubernetes.io/basic-auth` Secret named `<name>-git-auth` beside the
+GitRepo, and sets it as the GitRepo's `clientSecretName`. Any git host works: hyve and Fleet
+use plain git over HTTPS, not a host's API.
+
+A plain GitRepo on the management cluster (in `fleet-local`) is a Deployment too: `hyve deploy
+create NAME --git URL --to host`. (This replaces `hyve repo`.)
+
+## Written by hand
+
+hyve reads Deployments back from Fleet, so a GitRepo, HelmOp or Bundle written with `kubectl`
+or kept in git, in the template namespace, an environment or `fleet-local`, is listed and shown
+like one made with `hyve deploy` or the UI. So are ClusterGroups of your own.
+`hyve deploy apply -f` applies Fleet GitRepos, HelmOps, Bundles and ClusterGroups, and `hyve
+apply -f` those with templates and ClusterClasses; those without a namespace go in the template
+namespace.
+
+## Seeing them
+
+```bash
+hyve deploy list                 # source, targets, rollout, clusters ready, state
+hyve deploy show podinfo         # and its state on each cluster; -o yaml for the Fleet object
+hyve cluster deployments web -e prod
+```
+
+```
+NAMESPACE       NAME      SOURCE                                                WHY                   STATE   MESSAGE
+capi-clusters   podinfo   https://stefanprodan.github.io/podinfo podinfo@6.7.1  template civo-small   Ready   -
+prod            debug     3 manifests                                           this cluster          Ready   -
+```
+
+`hyve cluster deployments` lists each Deployment that reaches a cluster, why (its template,
+class, environment, a group, or the cluster itself), and Fleet's state there. The state is
+Fleet's, from each cluster's BundleDeployment. It's the same whether the cluster's agent
+delivers it or hyve pushes it (see [Delivery](/docs/concepts/delivery)).
+
+## Migrating from template resources
+
+Before v1.0.0-rc.12, what hyve put on clusters lived in a ClusterTemplate's `spec.resources`, in
+per-cluster `ClusterResource`s, and in shared `Resource`s they referred to. On upgrade,
+hyve-controller turns them into Deployments:
+
+- Each entry in a template's `spec.resources` becomes a Deployment with the Fleet object it
+  already had (`tpl-<template>-<entry>`, so Fleet redeploys nothing), aimed at
+  `template-<template>` and no longer owned by hyve. The template's `resources` is then
+  emptied.
+- Each `ClusterResource` becomes a Deployment of the same name in its environment, aimed at its
+  cluster, and is deleted.
+- A `ref` to a shared Resource is written out in full in the Deployment. Shared Resources are
+  left alone and no longer used; delete them when you like.
+
+A template that still lists `resources` (applied again from git, say) is migrated again, so
+move them out of the files you keep: `hyve template render -f template.yaml` shows a template's
+resources as the Deployments they'd become.
+
+`hyve resource`, `hyve template resource` and `hyve cluster resource` now only say what to use
+instead.
+
+## Related
+
+- [Delivering apps](/docs/guides/delivering-apps)
+- [Templates](/docs/concepts/templates), [Environments](/docs/concepts/environments), [Secrets](/docs/concepts/secrets)
+- [`hyve deploy`](/docs/cli/deploy), [`hyve cluster deployments`](/docs/cli/cluster)

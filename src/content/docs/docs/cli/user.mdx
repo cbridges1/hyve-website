@@ -2,7 +2,7 @@
 title: hyve user
 description: "Manage a hyve host's users"
 sidebar:
-  order: 21
+  order: 12
   label: user
 ---
 
@@ -26,7 +26,7 @@ someone else's password).
   -h, --help   help for user
 ```
 
-### hyve user add
+### hyve user create
 
 Creates a user. With --invite, the host emails them a link and code to set
 their own password (it works for 7 days; 'hyve user invite' sends another).
@@ -37,8 +37,21 @@ exists.
 An email address is required: it's where password resets and account
 emails go.
 
+With --service, it's a user for CI and scripts: no password and no email.
+It signs in with API tokens ('hyve user token create --user NAME') or as a
+trusted CI job ('hyve user trust add NAME ...').
+
 ```text
-  hyve user add NAME --email ADDRESS [flags]
+  hyve user create NAME (--email ADDRESS | --service) [flags]
+```
+
+Aliases: `create, add`
+
+**Examples**
+
+```text
+  hyve user create alice --email alice@example.com --invite
+  hyve user create ci --service --group deployers
 ```
 
 **Flags**
@@ -47,11 +60,29 @@ emails go.
       --display-name string   name shown in the UI
       --email string          address for password resets and account emails (required)
       --group strings         group to add the user to (repeatable)
-  -h, --help                  help for add
+  -h, --help                  help for create
       --invite                email them a link to set their own password instead of choosing one
       --no-password-change    don't make the user change the password at first sign-in
       --password-stdin        read the initial password from stdin
       --server string         saved server to use (default: the one last signed in to)
+      --service               a user for CI and scripts: no password or email; it signs in with API tokens or as trusted CI
+```
+
+### hyve user delete
+
+Delete a user, with its password and sessions
+
+```text
+  hyve user delete NAME [flags]
+```
+
+Aliases: `delete, remove, rm`
+
+**Flags**
+
+```text
+  -h, --help            help for delete
+      --server string   saved server to use (default: the one last signed in to)
 ```
 
 ### hyve user disable
@@ -155,21 +186,6 @@ needs update on users/password, and signs them out everywhere.
       --server string    saved server to use (default: the one last signed in to)
 ```
 
-### hyve user remove
-
-Delete a user, with its password and sessions
-
-```text
-  hyve user remove NAME [flags]
-```
-
-**Flags**
-
-```text
-  -h, --help            help for remove
-      --server string   saved server to use (default: the one last signed in to)
-```
-
 ### hyve user show
 
 Show a user
@@ -183,6 +199,181 @@ Show a user
 ```text
   -h, --help            help for show
   -o, --output string   "yaml" (the default) or "json"
+      --server string   saved server to use (default: the one last signed in to)
+```
+
+### hyve user token
+
+An API token signs in as a user without a password, for scripts and CI:
+'hyve login URL --token-stdin', or HYVE_URL and HYVE_TOKEN in the
+environment. It acts as that user, with that user's access, and lasts until
+it expires (at most a year) or is revoked. Changing the user's password
+doesn't revoke it; disabling the user stops it.
+
+You can manage your own tokens. Another user's (a CI user's) take the right
+to the users/tokens subresource of that User: admins have it. A token can't
+make tokens, so one that leaks can't outlive its expiry.
+
+A CI job can often sign in with no token at all: see 'hyve user trust'.
+
+```text
+  hyve user token [command]
+```
+
+**Flags**
+
+```text
+  -h, --help   help for token
+```
+
+#### hyve user token create
+
+Make an API token; it's printed once, on stdout
+
+```text
+  hyve user token create NAME [flags]
+```
+
+**Examples**
+
+```text
+  hyve user token create laptop --expires 30d
+  hyve user token create github --user ci --expires 90d --description "web's release pipeline"
+```
+
+**Flags**
+
+```text
+      --description string   what it's for
+      --expires string       how long it lasts: 30d, 1y (the most), 720h (default "90d")
+  -h, --help                 help for create
+      --server string        saved server to use (default: the one last signed in to)
+      --user string          the user it signs in as (default: you)
+```
+
+#### hyve user token list
+
+List API tokens: yours, --user's, or --all
+
+```text
+  hyve user token list [flags]
+```
+
+Aliases: `list, ls`
+
+**Flags**
+
+```text
+      --all             every user's tokens
+  -h, --help            help for list
+      --server string   saved server to use (default: the one last signed in to)
+      --user string     this user's tokens (default: yours)
+```
+
+#### hyve user token revoke
+
+Revoke an API token; it stops working at once
+
+```text
+  hyve user token revoke NAME [flags]
+```
+
+Aliases: `revoke, delete, rm`
+
+**Flags**
+
+```text
+  -h, --help            help for revoke
+      --server string   saved server to use (default: the one last signed in to)
+      --user string     whose token (default: yours)
+```
+
+### hyve user trust
+
+CI systems give each job an ID token: a short-lived, signed statement of
+which repository, branch and workflow it is. A user that trusts a CI
+system's jobs lets them sign in as it with that token ('hyve login URL
+--username USER --github-actions', or --id-token-env), for an hour. The
+pipeline keeps no password or API token.
+
+An entry names the CI system's issuer and the claims a job's token must
+have. One claim must pin the repository or project (repository, sub,
+project_path...); a '*' in a value matches anything. The job's token must
+be for the entry's audience ("hyve" unless --audience says).
+
+Editing a user's trusted CI takes the right to update that User: admins
+have it.
+
+```text
+  hyve user trust [command]
+```
+
+**Flags**
+
+```text
+  -h, --help   help for trust
+```
+
+#### hyve user trust add
+
+Trust a CI system's jobs to sign in as USER
+
+```text
+  hyve user trust add USER NAME (--github OWNER/REPO | --gitlab GROUP/PROJECT | --issuer URL --claim K=V...) [flags]
+```
+
+**Examples**
+
+```text
+  hyve user trust add ci web-releases --github org/web --claim ref='refs/tags/*'
+  hyve user trust add ci web-main --github org/web --claim ref=refs/heads/main --claim environment=production
+  hyve user trust add ci infra --gitlab platform/infra --claim ref_protected=true
+  hyve user trust add ci builds --issuer https://agent.buildkite.com --claim organization_slug=acme --claim pipeline_slug=web
+```
+
+**Flags**
+
+```text
+      --audience string     the audience the job's token must be for (default "hyve")
+      --claim stringArray   a claim the job's token must have, KEY=VALUE; '*' matches anything (repeatable)
+      --github string       GitHub Actions jobs of this repository (OWNER/REPO)
+      --gitlab string       GitLab CI jobs (gitlab.com) of this project (GROUP/PROJECT)
+  -h, --help                help for add
+      --issuer string       another CI system's OIDC issuer URL
+      --server string       saved server to use (default: the one last signed in to)
+```
+
+#### hyve user trust list
+
+List the CI systems' jobs a user trusts
+
+```text
+  hyve user trust list USER [flags]
+```
+
+Aliases: `list, ls`
+
+**Flags**
+
+```text
+  -h, --help            help for list
+      --server string   saved server to use (default: the one last signed in to)
+```
+
+#### hyve user trust remove
+
+Stop trusting a CI system's jobs (sessions they have last out their hour)
+
+```text
+  hyve user trust remove USER NAME [flags]
+```
+
+Aliases: `remove, rm`
+
+**Flags**
+
+```text
+  -h, --help            help for remove
       --server string   saved server to use (default: the one last signed in to)
 ```
 

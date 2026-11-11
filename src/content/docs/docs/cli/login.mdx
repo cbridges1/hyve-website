@@ -2,7 +2,7 @@
 title: hyve login
 description: "Sign in to a hyve host"
 sidebar:
-  order: 11
+  order: 9
   label: login
 ---
 
@@ -11,12 +11,29 @@ sidebar:
 Signs in to a hyve host and saves it as the server later commands use.
 
 It opens the host's sign-in page in your browser: sign in there with your
-password or the identity provider, and the CLI gets the session. Unattended
-runs (CI, scripts) and machines without a browser sign in with
---username and --password-stdin instead.
+password or the identity provider, and the CLI gets the session.
+
+Unattended runs (CI, scripts) sign in one of these ways instead:
+
+```text
+  --github-actions, --id-token-env, --id-token-file
+      A CI job signs in with the ID token its CI system gives it, as a user
+      that trusts that CI system ('hyve user trust add'). Nothing secret is
+      kept in the pipeline; the session lasts an hour.
+  --token-stdin
+      An API token ('hyve user token create'), read from stdin.
+  --username and --password-stdin
+      A password, read from stdin.
+```
+
+A pipeline can also skip 'hyve login' and set HYVE_URL and HYVE_TOKEN (an
+API token): every command uses them, and nothing is saved.
 
 ```text
   hyve login https://hyve.example.com
+  hyve login https://hyve.example.com --username ci --github-actions
+  hyve login https://hyve.example.com --username ci --id-token-env HYVE_ID_TOKEN    # GitLab: id_tokens
+  echo "$HYVE_TOKEN" | hyve login https://hyve.example.com --token-stdin
   echo "$PW" | hyve login https://hyve.example.com --username ci --password-stdin
 ```
 
@@ -27,11 +44,16 @@ runs (CI, scripts) and machines without a browser sign in with
 **Flags**
 
 ```text
+      --audience string            the audience to ask GitHub Actions for (the user's trusted CI entry must name it) (default "hyve")
       --ca-cert string             PEM CA certificate to trust for this server
+      --github-actions             sign in as --username with this GitHub Actions job's ID token (needs 'permissions: id-token: write')
   -h, --help                       help for login
+      --id-token-env string        sign in as --username with the CI job's ID token in this environment variable
+      --id-token-file string       sign in as --username with the CI job's ID token in this file
       --insecure-skip-tls-verify   don't verify the server's certificate (testing only)
       --name string                name to save the server under (default: from the host name)
       --password-stdin             read the password from stdin (first line; a second line is the new password when one is required)
+      --token-stdin                sign in with an API token read from stdin ('hyve user token create')
   -u, --username string            username (with --password-stdin; otherwise filled in on the sign-in page)
 ```
 

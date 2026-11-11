@@ -22,8 +22,8 @@ hyve is that part, and only that part.
 
 | | What it is |
 |---|---|
-| **ClusterTemplate** | A ClusterClass with defaults, locked variables, an expiry schedule and the resources every cluster made from it gets. A webhook fills in and guards any Cluster labelled with the template, however it was created: the CLI, `kubectl`, GitOps or the UI. |
-| **Resources** | Each template resource is Fleet's own `HelmOp`, `Bundle` or `GitRepo` spec. hyve-controller turns it into a Fleet object aimed at the template's clusters. A cluster can have extras of its own. |
+| **ClusterTemplate** | A ClusterClass with defaults, locked variables and an expiry schedule. A webhook fills in and guards any Cluster labelled with the template, however it was created: the CLI, `kubectl`, GitOps or the UI. |
+| **Deployments and groups** | A Deployment is one plain Fleet `HelmOp`, `Bundle` or `GitRepo`. hyve keeps a Fleet ClusterGroup for each template and environment, so a Deployment can be aimed at every cluster made from a template, of a class or in an environment, now and later, or at one cluster. |
 | **Expiry** | hyve-controller deletes a cluster when its `hyve.io/expires-at` passes, set from the template's cron schedule or from `--ttl`. |
 | **The host endpoint** | The server users sign in to (with a password, or through an OpenID Connect provider) and that every child cluster's agent connects to. kubectl, Helm and k9s reach each cluster through it as the signed-in user. It also serves the web UI. |
 | **Environments** | Namespaces on the management cluster that hold clusters, with roles for who can create clusters there and who can use each one. |
@@ -35,7 +35,7 @@ hyve is that part, and only that part.
 - **Delivering apps** is Fleet's job. hyve writes Fleet objects; Fleet and its agent do the
   rest. A cluster whose agent can't connect gets the same Fleet deployments pushed from the
   management side ([delivery](/docs/concepts/delivery)).
-- **Secrets** are plain Kubernetes Secrets. A resource names the Secrets it needs and Fleet
+- **Secrets** are plain Kubernetes Secrets. A Deployment names the Secrets it needs and Fleet
   copies them to its clusters. hyve holds no secret values, so fill them however you already
   do (an operator, sealed secrets, `kubectl`).
 - **The agent on each cluster** is Rancher's own `cattle-cluster-agent`, pinned to a tested

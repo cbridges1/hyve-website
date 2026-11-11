@@ -8,8 +8,8 @@ import { Aside } from '@astrojs/starlight/components';
 A hyve cluster is a plain Cluster API `Cluster` (`cluster.x-k8s.io/v1beta2`) in an
 [environment](/docs/concepts/environments) namespace. hyve has no cluster object of its own.
 Cluster API and its providers build the cluster; hyve fills it in from its template, keeps the
-template's locks, gives it an expiry, delivers its resources through Fleet, and lets people
-reach it through the host.
+template's locks, gives it an expiry, labels it so [Deployments](/docs/concepts/deployments)
+reach it through Fleet, and lets people reach it through the host.
 
 ## Made from a template
 
@@ -47,8 +47,8 @@ You can also make a cluster straight from a ClusterClass, with no template:
 hyve cluster create demo --class capd --class-namespace capi-clusters
 ```
 
-Then nothing is locked, nothing expires unless you say so, and no template resources are
-delivered.
+Then nothing is locked, nothing expires unless you say so, and Deployments aimed at a template
+don't reach it. Those aimed at its class, its environment, `all` or the cluster itself still do.
 
 ## Clusters hyve didn't create
 
@@ -93,7 +93,7 @@ who can create clusters but not delete arbitrary ones, can delete their own.
 | `hyve cluster scale NAME --workers N` / `--control-plane N` | Worker or control-plane replicas. |
 | `hyve cluster upgrade NAME --version v1.35.2` | `spec.topology.version`. Cluster API rolls the control plane, then the workers, one machine at a time. It refuses skipping a minor version or going back, and the class's providers must support the version. A template that locks `kubernetesVersion` keeps its clusters at its own. |
 | `hyve cluster expire NAME ...` | Its expiry (above). |
-| `hyve cluster resource add/remove CLUSTER ...` | Its extras: resources for this cluster only (see [Resources](/docs/concepts/resources)). |
+| `hyve deploy create NAME ... --to cluster/ENV/CLUSTER` | What's on it: a Deployment for this cluster only (see [Deployments](/docs/concepts/deployments)). |
 
 Any other change is an edit to the `Cluster` object, as with any Cluster API cluster. Locked
 variables stay locked.
@@ -102,9 +102,8 @@ variables stay locked.
 
 ```bash
 hyve cluster list                 # in the current environment; -A for every environment
-hyve cluster show demo            # spec, Fleet state, resources and conditions
-hyve cluster resource list demo   # its template's resources and its extras
-hyve resource status demo         # what's on it, why, and its state
+hyve cluster show demo            # spec, Fleet state and conditions
+hyve cluster deployments demo     # what's on it, why, and its state
 ```
 
 ## Reaching it
@@ -127,8 +126,8 @@ and [Delivery](/docs/concepts/delivery) for how the host reaches the cluster.
 hyve cluster delete demo
 ```
 
-This deletes the `Cluster`. Its extras (`ClusterResource`s) go with it, and Cluster API deletes
-the infrastructure. An imported cluster is detached instead and keeps running; an adopted one is
+This deletes the `Cluster`, and Cluster API deletes the infrastructure. Deployments aimed at it
+stay; one aimed only at this cluster then reaches nothing, so delete it with `hyve deploy delete`. An imported cluster is detached instead and keeps running; an adopted one is
 kept when its provider's deletion policy says so. By default the command waits until the cluster is gone (up to 15 minutes;
 `--wait=false` doesn't wait).
 

@@ -106,9 +106,9 @@ sign-in, and agents can't get past one.
 3. **Add users and give them access.**
 
    ```bash
-   hyve user add alice --display-name "Alice" --password-stdin <<< "$INITIAL_PASSWORD"
+   hyve user create alice --display-name "Alice" --password-stdin <<< "$INITIAL_PASSWORD"
    hyve env create prod
-   hyve access grant alice --env-member -e prod
+   hyve access grant alice --role environment-member -e prod
    ```
 
    Users change their initial password at first sign-in, unless you pass

@@ -9,8 +9,9 @@ sidebar:
 Generated from `hyve --help` by `scripts/gen-cli.mjs`. Each command's own `--help` says the same.
 
 hyve makes Kubernetes clusters from ClusterTemplates (a Cluster API
-ClusterClass with defaults, locked variables, expiry and resources) and
-puts things on them with Fleet. Its host endpoint is the server users sign
+ClusterClass with defaults, locked variables and expiry) and puts things
+on them with Fleet: Deployments aimed at templates, environments and
+clusters. Its host endpoint is the server users sign
 in to and child clusters' agents connect to.
 
 Sign in with 'hyve login &lt;url&gt;', then:
@@ -21,29 +22,46 @@ Sign in with 'hyve login &lt;url&gt;', then:
   hyve cluster kubeconfig demo           kubectl access, as you
 ```
 
+## Clusters
+
+| Command | What it does |
+|---|---|
+| [`cluster`](/docs/cli/cluster) | Create, inspect, reach, scale and delete clusters |
+| [`env`](/docs/cli/env) | Environments: namespaces that hold clusters and their own Deployments |
+| [`provider`](/docs/cli/provider) | Add, list and remove Cluster API providers |
+| [`template`](/docs/cli/template) | Manage ClusterTemplates: a ClusterClass with defaults, locks, expiry and adoption |
+
+## Delivering to clusters
+
+| Command | What it does |
+|---|---|
+| [`apply`](/docs/cli/apply) | Create or update templates, ClusterClasses, Deployments and ClusterGroups from YAML |
+| [`deploy`](/docs/cli/deploy) | Deliver Helm charts, git paths and manifests to clusters (Fleet) |
+
+## Signing in and access
+
 | Command | What it does |
 |---|---|
 | [`access`](/docs/cli/access) | Grant hyve users access to clusters and environments |
-| [`cluster`](/docs/cli/cluster) | Create, inspect, reach, scale and delete clusters |
-| [`context`](/docs/cli/context) | List, switch and remove the servers you've signed in to |
-| [`controller`](/docs/cli/controller) | Run hyve-controller on the management cluster (the chart runs it) |
-| [`env`](/docs/cli/env) | Environments: namespaces that hold clusters and their extras |
-| [`host`](/docs/cli/host) | hyve's host endpoint: sign-in, the agent tunnel, the proxy and the UI |
-| [`import`](/docs/cli/import) | Convert old hyve Templates and herd ClusterTemplates into hyve ClusterTemplates |
-| [`install`](/docs/cli/install) | Install hyve on a management cluster, with whatever it needs that's missing |
-| [`kubeconfig`](/docs/cli/kubeconfig) | Print a kubeconfig that reaches a cluster through the hyve host |
-| [`local`](/docs/cli/local) | Local mode: hyve on a K3s cluster in Docker, for laptops and CI |
+| [`context`](/docs/cli/context) | List, switch and forget the servers you've signed in to |
 | [`login`](/docs/cli/login) | Sign in to a hyve host |
 | [`logout`](/docs/cli/logout) | End the session with a hyve host |
-| [`provider`](/docs/cli/provider) | Add, list and remove Cluster API providers |
-| [`render`](/docs/cli/render) | Print the Cluster and Fleet objects a template produces, without a cluster |
-| [`repo`](/docs/cli/repo) | Point Fleet at git repositories (plain Fleet GitRepos) |
-| [`resource`](/docs/cli/resource) | Shared resources that templates refer to, and what's delivered where |
-| [`secrets`](/docs/cli/secrets) | Create, change, list and delete the Secrets resources copy to clusters |
-| [`template`](/docs/cli/template) | Manage ClusterTemplates: a ClusterClass with defaults, locks, expiry and resources |
-| [`token`](/docs/cli/token) | Print the current session as a kubectl exec credential |
 | [`ui`](/docs/cli/ui) | Open the web UI for the current context, signed in |
 | [`user`](/docs/cli/user) | Manage a hyve host's users |
+
+## Setting up hyve
+
+| Command | What it does |
+|---|---|
+| [`install`](/docs/cli/install) | Install hyve on a management cluster, with whatever it needs that's missing |
+| [`local`](/docs/cli/local) | Local mode: hyve on a K3s cluster in Docker, for laptops and CI |
+
+## Run by the chart
+
+| Command | What it does |
+|---|---|
+| [`controller`](/docs/cli/controller) | Run hyve-controller on the management cluster (the chart runs it) |
+| [`host`](/docs/cli/host) | hyve's host endpoint: sign-in, the agent tunnel, the proxy and the UI |
 
 ## Flags on every command
 

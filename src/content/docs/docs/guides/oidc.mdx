@@ -6,7 +6,7 @@ description: Let people sign in to hyve through an identity provider such as Key
 import { Steps } from '@astrojs/starlight/components';
 
 By default people sign in to a hyve host with a username and password: hyve `User`s you create
-with `hyve user add`. The host can also be an OpenID Connect client, so people sign in through
+with `hyve user create`. The host can also be an OpenID Connect client, so people sign in through
 your identity provider (Keycloak, Authentik, Okta, Entra ID, Google, or GitHub through Dex).
 Their groups come from the provider, and you grant access to those groups.
 
@@ -40,7 +40,7 @@ admin.
 2. **Store the client secret** in a Secret in hyve's namespace:
 
    ```bash
-   OIDC_SECRET=... hyve secrets create hyve-oidc -n hyve-system --from-env client-secret=OIDC_SECRET
+   OIDC_SECRET=... hyve deploy secret create hyve-oidc -n hyve-system --from-env client-secret=OIDC_SECRET
    ```
 
    or with `kubectl create secret generic`, or however your install manages secrets.
@@ -70,7 +70,7 @@ admin.
 5. **Grant access** to the provider's groups:
 
    ```bash
-   hyve access grant --group platform-team --env-member -e dev
+   hyve access grant --group platform-team --role environment-member -e dev
    hyve access grant --group sre --role owner -e prod
    ```
 
@@ -175,7 +175,7 @@ auth:
 ```
 
 ```bash
-hyve access grant --group example-org:platform --env-member -e dev
+hyve access grant --group example-org:platform --role environment-member -e dev
 ```
 
 ## Managing provider users

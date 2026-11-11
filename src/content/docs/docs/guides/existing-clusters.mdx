@@ -9,7 +9,7 @@ hyve can take on a cluster it didn't create in two ways:
 
 | | Import | Adopt |
 |---|---|---|
-| What hyve manages | Access, resources, kubeconfigs, the Explorer. Never the cluster's lifecycle. | Everything, as for a cluster it created: scaling, upgrades and deletion go through the provider. |
+| What hyve manages | Access, Deployments, kubeconfigs, the Explorer. Never the cluster's lifecycle. | Everything, as for a cluster it created: scaling, upgrades and deletion go through the provider. |
 | Works with | Any cluster you have a kubeconfig for: EKS, GKE, AKS, on-prem, kind... | Clusters whose Cluster API provider can take over an existing one by ID, such as [cluster-api-provider-civo](https://github.com/cbridges1/cluster-api-provider-civo) v0.3.0 and later. |
 | Deleting it in hyve | Detaches it. The cluster keeps running. | Up to the provider. The Civo provider keeps it when `deletionPolicy` is `Retain`. |
 | Command | `hyve cluster import` | `hyve cluster adopt` |
@@ -33,9 +33,12 @@ the cluster answers, so Cluster API and Fleet treat the cluster like any other:
 - it's registered with Fleet, and gets hyve's agent;
 - `hyve cluster auth`, `kubeconfig`, the kubectl shell and the Explorer reach it through the
   host, as you;
-- per-cluster resources (`hyve cluster resource add`) and access grants work;
-- `--template` gives it a template's resources. The template's variables, version, workers and
-  expiry don't apply: nothing is provisioned.
+- [Deployments](/docs/concepts/deployments) reach it like any other cluster: aimed at it
+  (`--to cluster/ENV/NAME`), its environment or `all`. hyve makes the `BundleNamespaceMapping`
+  that lets the template namespace's Deployments reach it, even without a template. Access
+  grants work too;
+- `--template` puts it in that template's group, so Deployments aimed at the template reach it.
+  The template's variables, version, workers and expiry don't apply: nothing is provisioned.
 
 `hyve cluster scale` and `upgrade` refuse an imported cluster. `hyve cluster list` shows its
 class as `(imported)` and the version the cluster reports.
@@ -84,8 +87,8 @@ set `adopt`.
 ### A template that adopts
 
 `adopt.idVariable` is the ClusterClass variable the provider adopts by. `adopt.variables`
-replace the template's variables on adopted clusters. `null` leaves one unset, so the provider
-keeps what the cluster has:
+replace the template's variables on adopted clusters, and `adopt.unset` leaves some unset, so
+the provider keeps what the cluster has:
 
 ```yaml
 apiVersion: hyve.io/v1alpha1
@@ -103,9 +106,15 @@ spec:
   adopt:
     idVariable: clusterID
     variables:
-      nodeCount: null               # keep the cluster's own size until someone scales it
       deletionPolicy: Retain        # deleting it in hyve leaves the Civo cluster
+    unset: [nodeCount]              # keep the cluster's own size until someone scales it
 ```
+
+<Aside>
+Use `unset` rather than setting a variable to `null`: `kubectl apply` and Helm, so Fleet too,
+read a null as "remove this key" and drop it, and the adopted cluster would get the template's
+value.
+</Aside>
 
 With the Civo provider:
 

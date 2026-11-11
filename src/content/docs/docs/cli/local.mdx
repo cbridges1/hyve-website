@@ -2,7 +2,7 @@
 title: hyve local
 description: "Local mode: hyve on a K3s cluster in Docker, for laptops and CI"
 sidebar:
-  order: 10
+  order: 14
   label: local
 ---
 
@@ -26,7 +26,7 @@ context. CAPD clusters run as containers next to it.
 ### hyve local down
 
 Deletes the local cluster and its context. Its state (Cluster API objects,
-templates, resources) is saved first and restored by the next 'hyve local
+templates, Deployments) is saved first and restored by the next 'hyve local
 up', whose clusters' agents reconnect by themselves. CAPD clusters are
 containers of their own and keep running; delete them first ('hyve
 cluster delete') if you're done with them.

@@ -3,8 +3,8 @@ title: The web UI
 description: Open hyve's UI, what each page does, the Explorer for any cluster's objects, and the kubectl shell.
 ---
 
-The hyve host serves a web UI for everything the CLI does: clusters, templates, resources,
-secrets, repos, providers, users and access, plus an Explorer for any object on any cluster
+The hyve host serves a web UI for everything the CLI does: clusters, templates, Deployments,
+secrets, providers, users and access, plus an Explorer for any object on any cluster
 and a kubectl shell in the browser. It's built into hyve's binary, so nothing more is
 installed. Everything in it runs as the signed-in user, through the same proxy as kubectl, so
 your RBAC decides what you see and change.
@@ -36,27 +36,60 @@ The sidebar shows what your access lets you use.
 
 | Page | What it does | CLI |
 |---|---|---|
-| **Overview** | every cluster with its provider, template, environment, phase and expiry; resources failing anywhere; clusters expiring soon | `hyve cluster list` |
+| **Overview** | every cluster with its provider, template, environment, phase and expiry; each running cluster's CPU, memory and pods (used, or requested where the cluster has no metrics-server); Deployments failing anywhere, the host's included; clusters expiring soon | `hyve cluster list` |
 | **Clusters** | the clusters in an environment. Create one from a template, adopt an existing one through a template's provider, or import one from its kubeconfig ([Bringing in existing clusters](/docs/guides/existing-clusters)); open one to scale its control plane and worker pools, change its expiry, upgrade its Kubernetes version, download a kubeconfig, edit its YAML, or delete it (detach it, when imported) | `hyve cluster` |
-| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. **Apply YAML** also takes a ClusterClass and its provider templates. Add, edit or remove a template's resources right on its page (each change is saved at once). A template's page lists the Secrets its resources copy to clusters, with whether each exists; create or change them there | `hyve template`, `hyve render`, `hyve secrets` |
-| **Shared resources** | shared `Resource`s: one Fleet spec, referred to by templates and clusters. **Add to template** on one's page adds it to a template by reference | `hyve resource` |
-| **Repos** | Fleet GitRepos and their bundles, with credentials for private repos | `hyve repo` |
+| **Templates** | view, create and edit ClusterTemplates, preview what a cluster made from one gets, or make a cluster from it. **Apply YAML** also takes a ClusterClass and its provider templates, and Fleet GitRepos, HelmOps, Bundles and ClusterGroups. A template's page has **Deployed to its clusters**: the Deployments that reach every cluster made from it (aimed at it, its class or all clusters), with **Deploy to this template** | `hyve template`, `hyve template render` |
+| **Fleet** | every Deployment with its source, targets, rollout, clusters ready and state. **Show** picks a category: all of them; **Templates**, **Environments**, **Cluster classes** or **Groups**, a section for each with its clusters and what's aimed at it; **Clusters**, a section for each with each Deployment's state there; or **No target**, those reaching no cluster. A second dropdown narrows a category to one template, environment, class, group or cluster; search and state narrow further. Pages of 25, 50 or 100 rows. Under **Groups**, **New group** makes a custom group by labels, and each group's **Delete group** removes it. **New deployment**. A Deployment's page ends with deleting it | `hyve deploy`, `hyve deploy secret` |
 | **Providers** | the installed Cluster API providers and their health; add and remove them. Adding one can also install the ClusterClasses it publishes | `hyve provider` |
-| **People** | two tabs. **Users**: hyve's users (create, invite, set passwords, disable, groups), each with what they and their groups may reach. **Access**: who can reach which clusters; grant and revoke owner, member and read-only roles, and environment membership, for everyone or one user | `hyve user`, `hyve access` |
+| **People** | two tabs. **Users**: hyve's users (create, invite, set passwords, disable, groups; service users for CI), each with what they and their groups may reach; a user's **Tokens** (API tokens) and **CI sign-in** (the CI systems' jobs that may sign in as them). **Access**: who can reach which clusters; grant and revoke owner, member and read-only roles, environment membership, and deploying to templates, for everyone or one user | `hyve user`, `hyve access` |
 | **Environments** | create and delete environments | `hyve env` |
 | **Explorer** | the management cluster's objects (below). Shown to users who may list its namespaces | `kubectl` |
 
 Old hyve Templates and herd ClusterTemplates can be pasted or loaded from files at `/import`
-and converted, as `hyve import` does ([Importing old templates](/docs/guides/importing)). Any
+and converted, as `hyve template convert` does ([Importing old templates](/docs/guides/importing)). Any
 kind the cluster serves can be listed at `/list/<type>` and edited as YAML; that's the way to
 manage what has no form of its own.
 
-Each cluster's page has three tabs: **Overview** (its fields, conditions, variables, size and
-expiry), **Resources** (its template's resources and its extras, and the Secrets its extras and
-its Cluster API provider need from the environment) and **Explorer**.
+Each cluster's page has three tabs: **Overview** (a resource monitor, then its fields,
+conditions, variables, size and expiry), **Deployments** (each Deployment that reaches it, why, and its state there; **Deploy to
+this cluster** and **Deploy to every *template* cluster**; and the Secrets its Cluster API
+provider and its environment's Deployments need) and **Explorer**.
 
-Secrets are listed where they're used: a template's on its page, a cluster's on its Resources
-tab. Those lists include Secrets that git resources name in their `fleet.yaml`. One an operator
+The resource monitor, on each cluster's page and the host's (**local**), reads the cluster every
+15 seconds while the page is in view: CPU, memory and pods as gauges of what's used, requested
+and limited against what the nodes can give (allocatable); each node's state, pressure and
+load; and the latest warning events. Usage comes from metrics-server. A cluster without it
+shows requests only; deploying the `metrics-server` chart to it (a Deployment, like any app)
+adds usage. Local mode's host doesn't run metrics-server.
+
+The account menu has **API tokens**: your own, for scripts and CI.
+
+The old Shared resources and Repos pages are gone; their URLs open **Fleet**.
+
+## Deployments
+
+A Deployment's page shows where it's delivered, how many clusters are ready, any problem, its
+rollout, its state on each cluster, and its bundles, opened to what they deployed. Its Secrets
+are listed with whether each exists. **Pause**/**Resume**, **Deploy again**, **YAML**,
+**Delete** and **Edit** are at the top.
+
+The form (**New deployment**, or **Edit**) has:
+
+- a name, and a source: **Helm chart**, **Git repository** or **Manifests**. A private git
+  repository takes a username and token, kept in a basic-auth Secret, `NAME-git-auth`;
+- **Deliver to**: any of Template, Cluster class, Environment, Cluster, Group, All clusters and
+  Host cluster;
+- **Roll out changes**: All at once, One cluster at a time, or Canary clusters first (not for
+  git, whose `fleet.yaml` says);
+- **Secrets to copy**, and **Paused**.
+
+**Edit as YAML** opens the Fleet object itself, for whatever the form doesn't cover. See
+[Deployments](/docs/concepts/deployments).
+
+## Secrets
+
+Secrets are listed where they're used: a Deployment's on its page, a cluster's on its
+Deployments tab. Those lists include Secrets that git sources name in their `fleet.yaml`. One an operator
 syncs (Infisical's, External Secrets) shows what manages it and isn't edited there, since the
 next sync would undo the edit. Any other Secret is in the Explorer.
 

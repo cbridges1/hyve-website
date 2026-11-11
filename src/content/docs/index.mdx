@@ -66,8 +66,8 @@ The same objects and the same commands everywhere.
     Defaults for a ClusterClass's variables, the ones users can't change, and a cron schedule that deletes clusters when it's due.
   </Card>
 
-  <Card title="Apps on every cluster" icon="cubes" href="/docs/concepts/resources">
-    A template's resources are Fleet HelmOps, Bundles and GitRepos. Every cluster made from it gets them, and Fleet keeps them there.
+  <Card title="Apps on every cluster" icon="cubes" href="/docs/concepts/deployments">
+    Deployments are plain Fleet HelmOps, Bundles and GitRepos, aimed at a template, a class, an environment or one cluster. Every cluster they name gets them, now and later, and Fleet keeps them there.
   </Card>
 
   <Card title="One sign-in for every cluster" icon="key" href="/docs/concepts/access">
@@ -75,7 +75,7 @@ The same objects and the same commands everywhere.
   </Card>
 
   <Card title="Clusters that can't reach you" icon="arrow-right-arrow-left" href="/docs/concepts/delivery">
-    A cluster whose agent can't connect gets its resources pushed from the management side instead, with nothing to configure.
+    A cluster whose agent can't connect gets its Deployments pushed from the management side instead, with nothing to configure.
   </Card>
 
   <Card title="A web UI" icon="window" href="/docs/guides/web-ui">

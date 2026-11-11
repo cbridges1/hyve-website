@@ -1,6 +1,6 @@
 ---
 title: Templates
-description: A ClusterTemplate is a Cluster API ClusterClass plus defaults, locked variables, an expiry schedule and the resources every cluster made from it gets.
+description: A ClusterTemplate is a Cluster API ClusterClass plus defaults, locked variables and an expiry schedule. Deployments aimed at it reach every cluster made from it.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -15,11 +15,13 @@ and adds what a ClusterClass doesn't have:
 - **Expiry:** a cron schedule. Each cluster expires at the schedule's next occurrence after it's
   created, and hyve-controller deletes it then.
 - **Labels** on every cluster made from it.
-- **Resources:** what Fleet delivers to every cluster made from it (see
-  [Resources](/docs/concepts/resources)).
+- **A Fleet group:** hyve keeps a ClusterGroup, `template-<name>`, of every cluster made from
+  it, so a [Deployment](/docs/concepts/deployments) aimed at the template reaches each one,
+  including those made later.
 
 The ClusterClass still describes how the cluster is built. The template describes which
-clusters of that class people get.
+clusters of that class people get. What goes on them is Deployments, which live beside the
+template rather than in it.
 
 ## An example
 
@@ -43,14 +45,12 @@ spec:
   schedule: CRON_TZ=America/Chicago 0 20 * * *
   labels:
     team: platform                  # on every Cluster; Fleet sees it through CAAPF
-  resources:
-    - name: podinfo
-      namespace: podinfo
-      helmOp:
-        helm:
-          repo: https://stefanprodan.github.io/podinfo
-          chart: podinfo
-          version: 6.7.1
+```
+
+```bash
+# what goes on its clusters: a Deployment aimed at it
+hyve deploy create podinfo --helm podinfo --repo https://stefanprodan.github.io/podinfo \
+    --version 6.7.1 -N podinfo --to template/civo-small
 ```
 
 ## Fields
@@ -67,12 +67,9 @@ spec:
 | `lockedVariables` | Variables clusters can't change. Each must be listed in `variables`, with the value clusters keep. `kubernetesVersion` in this list locks the version to the template's `kubernetesVersion`. |
 | `schedule` | A standard 5-field cron expression, in UTC unless prefixed with `CRON_TZ=<zone>`. |
 | `labels` | Extra labels on every Cluster made from the template. |
-| `resources` | What Fleet delivers to every cluster made from the template. See [Resources](/docs/concepts/resources). |
-| `adopt.idVariable`, `adopt.variables` | Lets `hyve cluster adopt` take over an existing cluster through the provider: the variable that takes its ID, and values used in place of `variables` on adopted clusters (`null` keeps the cluster's own). Adopted clusters take no `schedule`. See [Bringing in existing clusters](/docs/guides/existing-clusters). |
+| `resources` | Deprecated. hyve-controller turns each entry into a [Deployment](/docs/concepts/deployments#migrating-from-template-resources) aimed at the template and empties the list. Use Deployments instead. |
+| `adopt.idVariable`, `adopt.variables`, `adopt.unset` | Lets `hyve cluster adopt` take over an existing cluster through the provider: the variable that takes its ID, values used in place of `variables` on adopted clusters, and variables left unset there, so the cluster keeps its own. Adopted clusters take no `schedule`. See [Bringing in existing clusters](/docs/guides/existing-clusters). |
 | `description` | Shown by `hyve template list` and the UI. |
-
-The status lists each Fleet object made from the template's resources, with Fleet's state, the
-Secrets those resources need that don't exist yet (`missingSecrets`), and a `Ready` condition.
 
 ## How a cluster is made from a template
 
@@ -88,7 +85,7 @@ When it fills in a Cluster, the webhook:
 - sets the version, control-plane replicas and workers when the Cluster doesn't give them;
 - sets each variable the Cluster doesn't set from the template's `variables`;
 - adds the ClusterClass's `hyve.io/cluster-labels`, the template's `labels`, the template
-  labels and `app.kubernetes.io/managed-by: hyve`;
+  labels, `hyve.io/environment` and `hyve.io/cluster`, and `app.kubernetes.io/managed-by: hyve`;
 - sets the default cluster network (`10.244.0.0/16` for pods, `10.128.0.0/12` for services)
   when the Cluster has none;
 - sets `hyve.io/expires-at` from the schedule, unless the Cluster already has one.
@@ -99,10 +96,10 @@ validating webhook refuses that on every later update too, so the UI and `kubect
 get around a lock. A cluster made before a lock was added keeps its value; only changing it is
 refused.
 
-`hyve render` runs the same fill on your machine, with no cluster:
+`hyve template render` runs the same fill on your machine, with no cluster:
 
 ```bash
-hyve render -f template.yaml -f clusterclass.yaml --name demo -e dev --set nodeCount=2
+hyve template render -f template.yaml -f clusterclass.yaml --name demo -e dev --set nodeCount=2
 ```
 
 Without the ClusterClass among the files, the class's defaults (version, workers) can't be
@@ -143,12 +140,13 @@ A template lives in the same namespace as its ClusterClass: a **template namespa
 `capi-clusters` by default. Clusters live in [environments](/docs/concepts/environments), other
 namespaces, and use the class from the template namespace (`spec.topology.classRef.namespace`).
 
-That's the layout CAAPF, Cluster API's Fleet add-on provider, is built for. hyve-controller
-creates one Fleet object per template resource in the template namespace, aimed at clusters
-labelled with the template. CAAPF copies each CAPI Cluster's labels onto its Fleet Cluster and
-maps the cluster's namespace into the class's namespace with a `BundleNamespaceMapping`, so
-those Fleet objects reach clusters in every environment. hyve creates no copies per
-environment.
+That's the layout CAAPF, Cluster API's Fleet add-on provider, is built for. Deployments aimed at
+a template live in the template namespace and target its group, `template-<name>`. CAAPF copies
+each CAPI Cluster's labels onto its Fleet Cluster and maps the cluster's namespace into the
+class's namespace with a `BundleNamespaceMapping`, so those Deployments reach clusters in every
+environment. hyve keeps the template's group in the template namespace and in every environment,
+since Fleet looks groups up in each cluster's own namespace (see
+[Groups](/docs/concepts/deployments#groups)).
 
 <Aside>
 Whoever can write the template namespace can deliver to every cluster built from its classes.
@@ -166,20 +164,19 @@ hyve template create capd-small --class capd --workers 1 --schedule "0 20 * * *"
 hyve template create gke-small --from-clusterclass gke --set project=my-proj --lock project
 hyve template apply -f template.yaml          # anything more: write the YAML
 hyve template list
-hyve template show civo-small                  # its resources' state and its clusters
-hyve template resource add civo-small --helm podinfo --repo https://stefanprodan.github.io/podinfo --version 6.7.1
-hyve template resource remove civo-small podinfo
+hyve template show civo-small                  # the Deployments that reach it, and its clusters
 hyve template delete civo-small
 ```
 
 `--from-clusterclass` copies every variable the ClusterClass declares, with its default (or
 `null`), as a starting point to edit. `--dry-run` prints the template instead of creating it.
 
-Deleting a template deletes the Fleet objects made from its resources, so Fleet removes those
-resources from its clusters. The clusters themselves stay, with their variables.
+Deleting a template deletes its group, so Deployments aimed at it no longer reach its clusters,
+and Fleet removes what they deployed there. The Deployments themselves stay, as do the clusters,
+with their variables.
 
 ## Related
 
 - [Writing a template](/docs/guides/writing-a-template)
-- [Clusters](/docs/concepts/clusters), [Resources](/docs/concepts/resources)
-- [`hyve template`](/docs/cli/template), [`hyve render`](/docs/cli/render)
+- [Clusters](/docs/concepts/clusters), [Deployments](/docs/concepts/deployments)
+- [`hyve template`](/docs/cli/template), [`hyve template render`](/docs/cli/template#hyve-template-render)

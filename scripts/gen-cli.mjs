@@ -105,17 +105,25 @@ function section(path, depth) {
 }
 
 const root = parse(help([]));
-const top = subcommands(root);
-const summaries = Object.fromEntries(
-  root['Available Commands']
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => {
-      const [name, ...rest] = l.split(/\s+/);
-      return [name, rest.join(' ')];
-    }),
-);
+// The root's help lists its commands in groups (Clusters, Delivering to
+// clusters...): every section that isn't one of cobra's own.
+const NOT_GROUPS = new Set(['Usage', 'Flags', 'Global Flags', 'Examples', 'Aliases', 'Additional Commands', 'Available Commands']);
+const groups = Object.entries(root)
+  .filter(([k]) => k !== 'description' && !NOT_GROUPS.has(k))
+  .map(([title, text]) => ({
+    title,
+    commands: text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [name, ...rest] = l.split(/\s+/);
+        return { name, summary: rest.join(' ') };
+      }),
+  }));
+if (root['Available Commands']) groups.push({ title: 'Commands', commands: subcommands(root).map((name) => ({ name, summary: '' })) });
+const top = groups.flatMap((g) => g.commands.map((c) => c.name)).filter((n) => n !== 'help' && n !== 'completion');
+const summaries = Object.fromEntries(groups.flatMap((g) => g.commands.map((c) => [c.name, c.summary])));
 
 mkdirSync(out, { recursive: true });
 for (const f of readdirSync(out)) if (f.endsWith('.mdx')) rmSync(join(out, f));
@@ -135,9 +143,18 @@ Generated from \`hyve --help\` by \`scripts/gen-cli.mjs\`. Each command's own \`
 
 ${description(root.description)}
 
+${groups
+  .map(
+    (g) => `## ${g.title}
+
 | Command | What it does |
 |---|---|
-${top.map((c) => `| [\`${c}\`](/docs/cli/${c}) | ${prose(summaries[c] || '')} |`).join('\n')}
+${g.commands
+  .filter((c) => top.includes(c.name))
+  .map((c) => `| [\`${c.name}\`](/docs/cli/${c.name}) | ${prose(c.summary)} |`)
+  .join('\n')}`,
+  )
+  .join('\n\n')}
 
 ## Flags on every command
 

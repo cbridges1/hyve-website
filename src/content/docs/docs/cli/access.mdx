@@ -2,7 +2,7 @@
 title: hyve access
 description: "Grant hyve users access to clusters and environments"
 sidebar:
-  order: 1
+  order: 7
   label: access
 ---
 
@@ -14,7 +14,7 @@ or read-only (read everything but Secrets). Without --cluster it covers every
 cluster in the environment, now and later. A cluster's creator is its owner
 automatically.
 
---env-member lets them create and manage clusters in the environment.
+--role environment-member lets them create and manage clusters in the environment.
 
 ```text
   hyve access [command]
@@ -27,15 +27,13 @@ automatically.
   -h, --help                        help for access
       --kubeconfig string           talk to a management cluster with this kubeconfig instead of a signed-in server (admins, CI)
       --server string               saved server to use (default: the current one; see 'hyve context list')
-      --template-namespace string   namespace of templates and shared resources (default: the context's, or capi-clusters)
+      --template-namespace string   namespace of templates and their Deployments (default: the context's, or capi-clusters)
 ```
 
 ### hyve access grant
 
-Grant a user or group a role on clusters, or membership of the environment
-
 ```text
-  hyve access grant [USER] (--role owner|member|read-only [--cluster NAME] | --env-member) [--group GROUP] [flags]
+  hyve access grant [USER] --role owner|member|read-only|environment-member|deployer [--cluster NAME] [--group GROUP] [flags]
 ```
 
 **Examples**
@@ -43,17 +41,17 @@ Grant a user or group a role on clusters, or membership of the environment
 ```text
   hyve access grant alice --role owner --cluster web
   hyve access grant --group ops --role read-only          # every cluster in the environment
-  hyve access grant bob --env-member -e ci
+  hyve access grant bob --role environment-member -e ci
+  hyve access grant ci --role deployer
 ```
 
 **Flags**
 
 ```text
       --cluster string   one cluster (default: every cluster in the environment)
-      --env-member       let them create and manage clusters in the environment
       --group string     a hyve group instead of a user
   -h, --help             help for grant
-      --role string      owner, member or read-only
+      --role string      owner, member, read-only, environment-member or deployer
 ```
 
 ### hyve access list

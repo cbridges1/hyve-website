@@ -2,7 +2,7 @@
 title: hyve controller
 description: "Run hyve-controller on the management cluster (the chart runs it)"
 sidebar:
-  order: 4
+  order: 15
   label: controller
 ---
 
@@ -31,6 +31,7 @@ Run hyve-controller on the management cluster (the chart runs it)
       --no-webhook                  run without the webhooks (templates then aren't filled in server-side)
       --service-name string         webhook Service name (default "hyve-controller")
       --service-namespace string    webhook Service namespace (default "hyve-system")
+      --template-namespace string   the default template namespace: environment groups go there, and imported clusters are reachable from it (default "capi-clusters")
       --validating-webhook string   ValidatingWebhookConfiguration to patch the CA into (default "hyve-controller")
       --webhook-port int            webhook port (default 9443)
 ```

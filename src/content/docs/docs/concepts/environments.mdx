@@ -1,11 +1,12 @@
 ---
 title: Environments
-description: An environment is a namespace on the management cluster that holds clusters and their extras. It's also a Fleet workspace.
+description: An environment is a namespace on the management cluster that holds clusters and the Deployments aimed only at them. It's also a Fleet workspace.
 ---
 
 An **environment** is a namespace on the management cluster: `prod`, `staging`, `ci`. It holds
-that environment's CAPI Clusters, the Fleet Clusters CAAPF registers for them, each cluster's
-extras, and the Secrets those extras need.
+that environment's CAPI Clusters, the Fleet Clusters CAAPF registers for them, the
+[Deployments](/docs/concepts/deployments) aimed only at its clusters, and the Secrets those
+Deployments copy.
 
 hyve has no organization or project object. A namespace is already what Kubernetes RBAC scopes
 access by, and what Fleet scopes delivery by: a Fleet **workspace** is a namespace holding
@@ -19,13 +20,14 @@ there.
 
 | Namespace | Holds | Who writes it |
 |---|---|---|
-| A template namespace (`capi-clusters`; more than one is fine) | ClusterClasses, the ClusterTemplates over them, shared Resources, the Fleet objects hyve-controller makes from templates, and the Secrets those copy to clusters | Platform admins |
-| An environment (`prod`, `ci`, `default`) | CAPI Clusters, their Fleet Clusters, each cluster's `ClusterResource`s, Secrets for those, `ClusterAccess` grants | That environment's members |
+| A template namespace (`capi-clusters`; more than one is fine) | ClusterClasses, the ClusterTemplates over them, Deployments aimed at templates, classes, groups or several environments, the Fleet ClusterGroups they target, and the Secrets those Deployments copy to clusters | Platform admins |
+| An environment (`prod`, `ci`, `default`) | CAPI Clusters, their Fleet Clusters, Deployments aimed only at its clusters, Secrets for those, `ClusterAccess` grants, and copies of the template namespace's groups | That environment's members |
 
-A cluster in `prod` made from a template in `capi-clusters` gets the template's resources
-because CAAPF maps `prod` into `capi-clusters` for Fleet (see
-[Templates](/docs/concepts/templates#where-templates-live)). Inside an environment, labels and
-Fleet `ClusterGroup`s pick clusters.
+A cluster in `prod` made from a template in `capi-clusters` gets the Deployments aimed at the
+template because CAAPF maps `prod` into `capi-clusters` for Fleet (see
+[Templates](/docs/concepts/templates#where-templates-live)). hyve keeps a Fleet ClusterGroup per
+environment, `env-<name>`, so `--to env/prod` reaches every cluster in `prod`, now and later
+(see [Groups](/docs/concepts/deployments#groups)).
 
 ## Commands
 
@@ -42,7 +44,7 @@ environments too.
 
 ## The current environment
 
-Commands that work on clusters (`cluster`, `access`, `resource`, `secrets`) take `-e`/`--env`.
+Commands that work on clusters (`cluster`, `access`, `secrets`) take `-e`/`--env`.
 Without it they use the environment saved for the current server by `hyve env use`, or
 `default`.
 
@@ -59,11 +61,12 @@ Access to an environment is a role on its namespace, granted with
 [`hyve access`](/docs/concepts/access):
 
 ```bash
-hyve access grant bob --env-member -e ci
+hyve access grant bob --role environment-member -e ci
 ```
 
-An **environment member** can create clusters in the environment and manage their extras, and
-read the templates, shared Resources and ClusterClasses in the template namespace. They can't
+An **environment member** can create clusters in the environment, create, change and delete
+Deployments there (Fleet HelmOps, Bundles and GitRepos aimed at its clusters), and read the
+templates and ClusterClasses in the template namespace. They can't
 read Secrets. They can't delete or change clusters they didn't create, unless they're also
 granted a role on them: a cluster's creator becomes its owner automatically.
 

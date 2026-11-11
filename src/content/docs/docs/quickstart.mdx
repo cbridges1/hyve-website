@@ -38,29 +38,31 @@ the CAPD cluster.
    ```bash
    curl -LO https://cbridges1.github.io/hyve-website/examples/capd/clusterclass.yaml
    curl -LO https://cbridges1.github.io/hyve-website/examples/capd/kube-flannel.yml
-   hyve kubeconfig > local.kubeconfig
+   hyve cluster kubeconfig local > local.kubeconfig
    kubectl --kubeconfig local.kubeconfig apply -f clusterclass.yaml
    ```
 
    The class is `capd`, in `capi-clusters`, hyve's default template namespace.
-   `hyve kubeconfig` prints a kubeconfig that reaches the management cluster through hyve as
+   `hyve cluster kubeconfig local` prints a kubeconfig that reaches the management cluster through hyve as
    you; it holds no secret.
 
-4. **Make a template.** A template sets the class's defaults and says what every cluster
-   gets. This one has one worker and expires its clusters at 20:00 UTC (put
+4. **Make a template.** A template sets the class's defaults for every cluster made from
+   it. This one has one worker and expires its clusters at 20:00 UTC (put
    `CRON_TZ=<zone> ` in front of the schedule for your own time zone):
 
    ```bash
    hyve template create capd-small --class capd --workers 1 --schedule "0 20 * * *"
    ```
 
-   CAPD installs no CNI, so the template delivers one, and an app to show it works:
+   CAPD installs no CNI, so deliver one to every cluster made from the template, and an app
+   to show it works. Each is a Deployment aimed at the template:
 
    ```bash
-   hyve template resource add capd-small --path kube-flannel.yml --name flannel
-   hyve template resource add capd-small --helm podinfo \
-       --repo https://stefanprodan.github.io/podinfo --version 6.7.1 -N podinfo
-   hyve template show capd-small
+   hyve deploy create flannel --path kube-flannel.yml --to template/capd-small
+   hyve deploy create podinfo --helm podinfo \
+       --repo https://stefanprodan.github.io/podinfo --version 6.7.1 -N podinfo \
+       --to template/capd-small
+   hyve deploy list
    ```
 
 5. **Make an environment** for your clusters, and make it the default:
@@ -78,10 +80,11 @@ the CAPD cluster.
    hyve cluster list
    ```
 
-7. **See what was delivered.** Fleet puts the template's resources on the cluster:
+7. **See what was delivered.** Fleet puts the Deployments aimed at the template on the
+   cluster:
 
    ```bash
-   hyve resource status demo
+   hyve cluster deployments demo
    ```
 
 8. **Use the cluster.** `hyve cluster auth` adds it to your kubeconfig and switches kubectl to
@@ -123,6 +126,6 @@ capd-small --ttl 2h` sets its own expiry instead, and `--no-expiry` sets none.
 - [How hyve works](/docs/how-it-works): the pieces you just installed.
 - [Templates](/docs/concepts/templates) and [Writing a template](/docs/guides/writing-a-template):
   variables, locks and expiry.
-- [Delivering apps](/docs/guides/delivering-apps): Helm charts, git repos and per-cluster
-  extras.
+- [Delivering apps](/docs/guides/delivering-apps): Helm charts, git repos and manifests, for a
+  template, an environment or one cluster.
 - [Standalone install](/docs/running/standalone): hyve on a server, for a team.

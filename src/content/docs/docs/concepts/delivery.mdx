@@ -5,7 +5,7 @@ description: How hyve reaches its clusters. Agents on each cluster dial the host
 
 import { Aside } from '@astrojs/starlight/components';
 
-Two things have to reach each cluster: Fleet's bundles (its template's resources and extras),
+Two things have to reach each cluster: Fleet's bundles (the [Deployments](/docs/concepts/deployments) aimed at it),
 and people (`kubectl`, the UI, `hyve cluster show`). hyve does both in one of two directions.
 
 ## Agents: the cluster dials hyve
@@ -45,7 +45,7 @@ per bundle per cluster. For a push cluster, hyve-controller does fleet-agent's p
    when the HelmOp has them.
 2. It copies the Secrets and ConfigMaps a bundle lists in `downstreamResources`.
 3. It writes the BundleDeployment's status as fleet-agent would, so Fleet's roll-ups,
-   `hyve resource status` and the UI show push clusters like any other.
+   `hyve cluster deployments` and the UI show push clusters like any other.
 4. When a BundleDeployment goes away, it uninstalls the release.
 
 Every 10 minutes it checks each push cluster again and puts back releases missing from it.

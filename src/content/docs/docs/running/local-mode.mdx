@@ -62,7 +62,7 @@ Add any other provider with `hyve provider add`; see [Providers](/docs/concepts/
 
 ## Saved state
 
-Local mode keeps its Cluster API objects, with hyve's templates and resources, as files
+Local mode keeps its Cluster API objects, with hyve's templates, as files
 (written with `clusterctl move --to-directory`) in `~/.hyve/local/state`. hyve saves after
 each change. A new local cluster restores them before anything else, so deleting the local
 cluster, or starting every CI job from nothing, loses no clusters. The clusters' agents
@@ -92,7 +92,7 @@ machine. CAPD clusters are on the same Docker network, so they reach it as
 `https://hyve-local:30444`. A cloud cluster, or anything outside your machine, can't.
 
 You don't have to do anything about that: a cluster whose agent hasn't checked in gets its
-resources **pushed** by hyve-controller with the cluster's kubeconfig, so nothing on the
+Deployments **pushed** by hyve-controller with the cluster's kubeconfig, so nothing on the
 cluster needs to reach you. See [Delivery: agents and push](/docs/concepts/delivery). Pushing
 only happens while the local cluster runs; while it's stopped, children keep what they have.
 

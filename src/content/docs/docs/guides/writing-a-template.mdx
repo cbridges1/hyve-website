@@ -1,14 +1,15 @@
 ---
 title: Writing a template
-description: Build a ClusterTemplate over a ClusterClass, check what it produces with hyve render, apply it and make clusters from it.
+description: Build a ClusterTemplate over a ClusterClass, check what it produces with hyve template render, apply it and make clusters from it.
 ---
 
 import { Steps } from '@astrojs/starlight/components';
 
 A `ClusterTemplate` is a Cluster API `ClusterClass` plus what every cluster made from it shares:
-default variables, variables clusters can't change, an expiry schedule, labels, and the
-resources Fleet puts on each cluster. This guide builds one over a kubeadm-in-Docker (CAPD)
-class, checks it without a cluster, applies it and makes a cluster from it. See
+default variables, variables clusters can't change, an expiry schedule and labels. What Fleet
+puts on its clusters is [Deployments](/docs/concepts/deployments) aimed at it. This guide builds
+one over a kubeadm-in-Docker (CAPD) class, checks it without a cluster, applies it, delivers an
+app to its clusters and makes a cluster from it. See
 [Templates](/docs/concepts/templates) for how templates work.
 
 You need a hyve to apply it to: [local mode](/docs/running/local-mode) is enough.
@@ -49,10 +50,11 @@ spec:
 :::note
 CAPD installs no CNI, so its nodes stay `NotReady` until one is applied. Pair the class with a
 `ClusterResourceSet` that applies one (flannel, Calico) to clusters with the label from
-`hyve.io/cluster-labels`, or deliver a CNI as a template resource.
+`hyve.io/cluster-labels`, or deliver a CNI as a Deployment aimed at the template or class.
 :::
 
-Apply the class with `kubectl` or through a Fleet repo ([Repositories](/docs/concepts/repositories)).
+Apply the class with `hyve apply -f` (or `hyve template apply -f`), `kubectl`, or from git with a Deployment to the host
+([Keeping templates in git](#keeping-templates-in-git)).
 In local mode, hyve adds the Docker and kubeadm providers the first time a ClusterClass needs
 their kinds.
 
@@ -80,16 +82,6 @@ their kinds.
      lockedVariables: [podSecurityStandard]
      labels:
        team: platform
-     resources:
-       - name: podinfo
-         namespace: podinfo
-         helmOp:
-           helm:
-             repo: https://stefanprodan.github.io/podinfo
-             chart: podinfo
-             version: 6.7.1
-             values:
-               replicaCount: 1
    ```
 
    The fields:
@@ -104,13 +96,12 @@ their kinds.
    | `lockedVariables` | variables a cluster can't set to anything but the template's value. `kubernetesVersion` locks the version |
    | `schedule` | a cron schedule. Each cluster expires at its next occurrence after it's created. `CRON_TZ=` sets the time zone |
    | `labels` | labels every cluster gets. Fleet sees them, so `targets` and `ClusterGroup`s can use them |
-   | `resources` | what Fleet puts on every cluster made from the template: Fleet `helmOp`, `bundle` or `gitRepo` specs, or a `ref` to a shared `Resource`. See [Delivering apps](/docs/guides/delivering-apps) |
 
-2. Check what it produces, with no cluster at all. `hyve render` fills in a cluster the way
-   hyve-controller will, and prints it with one Fleet object per resource:
+2. Check what it produces, with no cluster at all. `hyve template render` fills in a cluster the way
+   hyve-controller will, and prints it:
 
    ```bash
-   hyve render -f capd-small.yaml -f capd-class.yaml --name demo -e dev
+   hyve template render -f capd-small.yaml -f capd-class.yaml --name demo -e dev
    ```
 
    ```yaml
@@ -122,6 +113,8 @@ their kinds.
      labels:
        app.kubernetes.io/managed-by: hyve
        cni: flannel
+       hyve.io/cluster: demo
+       hyve.io/environment: dev
        hyve.io/template: capd-small
        hyve.io/template-namespace: capi-clusters
        team: platform
@@ -141,24 +134,6 @@ their kinds.
        workers:
          machineDeployments:
            - {class: default-worker, name: md-0, replicas: 1}
-   ---
-   apiVersion: fleet.cattle.io/v1alpha1
-   kind: HelmOp
-   metadata:
-     name: tpl-capd-small-podinfo
-     namespace: capi-clusters
-     labels:
-       hyve.io/owner: capd-small
-       hyve.io/owner-kind: ClusterTemplate
-       hyve.io/resource: podinfo
-   spec:
-     defaultNamespace: podinfo
-     helm: {chart: podinfo, releaseName: podinfo, repo: https://stefanprodan.github.io/podinfo, version: 6.7.1, values: {replicaCount: 1}}
-     targets:
-       - clusterSelector:
-           matchLabels:
-             hyve.io/template: capd-small
-             hyve.io/template-namespace: capi-clusters
    ```
 
    Leave out the ClusterClass file and render can't fill in the class's defaults (version,
@@ -173,10 +148,21 @@ their kinds.
    hyve template show capd-small
    ```
 
-   `template apply` creates or updates ClusterTemplates, shared `Resource`s and
-   `ClusterResource`s. Objects without a namespace go in the template namespace.
+   `template apply` creates or updates ClusterTemplates and ClusterClasses; `hyve apply` also
+   takes Deployments and ClusterGroups. Objects without a namespace go in the template namespace.
 
-4. Make a cluster from it:
+4. Put something on its clusters, with a Deployment aimed at the template:
+
+   ```bash
+   hyve deploy create podinfo --helm podinfo \
+       --repo https://stefanprodan.github.io/podinfo --version 6.7.1 \
+       -N podinfo --set replicaCount=1 --to template/capd-small
+   ```
+
+   It reaches every cluster made from the template, those made later too. See
+   [Delivering apps](/docs/guides/delivering-apps).
+
+5. Make a cluster from it:
 
    ```bash
    hyve env create dev
@@ -193,11 +179,11 @@ their kinds.
    # refused: ClusterTemplate capd-small locks podSecurityStandard
    ```
 
-5. Check its resources:
+6. Check what reached it:
 
    ```bash
-   hyve resource status demo -e dev
-   hyve resource status --template capd-small   # every cluster from the template
+   hyve cluster deployments demo -e dev
+   hyve deploy show podinfo                     # every cluster it reaches
    ```
 
 </Steps>
@@ -211,14 +197,13 @@ of creating it, as a starting point for a file:
 hyve template create capd-small --class capd --workers 1 \
     --schedule "CRON_TZ=Europe/London 0 20 * * *" --label team=platform \
     --set podSecurityStandard='{"enabled":true,"enforce":"restricted"}' --lock podSecurityStandard
-hyve template resource add capd-small --helm podinfo \
-    --repo https://stefanprodan.github.io/podinfo --version 6.7.1 -N podinfo
 ```
 
 `--from-clusterclass CLASS` instead of `--class` copies every variable the class declares, with
 its default (or `null`), so you can see what there is to set.
 
-The UI's Templates page edits the same objects, and shows what a template renders.
+The UI's Templates page edits the same objects, and shows what a template renders. **Deploy to
+this template** on a template's page starts a Deployment aimed at it.
 
 ## A cloud template
 
@@ -255,21 +240,27 @@ Secret in each environment ([Secrets](/docs/concepts/secrets)).
 
 Apply the file again. What changes when:
 
-- **Resources** follow the template: add, change or remove one and Fleet updates every cluster
-  made from it.
+- **Deployments** aimed at the template follow its group: a cluster made from it gets them,
+  whenever it was made. Change one and Fleet updates every cluster it reaches.
 - **Defaults** (version, workers, variables, labels, schedule) are filled in when a cluster is
   created. Existing clusters keep what they were made with.
 - **Locks** apply to every cluster made from the template: a locked variable can't be changed
   on an existing cluster either. A cluster made before a lock was added keeps its value until
   someone tries to change it.
 
-Deleting a template deletes the Fleet objects made from its resources, and Fleet removes what
-they deployed. The clusters stay.
+Deleting a template deletes its group, so Deployments aimed only at it reach nothing and Fleet
+removes what they deployed. The Deployments and the clusters stay.
 
 ## Keeping templates in git
 
 Templates are plain objects, so a Fleet `GitRepo` can deliver them like anything else: keep each
-ClusterClass and its templates in one directory with a `fleet.yaml`, and point a repo at it in
-`fleet-local`, the management cluster ([Repositories](/docs/concepts/repositories)).
-Every push is then a change to the templates. `hyve render` in CI checks a change before it's
+ClusterClass, its templates and the Deployments aimed at them in one directory with a
+`fleet.yaml`, and deploy it to the management cluster:
+
+```bash
+hyve deploy create platform --git https://github.com/example/platform.git --git-path capi --to host
+```
+
+Every push is then a change to the templates. Keep `resources` out of templates kept in git:
+hyve-controller would migrate them into Deployments again on every sync. `hyve template render` in CI checks a change before it's
 merged.

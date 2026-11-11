@@ -93,7 +93,7 @@ kubectl -n <release-namespace> delete secret -l owner=helm,name=<release-name>
 kubectl get coreproviders,bootstrapproviders,controlplaneproviders,infrastructureproviders,addonproviders -A
 kubectl get pods -A | grep -v -e Running -e Completed
 kubectl get apiservices | grep -v True
-hyve repo list
+hyve deploy list -n fleet-local
 ```
 
 Every provider should be listed and ready, every pod running, every API service available,
