@@ -125,6 +125,33 @@ With the Civo provider:
 - `deletionPolicy: Retain` makes deleting the hyve cluster leave the Civo cluster, its volumes
   and its firewall. `Delete`, the default, removes them.
 
+## Releasing a cluster
+
+Releasing is the reverse of adopting or importing: hyve stops managing a cluster and leaves it
+running, whatever its template's `deletionPolicy`. It works for any cluster hyve made or adopted,
+with any provider.
+
+```bash
+hyve cluster release web -e prod --save-kubeconfig web.yaml
+```
+
+hyve pauses the cluster's Cluster API objects so its provider stops acting on them, removes hyve's
+and Fleet's agents from the cluster, then removes the objects without the provider deleting
+anything. What Fleet deployed stays, unmanaged. hyve's kubeconfig for the cluster goes with it, so
+`--save-kubeconfig` keeps a copy. The provider's own (`civo kubernetes config`) works too.
+
+- `--dry-run` checks you may release it and lists what would be removed.
+- If hyve can't reach the cluster to remove its agents, nothing is released. `--force` releases it
+  anyway and leaves the agents there, disconnected.
+- For an imported cluster, releasing is the same as `hyve cluster delete`: hyve detaches it.
+
+The UI's **Release** button on a cluster's page does the same, and offers its kubeconfig as a
+download. Like **Delete**, it asks you to type the cluster's name. On the command line, `hyve
+cluster release` and `hyve cluster delete` ask for the name too, and `--yes` skips that for
+scripts.
+
+`hyve cluster adopt` or `hyve cluster import` brings a released cluster back.
+
 ## Related
 
 - [Clusters](/docs/concepts/clusters), [Templates](/docs/concepts/templates)

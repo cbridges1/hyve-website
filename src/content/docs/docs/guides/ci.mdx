@@ -41,7 +41,7 @@ A pipeline can make a cluster from a template, test against it and delete it, in
    hyve cluster create ci-$RUN_ID -t capd-small --ttl 2h
    hyve cluster kubeconfig ci-$RUN_ID > kubeconfig
    KUBECONFIG=kubeconfig ./run-tests.sh
-   hyve cluster delete ci-$RUN_ID
+   hyve cluster delete ci-$RUN_ID --yes
    ```
 
    `cluster create` waits until the cluster is `ACTIVE` and registered with Fleet, so the
@@ -137,7 +137,7 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          hyve cluster delete pr-${{ github.run_id }} || true
+          hyve cluster delete pr-${{ github.run_id }} --yes || true
           hyve local down --discard-state
 ```
 
