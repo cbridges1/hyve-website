@@ -11,7 +11,7 @@ hyve can take on a cluster it didn't create in two ways:
 |---|---|---|
 | What hyve manages | Access, Deployments, kubeconfigs, the Explorer. Never the cluster's lifecycle. | Everything, as for a cluster it created: scaling, upgrades and deletion go through the provider. |
 | Works with | Any cluster you have a kubeconfig for: EKS, GKE, AKS, on-prem, kind... | Clusters whose Cluster API provider can take over an existing one by ID, such as [cluster-api-provider-civo](https://github.com/cbridges1/cluster-api-provider-civo) v0.3.0 and later. |
-| Deleting it in hyve | Detaches it. The cluster keeps running. | Up to the provider. The Civo provider keeps it when `deletionPolicy` is `Retain`. |
+| Deleting it in hyve | Detaches it. The cluster keeps running. | Up to the provider. The Civo provider keeps it when `deletionPolicy` is `Retain`, unless it expired. |
 | Command | `hyve cluster import` | `hyve cluster adopt` |
 
 ## Importing a cluster
@@ -79,7 +79,11 @@ hyve cluster adopt web -t civo -e prod --id 7f3c0d6e-0b5d-4b51-9b8a-1c2d3e4f5a6b
 - The name in hyve needn't be the cluster's own.
 - Give `--version` as the cluster's Kubernetes version, since the template's is used otherwise.
 - `--set` the variables the provider finds the cluster by, such as Civo's `region`.
-- An adopted cluster takes no expiry schedule from its template; `--ttl` gives it one.
+- An adopted cluster takes no expiry schedule from its template; `--ttl` gives it one. An
+  expiry deletes the cluster itself: when it expires, hyve-controller first gives it the
+  template's own values for the `adopt.variables` (so `deletionPolicy: Retain` is dropped, while
+  `adopt.unset` stays unset and the pool isn't resized), waits for Cluster API to apply them,
+  then deletes it.
 
 In the UI, **New cluster** has an *Adopt an existing cluster* option, which lists templates that
 set `adopt`.
@@ -123,7 +127,8 @@ With the Civo provider:
 - With `nodeCount` unset, the provider leaves the node pool alone. Setting it later scales the
   pool.
 - `deletionPolicy: Retain` makes deleting the hyve cluster leave the Civo cluster, its volumes
-  and its firewall. `Delete`, the default, removes them.
+  and its firewall. `Delete`, the default, removes them. An expiry always removes them (see
+  above).
 
 ## Releasing a cluster
 
