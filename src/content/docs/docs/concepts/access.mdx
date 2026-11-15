@@ -64,8 +64,10 @@ would still let them in.
 
 ### Sessions
 
-Every sign-in ends in a session. Sessions last 16 hours by default (the chart's
-`host.sessionTTL`). The CLI keeps the session in its config and the UI in a cookie; kubeconfigs
+Every sign-in ends in a session. Each use extends it: a session ends after 16 hours unused
+(the chart's `host.sessionTTL`), or 30 days after signing in however much it's used
+(`host.sessionMaxAge`). API tokens and CI jobs' sessions don't extend: they end when they
+were made to. The CLI keeps the session in its config and the UI in a cookie; kubeconfigs
 from hyve hold no secret, only a call to `hyve token`, which hands kubectl the current session.
 
 ```bash

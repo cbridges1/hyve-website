@@ -145,7 +145,13 @@ By default waits until the cluster is ACTIVE and registered with Fleet.
 
 ### hyve cluster delete
 
-Delete a cluster and what Fleet deployed for it
+Deletes a cluster: its provider deletes the cluster itself (unless its
+template retains it), and Fleet what it deployed for it. An imported
+cluster is detached instead, and keeps running. To stop managing a
+cluster hyve made or adopted and keep it running, use 'hyve cluster
+release'.
+
+Asks you to type the cluster's name; --yes doesn't (scripts).
 
 ```text
   hyve cluster delete NAME [flags]
@@ -157,6 +163,7 @@ Delete a cluster and what Fleet deployed for it
   -h, --help               help for delete
       --timeout duration   how long to wait (default 15m0s)
       --wait               wait until the cluster is gone (default true)
+  -y, --yes                don't ask to type the cluster's name
 ```
 
 ### hyve cluster deployments
@@ -280,6 +287,48 @@ Aliases: `list, ls`
 ```text
   -A, --all-environments   list clusters in every environment
   -h, --help               help for list
+```
+
+### hyve cluster release
+
+Releases a cluster: hyve stops managing it, and the cluster and what
+runs on it are left alone. The reverse of 'hyve cluster adopt' and
+'hyve cluster import'.
+
+For a cluster hyve made or adopted, its Cluster API objects are paused, so
+its provider stops acting on it, then removed without the provider
+deleting anything: the cluster keeps running and is billed by its
+provider as before. hyve's and Fleet's agents are removed from the
+cluster first, so what Fleet deployed there stays, unmanaged. Released
+from an adopted cluster or not, 'hyve cluster adopt' or 'hyve cluster
+import' brings it back.
+
+For an imported cluster this is 'hyve cluster delete': hyve detaches it.
+
+You'll lose hyve's kubeconfig for it: --save-kubeconfig keeps a copy (the
+provider's own, such as 'civo kubernetes config', works too).
+
+Asks you to type the cluster's name; --yes doesn't (scripts).
+
+```text
+  hyve cluster release NAME [flags]
+```
+
+**Examples**
+
+```text
+  hyve cluster release web -e prod --save-kubeconfig web.yaml
+  hyve cluster release web -e prod --dry-run
+```
+
+**Flags**
+
+```text
+      --dry-run                  check you may release it and list what would be removed
+      --force                    release it even if its agents can't be removed (they stay, disconnected)
+  -h, --help                     help for release
+      --save-kubeconfig string   write the cluster's kubeconfig to this file before hyve forgets it
+  -y, --yes                      don't ask to type the cluster's name
 ```
 
 ### hyve cluster scale

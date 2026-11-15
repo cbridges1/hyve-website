@@ -57,15 +57,14 @@ Aliases: `create, add`
 **Flags**
 
 ```text
-      --display-name string   name shown in the UI
-      --email string          address for password resets and account emails (required)
-      --group strings         group to add the user to (repeatable)
-  -h, --help                  help for create
-      --invite                email them a link to set their own password instead of choosing one
-      --no-password-change    don't make the user change the password at first sign-in
-      --password-stdin        read the initial password from stdin
-      --server string         saved server to use (default: the one last signed in to)
-      --service               a user for CI and scripts: no password or email; it signs in with API tokens or as trusted CI
+      --email string         address for password resets and account emails (required)
+      --group strings        group to add the user to (repeatable)
+  -h, --help                 help for create
+      --invite               email them a link to set their own password instead of choosing one
+      --no-password-change   don't make the user change the password at first sign-in
+      --password-stdin       read the initial password from stdin
+      --server string        saved server to use (default: the one last signed in to)
+      --service              a user for CI and scripts: no password or email; it signs in with API tokens or as trusted CI
 ```
 
 ### hyve user delete
@@ -113,11 +112,10 @@ or address change (at the old address), once the host has SMTP set up.
 **Flags**
 
 ```text
-      --display-name string   name shown in the UI
-      --email string          address for password resets and account emails ("" removes it)
-      --group strings         the user's groups, replacing the current ones (repeatable)
-  -h, --help                  help for edit
-      --server string         saved server to use (default: the one last signed in to)
+      --email string    address for password resets and account emails ("" removes it)
+      --group strings   the user's groups, replacing the current ones (repeatable)
+  -h, --help            help for edit
+      --server string   saved server to use (default: the one last signed in to)
 ```
 
 ### hyve user enable
@@ -184,6 +182,71 @@ needs update on users/password, and signs them out everywhere.
   -h, --help             help for passwd
       --password-stdin   read passwords from stdin: the current one then the new one for your own, just the new one for another user
       --server string    saved server to use (default: the one last signed in to)
+```
+
+### hyve user session
+
+A session is a sign-in: a browser's, the CLI's ('hyve login'), or a CI
+job's. Each shows when and from where it started and when it was last
+used. Signing one out ends it at once; API tokens are separate ('hyve
+user token').
+
+You can manage your own sessions. Another user's take the right to the
+users/sessions subresource of that User: admins have it.
+
+```text
+  hyve user session [command]
+```
+
+Aliases: `session, sessions`
+
+**Flags**
+
+```text
+  -h, --help   help for session
+```
+
+#### hyve user session list
+
+List sessions: yours, or --user's
+
+```text
+  hyve user session list [flags]
+```
+
+Aliases: `list, ls`
+
+**Flags**
+
+```text
+  -h, --help          help for list
+      --user string   this user's sessions (default: yours)
+```
+
+#### hyve user session revoke
+
+Sign a session out, or every other one
+
+```text
+  hyve user session revoke (ID | --others) [flags]
+```
+
+Aliases: `revoke, signout, rm`
+
+**Examples**
+
+```text
+  hyve user session revoke 0a1b2c3d4e
+  hyve user session revoke --others
+  hyve user session revoke --others --user alice
+```
+
+**Flags**
+
+```text
+  -h, --help          help for revoke
+      --others        every session but this one (all of --user's)
+      --user string   whose session (default: yours)
 ```
 
 ### hyve user show

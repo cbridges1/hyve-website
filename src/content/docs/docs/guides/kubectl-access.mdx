@@ -46,8 +46,9 @@ users:
 
 So the file holds no secret: copied elsewhere, it grants nothing. `hyve token` prints your
 current session as an `ExecCredential`. When the session has expired and there's a terminal,
-it signs you in again first. Your session lasts as long as the host's `host.sessionTTL`
-(16 hours by default).
+it signs you in again first. Using the session keeps it going: it ends after the host's
+`host.sessionTTL` unused (16 hours by default), or `host.sessionMaxAge` after you signed in
+(30 days), whichever comes first.
 
 When the host's certificate comes from a private CA you gave `hyve login --ca-cert`, or local
 mode's, the kubeconfig carries that CA.

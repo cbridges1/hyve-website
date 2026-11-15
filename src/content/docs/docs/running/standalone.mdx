@@ -127,7 +127,9 @@ with `-f` are merged over what the flags set. The ones most worth knowing:
 | `ui.enabled` | `true` | the web UI, served by the host at `/` |
 | `auth.passwords` | `true` | username and password sign-in; turn it off only with `auth.oidc` set |
 | `auth.oidc.issuer`, `.clientID`, `.clientSecret` | unset | single sign-in through an OpenID Connect provider ([guide](/docs/guides/oidc)) |
-| `host.sessionTTL` | `16h` | how long a sign-in lasts |
+| `host.sessionTTL` | `16h` | how long a sign-in lasts unused: each use extends it |
+| `host.sessionMaxAge` | `720h` | the longest a sign-in lasts, however much it's used |
+| `host.adminEmail` | unset | the `admin` user's email address, set when it has none (`hyve install --admin-email`) |
 | `host.auditLog` | `true` | one JSON line on the host's stdout per request it proxies to a cluster: who, which cluster, verb, path and status |
 | `host.agentImage` | `rancher/rancher-agent:v2.14.3` | the `cattle-cluster-agent` image hyve is tested against |
 | `host.shell.image` | `rancher/shell:v0.8.2` | the UI's kubectl shell; empty turns it off |

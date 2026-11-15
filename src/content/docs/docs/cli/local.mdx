@@ -13,6 +13,11 @@ manages: the same templates and commands as a server, with nothing to run.
 'hyve local up' creates it and signs you in as its admin, as the "local"
 context. CAPD clusters run as containers next to it.
 
+The local cluster runs the CLI's own release: after upgrading the CLI, the
+next local-mode command upgrades it with the settings 'hyve local up' was
+given. A CLI built from source never upgrades it, and one started with
+--image keeps that image.
+
 ```text
   hyve local [command]
 ```
