@@ -78,7 +78,8 @@ The form (**New deployment**, or **Edit**) has:
 - a name, and a source: **Helm chart**, **Git repository** or **Manifests**. A private git
   repository takes a username and token, kept in a basic-auth Secret, `NAME-git-auth`;
 - **Deliver to**: any of Template, Cluster class, Environment, Cluster, Group, All clusters and
-  Host cluster;
+  Host cluster (local). The host is also `local` in the Cluster list. A Deployment for it lives in
+  `fleet-local` and can't target other clusters too;
 - **Roll out changes**: All at once, One cluster at a time, or Canary clusters first (not for
   git, whose `fleet.yaml` says);
 - **Secrets to copy**, and **Paused**.
