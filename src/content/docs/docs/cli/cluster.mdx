@@ -110,6 +110,9 @@ group in Fleet) then reaches it.
 valid JSON (numbers, lists, objects), otherwise used as strings. A variable
 the template locks can't be changed.
 
+NAME is lowercased (Kubernetes names are lowercase: letters, digits and
+dashes).
+
 By default waits until the cluster is ACTIVE and registered with Fleet.
 
 ```text
@@ -336,10 +339,22 @@ Asks you to type the cluster's name; --yes doesn't (scripts).
 
 ### hyve cluster scale
 
-Change a cluster's worker or control-plane replicas
+Sets the replicas of the cluster's worker group, or its control plane's.
+
+A managed cluster whose ClusterClass has no worker groups (Civo's) counts
+its nodes with the class's nodeCount variable instead: --workers sets
+that, and the provider resizes the node pool. A template that locks
+nodeCount keeps its clusters at its own. To change other variables
+(a node size, say), use 'hyve cluster set'.
 
 ```text
   hyve cluster scale NAME (--workers N | --control-plane N) [flags]
+```
+
+**Examples**
+
+```text
+  hyve cluster scale web --workers 3
 ```
 
 **Flags**
@@ -347,7 +362,36 @@ Change a cluster's worker or control-plane replicas
 ```text
       --control-plane int   control-plane replicas
   -h, --help                help for scale
-      --workers int         worker replicas
+      --workers int         worker replicas (or nodes, for a class without worker groups)
+```
+
+### hyve cluster set
+
+Sets (or, with --unset, removes) variables on a cluster's topology;
+Cluster API and the provider then apply them. Values are parsed as JSON
+when they are valid JSON (numbers, lists, objects), otherwise used as
+strings. A variable the template locks can't be changed.
+
+Whether a change reaches a running cluster is up to its provider: Civo
+resizes the node pool for nodeCount, but reads nodeSize only when it
+creates the cluster.
+
+```text
+  hyve cluster set NAME [VARIABLE=VALUE...] [flags]
+```
+
+**Examples**
+
+```text
+  hyve cluster set web nodeCount=2
+  hyve cluster set web --unset firewallID
+```
+
+**Flags**
+
+```text
+  -h, --help                help for set
+      --unset stringArray   variable to remove (repeatable)
 ```
 
 ### hyve cluster show

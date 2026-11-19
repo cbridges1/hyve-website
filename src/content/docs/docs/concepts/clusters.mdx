@@ -90,7 +90,8 @@ who can create clusters but not delete arbitrary ones, can delete their own.
 
 | Command | What it changes |
 |---|---|
-| `hyve cluster scale NAME --workers N` / `--control-plane N` | Worker or control-plane replicas. |
+| `hyve cluster scale NAME --workers N` / `--control-plane N` | Worker or control-plane replicas. A managed cluster whose class has no worker groups (Civo's) counts its nodes with the `nodeCount` variable, which `--workers` sets; the provider resizes the node pool. |
+| `hyve cluster set NAME VARIABLE=VALUE`, `--unset VARIABLE` | Its ClusterClass variables. A template that locks one keeps its own. The provider decides what reaches a running cluster: Civo resizes for `nodeCount`, but reads `nodeSize` only when it creates the cluster. |
 | `hyve cluster upgrade NAME --version v1.35.2` | `spec.topology.version`. Cluster API rolls the control plane, then the workers, one machine at a time. It refuses skipping a minor version or going back, and the class's providers must support the version. A template that locks `kubernetesVersion` keeps its clusters at its own. |
 | `hyve cluster expire NAME ...` | Its expiry (above). |
 | `hyve deploy create NAME ... --to cluster/ENV/CLUSTER` | What's on it: a Deployment for this cluster only (see [Deployments](/docs/concepts/deployments)). |
