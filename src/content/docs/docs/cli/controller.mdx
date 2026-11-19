@@ -21,6 +21,7 @@ Run hyve-controller on the management cluster (the chart runs it)
       --agent-image string          cattle-cluster-agent image (default "rancher/rancher-agent:v2.14.3")
       --agent-namespace string      namespace of the host's agent Secrets (default "hyve-system")
       --cert-dir string             where the webhook's generated certificate is written (default "/tmp/hyve-webhook")
+      --fleet-copy-downstream       keep Fleet's downstreamResources on (fleet-controller's EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM), so Deployments' Secrets to copy reach clusters (default true)
       --fleet-image string          image for push delivery's fleet commands (default: the image fleet-controller runs)
   -h, --help                        help for controller
       --host-cacerts string         PEM CA the host's certificate chains to, when it isn't publicly trusted

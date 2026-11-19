@@ -137,6 +137,7 @@ with `-f` are merged over what the flags set. The ones most worth knowing:
 | `host.replicaCount` | `1` | |
 | `controller.webhook` | `true` | the webhooks that fill in templated Clusters and keep locked variables locked |
 | `controller.lazyProviders` | `false` | add known providers (Docker, kubeadm) when first needed; gives the controller cluster-admin |
+| `controller.fleetCopyDownstream` | `true` | keep fleet-controller's `EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM` on, so Deployments' Secrets to copy reach clusters |
 | `image.repository`, `.tag` | `ghcr.io/cbridges1/hyve`, this hyve's version | also set by `--image` |
 
 `--namespace` (default `hyve-system`) puts hyve's own components in another namespace.
