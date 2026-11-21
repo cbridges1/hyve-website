@@ -32,6 +32,9 @@ change its settings.
 It also creates the environment `default` and the template namespace `capi-clusters`, and
 points CAAPF at the host, so child clusters' fleet-agents reach Fleet through
 `<host-url>/k8s/clusters/local`.
+When the host was given no CA (its certificate is publicly trusted), hyve-controller keeps
+Fleet's `agentTLSMode` at `system-store` and its `apiServerCA` empty, so the agents trust that
+certificate rather than pinning a CA it doesn't chain to.
 
 `--only-hyve` installs hyve's chart and nothing else, for a cluster where you manage Cluster
 API and Fleet yourself.
